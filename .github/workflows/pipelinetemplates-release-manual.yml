@@ -1,16 +1,16 @@
 ---
-###############################################################
-# This pipeline creates versioned releases for the pipelines  #
-# and workflows in this repository.                           #
-#                                                             #
-# The pipeline calls a script that detects changed workflows, #
-# and updates the versions manifest file.                     #
-#                                                             #
-# This allows for pinning pipelines other repositories import #
-# from this repository to a specific version.                 #
-###############################################################
+################################################################
+# This pipeline creates versioned releases for the pipelines   #
+# and workflows in this repository.                            #
+#                                                              #
+# The pipeline acccepts a pipeline reference and version, then #
+# calls the release.sh script to bump that pipeline's version. #
+#                                                              #
+# This allows for pinning pipelines other repositories import  #
+# from this repository to a specific version.                  #
+################################################################
 
-name: PipelineTemplates Release
+name: Manual PipelineTemplates Release
 
 on:
   workflow_dispatch:
