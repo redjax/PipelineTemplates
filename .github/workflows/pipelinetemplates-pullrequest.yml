@@ -1,0 +1,75 @@
+---
+############################################################
+# This pipeline updates version metadata on PRs to main.   #
+#                                                          #
+# On PR open/update, it bumps versions.yml for changed     #
+# templates and commits that change back to the PR branch.  #
+# On PR close/merge, it creates the git tags.               #
+############################################################
+
+name: Pull Request Jobs
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  update-manifest:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update manifest
+        run: |
+          chmod +x ./.scripts/release.sh
+          ./.scripts/release.sh
+
+      - name: Commit and push changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add manifests/versions.yml
+            git commit -m "chore: bump pipeline template versions"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
+
+  create-tags:
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tags
+        run: |
+          chmod +x ./.scripts/release.sh
+          ./.scripts/release.sh --tag
+
+      - name: Push tags
+        run: |
+          git push origin --tags
