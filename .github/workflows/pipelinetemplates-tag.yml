@@ -9,7 +9,7 @@
 # git tag.                                         #
 ####################################################
 
-name: PipelineTemplates Release
+name: Auto tag pipelines
 
 on:
   workflow_dispatch:
