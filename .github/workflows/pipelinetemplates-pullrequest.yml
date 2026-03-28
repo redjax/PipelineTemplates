@@ -41,6 +41,8 @@ jobs:
       - name: Update manifest
         run: |
           chmod +x ./.scripts/release.sh
+          BASE_REF="$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})" \
+          HEAD_REF="${{ github.event.pull_request.head.sha }}" \
           ./.scripts/release.sh
 
       - name: Commit and push changes
