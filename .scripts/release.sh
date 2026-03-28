@@ -1,36 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
+IFS=$'\n\t'
+
+declare -a IGNORE_KEYS=(
+  # "github/demo-hello"
+)
 
 MANIFEST="manifests/versions.yml"
 DO_TAG="${DO_TAG:-0}"
 
 function usage() {
-  echo ""
-  echo "Usage: ${0} [OPTIONS]"
-  echo ""
-  echo "  --tag  <bool>   Create git tags for bumped versions"
-  echo ""
+  cat <<EOF
+
+Usage: ${0##*/} [OPTIONS]
+
+Options:
+  --tag        Create git tags for bumped versions
+  -h, --help   Show this help message
+
+EOF
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --tag)
-      DO_TAG=1
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown arg: $1" >&2
-      exit 1
-      ;;
-  esac
-
-  shift
-done
-
-## Map pipeline filepath to version manifest tag
 function path_to_key() {
   local path="$1"
 
@@ -65,26 +55,48 @@ function path_to_key() {
   esac
 }
 
-## Bump patch number, 0.0.X
 function bump_patch() {
   local v="$1"
 
   if [[ "$v" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    printf 'v%s.%s.%s\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "$((BASH_REMATCH[3] + 1))"
+    printf 'v%s.%s.%s\n' \
+      "${BASH_REMATCH[1]}" \
+      "${BASH_REMATCH[2]}" \
+      "$((BASH_REMATCH[3] + 1))"
   else
     return 1
   fi
 }
 
-## Set version number in versions manifest file
 function set_manifest_value() {
-  local file="$1" key="$2" value="$3"
+  local file="$1"
+  local key="$2"
+  local value="$3"
 
   awk -v k="$key" -v v="$value" '
     $1 == k ":" { print k ": " v; next }
     { print }
   ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --tag)
+      DO_TAG=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown arg: $1" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+[[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
 base_ref="${GITHUB_EVENT_BEFORE:-}"
 head_ref="${GITHUB_SHA:-HEAD}"
@@ -93,7 +105,6 @@ if [[ -z "$base_ref" || "$base_ref" == "0000000000000000000000000000000000000000
   base_ref="$(git rev-parse HEAD~1)"
 fi
 
-## Detect files changed since last commit
 changed_files="$(git diff --name-only --diff-filter=ACMRT "$base_ref" "$head_ref" || true)"
 
 if [[ -z "$changed_files" ]]; then
@@ -102,32 +113,43 @@ if [[ -z "$changed_files" ]]; then
 fi
 
 tmp_pairs="$(mktemp)"
-trap 'rm -f "$tmp_pairs"' EXIT
+trap 'rm -f "$tmp_pairs" "${MANIFEST}.work"' EXIT
 
 cp "$MANIFEST" "${MANIFEST}.work"
 
-## Bump version for changed files
+declare -A SEEN_KEYS=()
+
 while IFS= read -r path; do
   [[ -z "$path" ]] && continue
 
   key="$(path_to_key "$path")" || continue
 
+  for item in "${IGNORE_KEYS[@]}"; do
+    [[ "$key" == "$item" ]] && continue 2
+  done
+
+  [[ -n "${SEEN_KEYS[$key]:-}" ]] && continue
+  SEEN_KEYS["$key"]=1
+
   current="$(awk -v k="$key" '$1 == k ":" {print $2; exit}' "${MANIFEST}.work" || true)"
   [[ -z "$current" ]] && continue
 
-  next="$(bump_patch "$current")" || continue
+  if [[ "$current" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    next="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+  else
+    continue
+  fi
 
   set_manifest_value "${MANIFEST}.work" "$key" "$next"
+
   printf '%s\t%s\t%s\n' "$key" "$current" "$next" >> "$tmp_pairs"
 done <<< "$changed_files"
 
 if [[ ! -s "$tmp_pairs" ]]; then
   echo "No releasable changes found."
-  rm -f "${MANIFEST}.work"
   exit 0
 fi
 
-## Overwrite versions manifest file
 mv "${MANIFEST}.work" "$MANIFEST"
 
 if [[ "$DO_TAG" -eq 1 ]]; then
