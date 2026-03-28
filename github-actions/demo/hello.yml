@@ -1,0 +1,19 @@
+---
+name: Hello Template
+
+on:
+  workflow_call:
+    inputs:
+      message:
+        description: Message to print
+        required: false
+        type: string
+        default: hello from pipeline templates
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Print message
+        run: echo "${{ inputs.message }}"
