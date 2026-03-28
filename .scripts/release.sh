@@ -5,15 +5,23 @@ TEMPLATE="${1:?template key required}"
 VERSION="${2:?version required}"
 MANIFEST="manifests/versions.yml"
 
-python3 - <<PY
-from pathlib import Path
-import yaml
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
 
-path = Path("$MANIFEST")
-data = yaml.safe_load(path.read_text()) or {}
-data["$TEMPLATE"] = "$VERSION"
-path.write_text(yaml.safe_dump(data, sort_keys=False))
-PY
+awk -v key="$TEMPLATE" -v val="$VERSION" '
+BEGIN { found = 0 }
+$1 == key ":" {
+  print key ": " val
+  found = 1
+  next
+}
+{ print }
+END {
+  if (!found) print key ": " val
+}
+' "$MANIFEST" > "$tmp"
+
+mv "$tmp" "$MANIFEST"
 
 git add "$MANIFEST"
 git commit -m "Release ${TEMPLATE} ${VERSION}"
