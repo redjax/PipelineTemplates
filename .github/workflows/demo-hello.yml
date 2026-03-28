@@ -1,4 +1,17 @@
 ---
+#################################################################################################
+# DEMO PIPELINE                                                                                 #
+#                                                                                               #
+# Call from another pipeline with:                                                              #
+#                                                                                               #
+# jobs:                                                                                         #
+#   call-template:                                                                              #
+#     ## Replace vx.x.x with a version in redjax/PipelineTemplates/manifests/versions.yml       #
+#     uses: redjax/PipelineTemplates/.github/workflows/demo-hello.yml@github/demo-hello/vx.x.x  #
+#     with:                                                                                     #
+#       message: Hello from <repository-name>                                                   #
+#################################################################################################
+
 name: Hello Template
 
 on:
