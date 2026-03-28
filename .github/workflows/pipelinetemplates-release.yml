@@ -1,0 +1,60 @@
+---
+####################################################
+# This pipeline automates pipeline versioning.     #
+#                                                  #
+# The process is automated end-to-end. It calls    #
+# the release.sh script, which finds all pipelines #
+# in subdirectories, detects any changes, bumps    #
+# the version in the manifest file, and creates a  #
+# git tag.                                         #
+####################################################
+
+name: PipelineTemplates Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Create git tags
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run release
+        run: |
+          chmod +x .scripts/release.sh
+          if [[ "${{ inputs.tag }}" == "true" ]]; then
+            .scripts/release.sh --tag | tee .release-output
+          else
+            .scripts/release.sh | tee .release-output
+          fi
+
+      - name: Commit changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add manifests/versions.yml
+            git commit -m "chore: bump pipeline template versions"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
+      - name: Push tags
+        if: ${{ inputs.tag }}
+        run: |
+          git push origin --tags
