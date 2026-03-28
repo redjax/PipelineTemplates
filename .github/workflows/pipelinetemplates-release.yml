@@ -1,0 +1,70 @@
+---
+###############################################################
+# This pipeline creates versioned releases for the pipelines  #
+# and workflows in this repository.                           #
+#                                                             #
+# The pipeline calls a script that detects changed workflows, #
+# and updates the versions manifest file.                     #
+#                                                             #
+# This allows for pinning pipelines other repositories import #
+# from this repository to a specific version.                 #
+###############################################################
+
+name: PipelineTemplates Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      template:
+        description: Template key to release
+        required: true
+        type: string
+      version:
+        description: Version to release
+        required: true
+        type: string
+      tag:
+        description: Create a Git tag
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update manifest and tag
+        run: |
+          chmod +x ./.scripts/release.sh
+
+          if [[ "${{ inputs.tag }}" == "true" ]]; then
+            ./.scripts/release.sh --template "${{ inputs.template }}" --version "${{ inputs.version }}" --tag
+          else
+            ./.scripts/release.sh --template "${{ inputs.template }}" --version "${{ inputs.version }}"
+          fi
+
+      - name: Push commit and tag
+        run: |
+          git push origin HEAD:main
+          git push origin --tags
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.template }}/${{ inputs.version }}" \
+            --title "${{ inputs.template }} ${{ inputs.version }}" \
+            --notes "Release of ${{ inputs.template }} version ${{ inputs.version }}"
