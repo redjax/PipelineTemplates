@@ -46,12 +46,14 @@ jobs:
         run: |
           git fetch origin ${{ github.event.pull_request.base.ref }}
 
-      - name: Compute merge base
+      - name: Determine changed files
         run: |
-          echo "BASE_REF=$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)" >> "$GITHUB_ENV"
-          echo "HEAD_REF=HEAD" >> "$GITHUB_ENV"
+          MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
+          git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > changed-files.txt
 
       - name: Update manifest
+        env:
+          CHANGED_FILES_FILE: changed-files.txt
         run: |
           chmod +x ./.scripts/release.sh
           ./.scripts/release.sh
