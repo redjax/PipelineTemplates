@@ -31,18 +31,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}:origin/${{ github.event.pull_request.base.ref }}
+
       - name: Update manifest
         run: |
           chmod +x ./.scripts/release.sh
-          BASE_REF="$(git merge-base ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})" \
-          HEAD_REF="${{ github.event.pull_request.head.sha }}" \
+          BASE_REF="origin/${{ github.event.pull_request.base.ref }}" \
+          HEAD_REF="HEAD" \
           ./.scripts/release.sh
 
       - name: Commit and push changes
