@@ -31,7 +31,7 @@ function path_to_key() {
       rel="${rel%.*}"
       printf 'github/%s\n' "$rel"
       ;;
-    gitlab/*.yml|gitlab/*.yaml)
+    gitlab/*.yml|gitlab/*.yaml|gitlab/*/*.yml|gitlab/*/*.yaml|gitlab/*/*/*.yml|gitlab/*/*/*.yaml)
       local rel="${path#gitlab/}"
       rel="${rel%.*}"
       printf 'gitlab/%s\n' "$rel"
