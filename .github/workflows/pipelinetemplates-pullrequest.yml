@@ -48,6 +48,12 @@ jobs:
           MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
           git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > /tmp/changed-files.txt
 
+      - name: Debug print changed-files.txt
+        run: |
+          if [[ -f /tmp/changed-files.txt ]]; then
+            cat /tmp/changed-files.txt
+          fi
+
       - name: Capture base manifest
         run: |
           git show "$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)":manifests/versions.yml > /tmp/base-manifest.yml
