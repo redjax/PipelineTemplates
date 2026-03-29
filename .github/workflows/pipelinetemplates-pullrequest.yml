@@ -1,10 +1,14 @@
 ---
 ############################################################
-# This pipeline updates version metadata on PRs to main.   #
+# Pull request pipeline versioning workflow                #
 #                                                          #
-# On PR open/update, it bumps versions.yml for changed     #
-# templates and commits that change back to the PR branch.  #
-# On PR close/merge, it creates the git tags.               #
+# Runs on PRs opened against main and on PR updates.       #
+# Detects changed tracked pipeline templates, bumps        #
+# manifests/versions.yml if needed, and commits that       #
+# manifest change back to the PR branch.                   #
+#                                                          #
+# This workflow does not create tags. Tagging happens only #
+# after the PR is merged, in the merge-and-tag workflow.   #
 ############################################################
 
 name: Pull Request Jobs
@@ -27,7 +31,7 @@ jobs:
     if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -40,13 +44,18 @@ jobs:
 
       - name: Fetch base branch
         run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}:origin/${{ github.event.pull_request.base.ref }}
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Determine changed files
+        run: |
+          MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
+          git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > /tmp/changed-files.txt
 
       - name: Update manifest
+        env:
+          CHANGED_FILES_FILE: /tmp/changed-files.txt
         run: |
           chmod +x ./.scripts/release.sh
-          BASE_REF="origin/${{ github.event.pull_request.base.ref }}" \
-          HEAD_REF="HEAD" \
           ./.scripts/release.sh
 
       - name: Commit and push changes
@@ -56,26 +65,3 @@ jobs:
             git commit -m "chore: bump pipeline template versions"
             git push origin HEAD:${{ github.event.pull_request.head.ref }}
           fi
-
-  create-tags:
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Create tags
-        run: |
-          chmod +x ./.scripts/release.sh
-          ./.scripts/release.sh --tag
-
-      - name: Push tags
-        run: |
-          git push origin --tags
