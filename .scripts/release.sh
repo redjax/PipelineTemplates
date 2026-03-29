@@ -7,16 +7,16 @@ declare -a IGNORE_KEYS=(
 )
 
 MANIFEST="manifests/versions.yml"
-DO_TAG="${DO_TAG:-0}"
 
-function usage() {
+usage() {
   cat <<EOF
 
-Usage: ${0##*/} [OPTIONS]
 
-Options:
-  --tag        Create git tags for bumped versions
-  -h, --help   Show this help message
+Usage: ${0##*/}
+
+Environment:
+  CHANGED_FILES_FILE   Required. Path to a temp file containing changed file paths.
+
 
 EOF
 }
@@ -51,19 +51,6 @@ function path_to_key() {
   esac
 }
 
-function bump_patch() {
-  local v="$1"
-
-  if [[ "$v" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    printf 'v%s.%s.%s\n' \
-      "${BASH_REMATCH[1]}" \
-      "${BASH_REMATCH[2]}" \
-      "$((BASH_REMATCH[3] + 1))"
-  else
-    return 1
-  fi
-}
-
 function set_manifest_value() {
   local file="$1"
   local key="$2"
@@ -75,41 +62,12 @@ function set_manifest_value() {
   ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --tag)
-      DO_TAG=1
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown arg: $1" >&2
-      exit 1
-      ;;
-  esac
-  shift
-done
-
 [[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
 changed_files_file="${CHANGED_FILES_FILE:-}"
-
-if [[ -z "$changed_files_file" ]]; then
-  echo "CHANGED_FILES_FILE is required for manifest updates." >&2
-  exit 1
-fi
-
-if [[ ! -f "$changed_files_file" ]]; then
-  echo "Changed files list not found: $changed_files_file" >&2
-  exit 1
-fi
-
-if [[ ! -s "$changed_files_file" ]]; then
-  echo "No changed files found."
-  exit 0
-fi
+[[ -n "$changed_files_file" ]] || { echo "CHANGED_FILES_FILE is required." >&2; exit 1; }
+[[ -f "$changed_files_file" ]] || { echo "Changed files list not found: $changed_files_file" >&2; exit 1; }
+[[ -s "$changed_files_file" ]] || { echo "No changed files found." >&2; exit 0; }
 
 tmp_pairs="$(mktemp)"
 trap 'rm -f "$tmp_pairs" "${MANIFEST}.work"' EXIT
@@ -149,5 +107,4 @@ if [[ ! -s "$tmp_pairs" ]]; then
 fi
 
 mv "${MANIFEST}.work" "$MANIFEST"
-
 cat "$tmp_pairs"
