@@ -50,9 +50,7 @@ jobs:
 
       - name: Debug print changed-files.txt
         run: |
-          if [[ -f /tmp/changed-files.txt ]]; then
-            cat /tmp/changed-files.txt
-          fi
+          test -f /tmp/changed-files.txt && cat /tmp/changed-files.txt
 
       - name: Capture base manifest
         run: |
