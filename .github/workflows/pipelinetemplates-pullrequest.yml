@@ -49,11 +49,11 @@ jobs:
       - name: Determine changed files
         run: |
           MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
-          git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > changed-files.txt
+          git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > /tmp/changed-files.txt
 
       - name: Update manifest
         env:
-          CHANGED_FILES_FILE: changed-files.txt
+          CHANGED_FILES_FILE: /tmp/changed-files.txt
         run: |
           chmod +x ./.scripts/release.sh
           ./.scripts/release.sh
