@@ -1,0 +1,7 @@
+---
+variables:
+  MESSAGE: "hello from the caller"
+echo_message:
+  stage: test
+  script:
+    - echo "${MESSAGE}"
