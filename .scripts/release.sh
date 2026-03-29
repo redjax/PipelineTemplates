@@ -15,7 +15,8 @@ function usage() {
 Usage: ${0##*/}
 
 Environment:
-  CHANGED_FILES_FILE   Required. Path to a temp file containing changed file paths.
+  CHANGED_FILES_FILE   Required. Path to temp file of changed paths.
+  BASE_MANIFEST_FILE   Required. Path to base/merge-base manifest snapshot.
 
 
 EOF
@@ -51,19 +52,6 @@ function path_to_key() {
   esac
 }
 
-function bump_patch() {
-  local v="$1"
-
-  if [[ "$v" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    printf 'v%s.%s.%s\n' \
-      "${BASH_REMATCH[1]}" \
-      "${BASH_REMATCH[2]}" \
-      "$((BASH_REMATCH[3] + 1))"
-  else
-    return 1
-  fi
-}
-
 function set_manifest_value() {
   local file="$1"
   local key="$2"
@@ -75,11 +63,21 @@ function set_manifest_value() {
   ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
 
+function lookup_value() {
+  local file="$1"
+  local key="$2"
+  awk -v k="$key" '$1 == k ":" { print $2; exit }' "$file"
+}
+
 [[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
 changed_files_file="${CHANGED_FILES_FILE:-}"
+base_manifest_file="${BASE_MANIFEST_FILE:-}"
+
 [[ -n "$changed_files_file" ]] || { echo "CHANGED_FILES_FILE is required." >&2; exit 1; }
+[[ -n "$base_manifest_file" ]] || { echo "BASE_MANIFEST_FILE is required." >&2; exit 1; }
 [[ -f "$changed_files_file" ]] || { echo "Changed files list not found: $changed_files_file" >&2; exit 1; }
+[[ -f "$base_manifest_file" ]] || { echo "Base manifest file not found: $base_manifest_file" >&2; exit 1; }
 [[ -s "$changed_files_file" ]] || { echo "No changed files found." >&2; exit 0; }
 
 tmp_pairs="$(mktemp)"
@@ -101,22 +99,24 @@ while IFS= read -r path; do
   [[ -n "${SEEN_KEYS[$key]:-}" ]] && continue
   SEEN_KEYS["$key"]=1
 
-  current="$(awk -v k="$key" '$1 == k ":" {print $2; exit}' "${MANIFEST}.work" || true)"
-  [[ -z "$current" ]] && continue
+  base_value="$(lookup_value "$base_manifest_file" "$key")"
+  current_value="$(lookup_value "${MANIFEST}.work" "$key")"
 
-  if [[ "$current" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  [[ -z "$base_value" ]] && continue
+  [[ -z "$current_value" ]] && continue
+
+  if [[ "$current_value" != "$base_value" ]]; then
+    continue
+  fi
+
+  if [[ "$current_value" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
     next="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
   else
     continue
   fi
 
-  ## Only bump once per PR branch state.
-  if grep -qE "^${key}: ${next}$" "${MANIFEST}.work"; then
-    continue
-  fi
-
   set_manifest_value "${MANIFEST}.work" "$key" "$next"
-  printf '%s\t%s\t%s\n' "$key" "$current" "$next" >> "$tmp_pairs"
+  printf '%s\t%s\t%s\n' "$key" "$current_value" "$next" >> "$tmp_pairs"
 done < "$changed_files_file"
 
 if [[ ! -s "$tmp_pairs" ]]; then

@@ -6,9 +6,6 @@
 # Detects changed tracked pipeline templates, bumps        #
 # manifests/versions.yml if needed, and commits that       #
 # manifest change back to the PR branch.                   #
-#                                                          #
-# This workflow does not create tags. Tagging happens only #
-# after the PR is merged, in the merge-and-tag workflow.   #
 ############################################################
 
 name: Pull Request Jobs
@@ -51,9 +48,14 @@ jobs:
           MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
           git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > /tmp/changed-files.txt
 
+      - name: Capture base manifest
+        run: |
+          git show "$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)":manifests/versions.yml > /tmp/base-manifest.yml
+
       - name: Update manifest
         env:
           CHANGED_FILES_FILE: /tmp/changed-files.txt
+          BASE_MANIFEST_FILE: /tmp/base-manifest.yml
         run: |
           chmod +x ./.scripts/release.sh
           ./.scripts/release.sh

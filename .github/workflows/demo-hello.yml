@@ -18,7 +18,7 @@ on:
   workflow_call:
     inputs:
       message:
-        description: Message to print
+        description: Message to print. Pass this value from the calling pipeline
         required: false
         type: string
         default: hello from pipeline templates

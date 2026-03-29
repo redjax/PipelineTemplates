@@ -6,9 +6,6 @@
 # merged. Compares the merged manifest to the previous     #
 # manifest state and creates tags only for newly bumped    #
 # pipeline versions.                                       #
-#                                                          #
-# This workflow does not update the manifest. It only      #
-# publishes tags after the PR is fully merged.             #
 ############################################################
 
 name: Tag merged pipelines
