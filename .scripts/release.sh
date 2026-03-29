@@ -31,7 +31,7 @@ function path_to_key() {
       rel="${rel%.*}"
       printf 'github/%s\n' "$rel"
       ;;
-    gitlab/*.yml|gitlab/*.yaml)
+    gitlab/*.yml|gitlab/*.yaml|gitlab/*/*.yml|gitlab/*/*.yaml|gitlab/*/*/*.yml|gitlab/*/*/*.yaml)
       local rel="${path#gitlab/}"
       rel="${rel%.*}"
       printf 'gitlab/%s\n' "$rel"
@@ -101,6 +101,12 @@ while IFS= read -r path; do
 
   base_value="$(lookup_value "$base_manifest_file" "$key")"
   current_value="$(lookup_value "${MANIFEST}.work" "$key")"
+
+  ## Debug print values
+  # echo "[DEBUG] path=$path"
+  # echo "[DEBUG] key=$key"
+  # echo "[DEBUG] base_value=$base_value"
+  # echo "[DEBUG] current_value=$current_value"
 
   [[ -z "$base_value" ]] && continue
   [[ -z "$current_value" ]] && continue
