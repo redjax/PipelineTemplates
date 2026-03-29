@@ -98,16 +98,14 @@ done
 
 [[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
-base_ref="${GITHUB_EVENT_BEFORE:-}"
-head_ref="${GITHUB_SHA:-HEAD}"
+changed_files_file="${CHANGED_FILES_FILE:-changed-files.txt}"
 
-if [[ -z "$base_ref" || "$base_ref" == "0000000000000000000000000000000000000000" ]]; then
-  base_ref="$(git rev-parse HEAD~1)"
+if [[ ! -f "$changed_files_file" ]]; then
+  echo "Changed files list not found: $changed_files_file" >&2
+  exit 1
 fi
 
-changed_files="$(git diff --name-only --diff-filter=ACMRT "$base_ref" "$head_ref" || true)"
-
-if [[ -z "$changed_files" ]]; then
+if [[ ! -s "$changed_files_file" ]]; then
   echo "No changed files found."
   exit 0
 fi
@@ -141,9 +139,8 @@ while IFS= read -r path; do
   fi
 
   set_manifest_value "${MANIFEST}.work" "$key" "$next"
-
   printf '%s\t%s\t%s\n' "$key" "$current" "$next" >> "$tmp_pairs"
-done <<< "$changed_files"
+done < "$changed_files_file"
 
 if [[ ! -s "$tmp_pairs" ]]; then
   echo "No releasable changes found."
