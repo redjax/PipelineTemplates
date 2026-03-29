@@ -3,8 +3,9 @@
 # Merge-time tagging workflow                              #
 #                                                          #
 # Runs only when a pull request to main is closed and      #
-# merged. Reads the final versions manifest state and      #
-# creates one git tag per newly bumped pipeline version.   #
+# merged. Compares the merged manifest to the previous     #
+# manifest state and creates tags only for newly bumped    #
+# pipeline versions.                                       #
 #                                                          #
 # This workflow does not update the manifest. It only      #
 # publishes tags after the PR is fully merged.             #
@@ -30,7 +31,7 @@ jobs:
       - name: Checkout main
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
           ref: main
 
       - name: Configure git
@@ -40,15 +41,30 @@ jobs:
 
       - name: Create tags
         run: |
+          old_manifest="$(git show HEAD~1:manifests/versions.yml)"
+          new_manifest="$(cat manifests/versions.yml)"
+
           while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            [[ "$line" == \#* ]] && continue
+
             key="${line%%:*}"
-            value="${line#*: }"
+            new_value="${line#*: }"
 
-            [[ -z "$key" || -z "$value" ]] && continue
-            [[ "$key" == \#* ]] && continue
+            old_value="$(printf '%s\n' "$old_manifest" | awk -v k="$key" '$1 == k ":" { print $2; exit }')"
 
-            git tag -a "${key}/${value}" -m "${key} ${value}"
-          done < <(grep -E '^[^#[:space:]][^:]+: v[0-9]+\.[0-9]+\.[0-9]+$' manifests/versions.yml)
+            [[ -z "$old_value" ]] && continue
+            [[ "$old_value" == "$new_value" ]] && continue
+
+            tag="${key}/${new_value}"
+
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "Tag already exists: $tag"
+              continue
+            fi
+
+            git tag -a "$tag" -m "$key $new_value"
+          done < <(printf '%s\n' "$new_manifest" | grep -E '^[^#[:space:]][^:]+: v[0-9]+\.[0-9]+\.[0-9]+$')
 
       - name: Push tags
         run: |
