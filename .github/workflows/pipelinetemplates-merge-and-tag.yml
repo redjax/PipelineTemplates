@@ -1,0 +1,50 @@
+---
+############################################################
+# Merge-time tagging workflow                              #
+#                                                          #
+# Runs only when a pull request to main is closed and      #
+# merged. Reads the final versions manifest state and      #
+# creates one git tag per newly bumped pipeline version.   #
+#                                                          #
+# This workflow does not update the manifest. It only      #
+# publishes tags after the PR is fully merged.             #
+############################################################
+
+name: Tag merged pipelines
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  create-tags:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tags
+        run: |
+          chmod +x ./.scripts/release.sh
+          BASE_REF="${{ github.event.pull_request.base.sha }}" \
+          HEAD_REF="HEAD" \
+          ./.scripts/release.sh --tag
+
+      - name: Push tags
+        run: |
+          git push origin --tags
