@@ -62,8 +62,11 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add manifests/versions.yml
-            git commit -m "chore: bump pipeline template versions"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          if git diff --quiet -- manifests/versions.yml; then
+            echo "No manifest changes."
+            exit 0
           fi
+
+          git add manifests/versions.yml
+          git commit -m "chore: bump pipeline template versions"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
