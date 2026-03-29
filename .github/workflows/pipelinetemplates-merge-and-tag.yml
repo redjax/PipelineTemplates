@@ -40,11 +40,15 @@ jobs:
 
       - name: Create tags
         run: |
-          chmod +x ./.scripts/release.sh
+          while IFS= read -r line; do
+            key="${line%%:*}"
+            value="${line#*: }"
 
-          BASE_REF="${{ github.event.pull_request.base.sha }}" \
-          HEAD_REF="HEAD" \
-          ./.scripts/release.sh --tag
+            [[ -z "$key" || -z "$value" ]] && continue
+            [[ "$key" == \#* ]] && continue
+
+            git tag -a "${key}/${value}" -m "${key} ${value}"
+          done < <(grep -E '^[^#[:space:]][^:]+: v[0-9]+\.[0-9]+\.[0-9]+$' manifests/versions.yml)
 
       - name: Push tags
         run: |

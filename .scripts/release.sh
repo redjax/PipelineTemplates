@@ -27,25 +27,21 @@ function path_to_key() {
   case "$path" in
     .github/workflows/*.yml|.github/workflows/*.yaml)
       local rel="${path#.github/workflows/}"
-
       rel="${rel%.*}"
       printf 'github/%s\n' "$rel"
       ;;
     gitlab/*.yml|gitlab/*.yaml)
       local rel="${path#gitlab/}"
-
       rel="${rel%.*}"
       printf 'gitlab/%s\n' "$rel"
       ;;
     concourse/*.yml|concourse/*.yaml)
       local rel="${path#concourse/}"
-
       rel="${rel%.*}"
       printf 'concourse/%s\n' "$rel"
       ;;
     woodpecker/*.yml|woodpecker/*.yaml)
       local rel="${path#woodpecker/}"
-
       rel="${rel%.*}"
       printf 'woodpecker/%s\n' "$rel"
       ;;
@@ -98,7 +94,12 @@ done
 
 [[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
 
-changed_files_file="${CHANGED_FILES_FILE:-changed-files.txt}"
+changed_files_file="${CHANGED_FILES_FILE:-}"
+
+if [[ -z "$changed_files_file" ]]; then
+  echo "CHANGED_FILES_FILE is required for manifest updates." >&2
+  exit 1
+fi
 
 if [[ ! -f "$changed_files_file" ]]; then
   echo "Changed files list not found: $changed_files_file" >&2
@@ -148,11 +149,5 @@ if [[ ! -s "$tmp_pairs" ]]; then
 fi
 
 mv "${MANIFEST}.work" "$MANIFEST"
-
-if [[ "$DO_TAG" -eq 1 ]]; then
-  while IFS=$'\t' read -r key old new; do
-    git tag -a "${key}/${new}" -m "${key} ${new}"
-  done < "$tmp_pairs"
-fi
 
 cat "$tmp_pairs"
