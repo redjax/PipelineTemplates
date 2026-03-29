@@ -1,0 +1,5 @@
+---
+echo_message:
+  stage: test
+  script:
+    - echo "${MESSAGE}"
