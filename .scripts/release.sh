@@ -8,7 +8,7 @@ declare -a IGNORE_KEYS=(
 
 MANIFEST="manifests/versions.yml"
 
-usage() {
+function usage() {
   cat <<EOF
 
 
@@ -49,6 +49,19 @@ function path_to_key() {
       return 1
       ;;
   esac
+}
+
+function bump_patch() {
+  local v="$1"
+
+  if [[ "$v" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    printf 'v%s.%s.%s\n' \
+      "${BASH_REMATCH[1]}" \
+      "${BASH_REMATCH[2]}" \
+      "$((BASH_REMATCH[3] + 1))"
+  else
+    return 1
+  fi
 }
 
 function set_manifest_value() {
@@ -94,6 +107,11 @@ while IFS= read -r path; do
   if [[ "$current" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
     next="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
   else
+    continue
+  fi
+
+  ## Only bump once per PR branch state.
+  if grep -qE "^${key}: ${next}$" "${MANIFEST}.work"; then
     continue
   fi
 
