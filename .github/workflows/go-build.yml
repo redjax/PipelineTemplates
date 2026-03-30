@@ -1,0 +1,66 @@
+---
+#######################################
+# Pipeline to build a Go application. #
+#######################################
+
+name: Go Build
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        required: false
+        type: string
+        default: .
+      build-package:
+        required: true
+        type: string
+      binary-name:
+        required: true
+        type: string
+      platforms:
+        required: false
+        type: string
+        default: linux/amd64
+      build-tags:
+        required: false
+        type: string
+        default: ""
+      ldflags:
+        required: false
+        type: string
+        default: ""
+      output-dir:
+        required: false
+        type: string
+        default: dist
+      go-version:
+        required: false
+        type: string
+        default: "1.24"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Build
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          BUILD_PACKAGE: ${{ inputs.build-package }}
+          BINARY_NAME: ${{ inputs.binary-name }}
+          PLATFORMS: ${{ inputs.platforms }}
+          BUILD_TAGS: ${{ inputs.build-tags }}
+          LDFLAGS: ${{ inputs.ldflags }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: bash shared/scripts/bash/go/go-build.sh
