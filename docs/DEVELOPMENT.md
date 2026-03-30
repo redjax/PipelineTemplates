@@ -2,6 +2,13 @@
 
 ## Table of Contents <!-- omit in toc -->
 
+- [Overview](#overview)
+- [Github Actions and Reusable Workflows](#github-actions-and-reusable-workflows)
+- [Testing Changes](#testing-changes)
+  - [Examples](#examples)
+    - [Github Action](#github-action)
+    - [Gitlab Pipeline](#gitlab-pipeline)
+
 ## Overview
 
 Pipelines created in this repository can be called/imported from other repositories to reduce code repetition and standardize processes. The [`manifests/version.yml` file](../manifests/versions.yml) tracks each pipeline's current version.
