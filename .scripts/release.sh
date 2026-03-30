@@ -36,15 +36,21 @@ Options:
   --test              Run in test mode with sample data
   -h, --help          Show this help message
 
-Environment:
-  CHANGED_FILES_FILE   Required. Path to temp file of changed paths.
-  BASE_MANIFEST_FILE   Required. Path to base/merge-base manifest snapshot.
+Environment (optional - will auto-detect if not provided):
+  CHANGED_FILES_FILE   Path to temp file of changed paths.
+  BASE_MANIFEST_FILE   Path to base/merge-base manifest snapshot.
+
+When run locally without environment variables, the script will automatically:
+  - Detect changes against origin/main (or main if local-only)
+  - Find the merge-base commit
+  - Generate the list of changed files
+  - Extract the base manifest from the merge-base
 
 Examples:
-  ${0##*/}
-  ${0##*/} --dry-run --verbose
-  ${0##*/} --bump-type minor
-  ${0##*/} --test
+  ${0##*/} --dry-run                       # Preview changes locally
+  ${0##*/} --dry-run --verbose             # Preview with detailed output
+  ${0##*/} --bump-type minor               # Bump minor version
+  ${0##*/} --test                          # Run with test data
 
 EOF
 }
@@ -315,11 +321,76 @@ EOF
   echo "$test_dir"
 }
 
+## Auto-detect changed files and base manifest when running locally
+function auto_detect_changes() {
+  ## Check if we're in a git repository
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    log_error "Not in a git repository. Cannot auto-detect changes."
+    return 1
+  fi
+  
+  ## Determine base branch (prefer origin/main, fallback to main)
+  local base_branch="main"
+  if git rev-parse --verify origin/main >/dev/null 2>&1; then
+    base_branch="origin/main"
+  elif git rev-parse --verify main >/dev/null 2>&1; then
+    base_branch="main"
+  else
+    log_error "Cannot find main or origin/main branch"
+    return 1
+  fi
+  
+  log_info "Auto-detecting changes against $base_branch"
+  
+  ## Find merge-base
+  local merge_base
+  merge_base="$(git merge-base "$base_branch" HEAD 2>/dev/null)" || {
+    log_error "Cannot find merge-base with $base_branch"
+    return 1
+  }
+  
+  log_verbose "Merge base: $merge_base"
+  
+  ## Create temporary files
+  local tmp_changed_files
+  local tmp_base_manifest
+  tmp_changed_files="$(mktemp)"
+  tmp_base_manifest="$(mktemp)"
+  
+  ## Get changed files (added, copied, modified, renamed, type changed)
+  if ! git diff --name-only --diff-filter=ACMRT "$merge_base" HEAD > "$tmp_changed_files"; then
+    rm -f "$tmp_changed_files" "$tmp_base_manifest"
+    log_error "Failed to get list of changed files"
+    return 1
+  fi
+  
+  ## Get base manifest from merge-base
+  if ! git show "${merge_base}:${MANIFEST}" > "$tmp_base_manifest" 2>/dev/null; then
+    rm -f "$tmp_changed_files" "$tmp_base_manifest"
+    log_error "Failed to retrieve base manifest from merge-base"
+    return 1
+  fi
+  
+  ## Set the file paths
+  CHANGED_FILES_FILE="$tmp_changed_files"
+  BASE_MANIFEST_FILE="$tmp_base_manifest"
+  
+  ## Track for cleanup
+  auto_detect_cleanup_files="$tmp_changed_files $tmp_base_manifest"
+  
+  log_verbose "Changed files: $CHANGED_FILES_FILE"
+  log_verbose "Base manifest: $BASE_MANIFEST_FILE"
+  
+  return 0
+}
+
 ## Main execution starts here
 ########################################
 
 ## Handle test mode
 test_cleanup_dir=""
+auto_detect_cleanup_files=""
+
 if [[ "$TEST_MODE" -eq 1 ]]; then
   test_cleanup_dir="$(setup_test_mode)"
   
@@ -337,6 +408,18 @@ fi
 
 changed_files_file="${CHANGED_FILES_FILE:-}"
 base_manifest_file="${BASE_MANIFEST_FILE:-}"
+
+## Auto-detect if not provided (and not in test mode)
+if [[ "$TEST_MODE" -eq 0 ]] && { [[ -z "$changed_files_file" ]] || [[ -z "$base_manifest_file" ]]; }; then
+  log_verbose "CHANGED_FILES_FILE or BASE_MANIFEST_FILE not provided, attempting auto-detection"
+  if auto_detect_changes; then
+    changed_files_file="$CHANGED_FILES_FILE"
+    base_manifest_file="$BASE_MANIFEST_FILE"
+  else
+    log_error "Auto-detection failed. Please set CHANGED_FILES_FILE and BASE_MANIFEST_FILE."
+    exit 1
+  fi
+fi
 
 [[ -n "$changed_files_file" ]] || { log_error "CHANGED_FILES_FILE is required."; exit 1; }
 [[ -n "$base_manifest_file" ]] || { log_error "BASE_MANIFEST_FILE is required."; exit 1; }
@@ -363,12 +446,11 @@ fi
 ## Create temporary files
 tmp_pairs="$(mktemp)"
 
-## Set up cleanup trap (combining test cleanup if needed)
-if [[ -n "$test_cleanup_dir" ]]; then
-  trap "rm -f '$tmp_pairs' '${MANIFEST}.work' '${MANIFEST}.backup'; rm -rf '$test_cleanup_dir'" EXIT
-else
-  trap "rm -f '$tmp_pairs' '${MANIFEST}.work' '${MANIFEST}.backup'" EXIT
-fi
+## Set up cleanup trap (combining test cleanup and auto-detect cleanup if needed)
+cleanup_cmd="rm -f '$tmp_pairs' '${MANIFEST}.work' '${MANIFEST}.backup'"
+[[ -n "$test_cleanup_dir" ]] && cleanup_cmd="$cleanup_cmd; rm -rf '$test_cleanup_dir'"
+[[ -n "$auto_detect_cleanup_files" ]] && cleanup_cmd="$cleanup_cmd; rm -f $auto_detect_cleanup_files"
+trap "$cleanup_cmd" EXIT
 
 ## Create backup and working copy
 cp "$MANIFEST" "${MANIFEST}.backup"
