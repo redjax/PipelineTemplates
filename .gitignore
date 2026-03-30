@@ -1,0 +1,5 @@
+## Temp
+tmp/
+*.tmp
+*.out
+changed-files.txt

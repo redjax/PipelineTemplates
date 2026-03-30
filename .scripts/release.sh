@@ -1,101 +1,134 @@
 #!/usr/bin/env bash
 set -euo pipefail
+IFS=$'\n\t'
 
-function usage() {
-  echo ""
-  echo "Usage: ${0} [OPTIONS]"
-  echo ""
-  echo "Options:"
-  echo "  --template  <string>  The name of the template whose version will be bumped."
-  echo "  --version   <string>  The version to bump to, i.e. v0.0.1, v0.1.0, etc."
-  echo "  --tag       <bool>    When present, create a git tag."
-  echo ""
-  echo "Environment variables:"
-  echo "  TEMPLATE              Same as --template"
-  echo "  VERSION               Same as --version"
-  echo "  DO_TAG                Set to 1 to create a git tag"
-  echo ""
-  echo "Examples:"
-  echo "  $(basename "$0") --template github/demo-hello --version v0.0.1"
-  echo "  $(basename "$0") --template github/demo-hello --version v0.0.1 --tag"
-  echo "  TEMPLATE=github/demo-hello VERSION=v0.0.1 DO_TAG=1 $(basename "$0")"
-  echo ""
-}
-
-TEMPLATE="${TEMPLATE:-}"
-VERSION="${VERSION:-}"
-DO_TAG="${DO_TAG:-0}"
-
-## Parse args
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --template)
-      TEMPLATE="${2:?missing value for --template}"
-      shift 2
-      ;;
-    --version)
-      VERSION="${2:?missing value for --version}"
-      shift 2
-      ;;
-    --tag)
-      DO_TAG=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "[ERROR] Unknown argument: $1" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-done
-
-if [[ -z "$TEMPLATE" || -z "$VERSION" ]]; then
-  echo "[ERROR] --template and --version are required (or set TEMPLATE and VERSION)" >&2
-  usage >&2
-  exit 1
-fi
+declare -a IGNORE_KEYS=(
+  # "github/demo-hello"
+)
 
 MANIFEST="manifests/versions.yml"
-TAG="${TEMPLATE}/${VERSION}"
 
-## Create git tag if --tag was passed
-if [[ "$DO_TAG" -eq 1 ]] && git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-  echo "[ERROR] Tag already exists: ${TAG}" >&2
-  exit 1
+function usage() {
+  cat <<EOF
+
+
+Usage: ${0##*/}
+
+Environment:
+  CHANGED_FILES_FILE   Required. Path to temp file of changed paths.
+  BASE_MANIFEST_FILE   Required. Path to base/merge-base manifest snapshot.
+
+
+EOF
+}
+
+function path_to_key() {
+  local path="$1"
+
+  case "$path" in
+    .github/workflows/*.yml|.github/workflows/*.yaml)
+      local rel="${path#.github/workflows/}"
+      rel="${rel%.*}"
+      printf 'github/%s\n' "$rel"
+      ;;
+    gitlab/*.yml|gitlab/*.yaml|gitlab/*/*.yml|gitlab/*/*.yaml|gitlab/*/*/*.yml|gitlab/*/*/*.yaml)
+      local rel="${path#gitlab/}"
+      rel="${rel%.*}"
+      printf 'gitlab/%s\n' "$rel"
+      ;;
+    concourse/*.yml|concourse/*.yaml)
+      local rel="${path#concourse/}"
+      rel="${rel%.*}"
+      printf 'concourse/%s\n' "$rel"
+      ;;
+    woodpecker/*.yml|woodpecker/*.yaml)
+      local rel="${path#woodpecker/}"
+      rel="${rel%.*}"
+      printf 'woodpecker/%s\n' "$rel"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+function set_manifest_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  awk -v k="$key" -v v="$value" '
+    $1 == k ":" { print k ": " v; next }
+    { print }
+  ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
+function lookup_value() {
+  local file="$1"
+  local key="$2"
+  awk -v k="$key" '$1 == k ":" { print $2; exit }' "$file"
+}
+
+[[ -f "$MANIFEST" ]] || { echo "Manifest not found: $MANIFEST" >&2; exit 1; }
+
+changed_files_file="${CHANGED_FILES_FILE:-}"
+base_manifest_file="${BASE_MANIFEST_FILE:-}"
+
+[[ -n "$changed_files_file" ]] || { echo "CHANGED_FILES_FILE is required." >&2; exit 1; }
+[[ -n "$base_manifest_file" ]] || { echo "BASE_MANIFEST_FILE is required." >&2; exit 1; }
+[[ -f "$changed_files_file" ]] || { echo "Changed files list not found: $changed_files_file" >&2; exit 1; }
+[[ -f "$base_manifest_file" ]] || { echo "Base manifest file not found: $base_manifest_file" >&2; exit 1; }
+[[ -s "$changed_files_file" ]] || { echo "No changed files found." >&2; exit 0; }
+
+tmp_pairs="$(mktemp)"
+trap 'rm -f "$tmp_pairs" "${MANIFEST}.work"' EXIT
+
+cp "$MANIFEST" "${MANIFEST}.work"
+
+declare -A SEEN_KEYS=()
+
+while IFS= read -r path; do
+  [[ -z "$path" ]] && continue
+
+  key="$(path_to_key "$path")" || continue
+
+  for item in "${IGNORE_KEYS[@]}"; do
+    [[ "$key" == "$item" ]] && continue 2
+  done
+
+  [[ -n "${SEEN_KEYS[$key]:-}" ]] && continue
+  SEEN_KEYS["$key"]=1
+
+  base_value="$(lookup_value "$base_manifest_file" "$key")"
+  current_value="$(lookup_value "${MANIFEST}.work" "$key")"
+
+  ## Debug print values
+  # echo "[DEBUG] path=$path"
+  # echo "[DEBUG] key=$key"
+  # echo "[DEBUG] base_value=$base_value"
+  # echo "[DEBUG] current_value=$current_value"
+
+  [[ -z "$base_value" ]] && continue
+  [[ -z "$current_value" ]] && continue
+
+  if [[ "$current_value" != "$base_value" ]]; then
+    continue
+  fi
+
+  if [[ "$current_value" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    next="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+  else
+    continue
+  fi
+
+  set_manifest_value "${MANIFEST}.work" "$key" "$next"
+  printf '%s\t%s\t%s\n' "$key" "$current_value" "$next" >> "$tmp_pairs"
+done < "$changed_files_file"
+
+if [[ ! -s "$tmp_pairs" ]]; then
+  echo "No releasable changes found."
+  exit 0
 fi
 
-## Create workin dir
-tmp="$(mktemp)"
-trap 'rm -f "$tmp"' EXIT
-
-## Find and bump template version
-awk -v key="$TEMPLATE" -v val="$VERSION" '
-BEGIN { found = 0 }
-$1 == key ":" {
-  print key ": " val
-  found = 1
-  next
-}
-{ print }
-END {
-  if (!found) print key ": " val
-}
-' "$MANIFEST" > "$tmp"
-
-## Overwrite manifest
-mv "$tmp" "$MANIFEST"
-
-
-## Add updated manifest
-git add "$MANIFEST"
-git commit -m "Release ${TEMPLATE} ${VERSION}"
-
-
-## If --tag was passed, create a git tag
-if [[ "$DO_TAG" -eq 1 ]]; then
-  git tag -a "$TAG" -m "${TEMPLATE} ${VERSION}"
-fi
+mv "${MANIFEST}.work" "$MANIFEST"
+cat "$tmp_pairs"

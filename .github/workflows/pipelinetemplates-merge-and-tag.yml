@@ -1,0 +1,68 @@
+---
+############################################################
+# Merge-time tagging workflow                              #
+#                                                          #
+# Runs only when a pull request to main is closed and      #
+# merged. Compares the merged manifest to the previous     #
+# manifest state and creates tags only for newly bumped    #
+# pipeline versions.                                       #
+############################################################
+
+name: Tag merged pipelines
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  create-tags:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: main
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tags
+        run: |
+          old_manifest="$(git show HEAD~1:manifests/versions.yml)"
+          new_manifest="$(cat manifests/versions.yml)"
+
+          while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            [[ "$line" == \#* ]] && continue
+
+            key="${line%%:*}"
+            new_value="${line#*: }"
+
+            old_value="$(printf '%s\n' "$old_manifest" | awk -v k="$key" '$1 == k ":" { print $2; exit }')"
+
+            [[ -z "$old_value" ]] && continue
+            [[ "$old_value" == "$new_value" ]] && continue
+
+            tag="${key}/${new_value}"
+
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "Tag already exists: $tag"
+              continue
+            fi
+
+            git tag -a "$tag" -m "$key $new_value"
+          done < <(printf '%s\n' "$new_manifest" | grep -E '^[^#[:space:]][^:]+: v[0-9]+\.[0-9]+\.[0-9]+$')
+
+      - name: Push tags
+        run: |
+          git push origin --tags

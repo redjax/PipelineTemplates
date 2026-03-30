@@ -1,0 +1,76 @@
+---
+############################################################
+# Pull request pipeline versioning workflow                #
+#                                                          #
+# Runs on PRs opened against main and on PR updates.       #
+# Detects changed tracked pipeline templates, bumps        #
+# manifests/versions.yml if needed, and commits that       #
+# manifest change back to the PR branch.                   #
+############################################################
+
+name: Pull Request Jobs
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
+permissions:
+  contents: write
+
+jobs:
+  update-manifest:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch base branch
+        run: |
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Determine changed files
+        run: |
+          MERGE_BASE="$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)"
+          git diff --name-only --diff-filter=ACMRT "$MERGE_BASE" HEAD > /tmp/changed-files.txt
+
+      - name: Debug print changed-files.txt
+        run: |
+          test -f /tmp/changed-files.txt && cat /tmp/changed-files.txt
+
+      - name: Capture base manifest
+        run: |
+          git show "$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)":manifests/versions.yml > /tmp/base-manifest.yml
+
+      - name: Update manifest
+        env:
+          CHANGED_FILES_FILE: /tmp/changed-files.txt
+          BASE_MANIFEST_FILE: /tmp/base-manifest.yml
+        run: |
+          chmod +x ./.scripts/release.sh
+          ./.scripts/release.sh
+
+      - name: Commit and push changes
+        run: |
+          if git diff --quiet -- manifests/versions.yml; then
+            echo "No manifest changes."
+            exit 0
+          fi
+
+          git add manifests/versions.yml
+          git commit -m "chore: bump pipeline template versions"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
