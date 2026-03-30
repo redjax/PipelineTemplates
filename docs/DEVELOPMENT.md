@@ -1,5 +1,15 @@
 # PipelineTemplates - Development <!-- omit in toc -->
 
+TODO:
+
+- [ ] Create `docs/development/` dir
+  - [ ] Create top level `README.md` for introduction/ToC
+  - [ ] Create `GITHUB.md` for Github pipeline development docs
+  - [ ] Create `GITLAB.md` for Gitlab pipeline development docs
+  - [ ] Create `CONCOURSE.md` for Concourse CI pipeline development docs
+  - [ ] Create `WOODPECKER.md` for Woodpecker CI pipeline development docs
+  - [ ] Create `DAGGER.md` for Dagger pipeline development docs
+
 ## Table of Contents <!-- omit in toc -->
 
 - [Overview](#overview)
