@@ -49,6 +49,13 @@ jobs:
       - name: Checkout caller repo
         uses: actions/checkout@v4
 
+      - name: Checkout PipelineTemplates repo
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: feat/go-build-pipeline
+          path: pipelinetemplates
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -63,4 +70,4 @@ jobs:
           BUILD_TAGS: ${{ inputs.build-tags }}
           LDFLAGS: ${{ inputs.ldflags }}
           OUTPUT_DIR: ${{ inputs.output-dir }}
-        run: bash shared/scripts/bash/go/go-build.sh
+        run: bash pipelinetemplates/shared/scripts/bash/go/go-build.sh
