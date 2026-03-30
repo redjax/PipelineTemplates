@@ -1,5 +1,5 @@
 ---
 github/demo-hello: v0.0.3
 gitlab/demo/hello: v0.0.1
-github/go-build: v0.0.3
-github/goreleaser-build: v0.0.1
+github/go-build: v0.0.4
+github/goreleaser-build: v0.0.2
