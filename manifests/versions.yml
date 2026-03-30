@@ -1,3 +1,4 @@
 ---
 github/demo-hello: v0.0.3
 gitlab/demo/hello: v0.0.1
+github/go-build: v0.0.1

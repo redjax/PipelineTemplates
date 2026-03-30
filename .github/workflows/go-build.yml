@@ -1,0 +1,82 @@
+---
+#######################################
+# Pipeline to build a Go application. #
+#######################################
+
+name: Go Build
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: "(default: .) Path to directory containing main.go entrypoint"
+        required: false
+        type: string
+        default: .
+      build-package:
+        description: "Go package path to build, for example . or ./cmd/example."
+        required: true
+        type: string
+
+      binary-name:
+        description: "Name for binary file."
+        required: true
+        type: string
+      platforms:
+        description: "Comma-separated list of GOOS/GOARCH targets, such as linux/amd64,linux/arm64."
+        required: false
+        type: string
+        default: linux/amd64
+      build-tags:
+        description: "Optional Go build tags."
+        required: false
+        type: string
+        default: ""
+      ldflags:
+        description: "Optional ldflags passed to go build."
+        required: false
+        type: string
+        default: ""
+      output-dir:
+        description: "Directory to write build artifacts to."
+        required: false
+        type: string
+        default: dist
+      go-version:
+        description: "Go toolchain version to install."
+        required: false
+        type: string
+        default: "1.25.6"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v4
+
+      - name: Checkout PipelineTemplates repo
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: feat/go-build-pipeline
+          path: pipelinetemplates
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Build
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          BUILD_PACKAGE: ${{ inputs.build-package }}
+          BINARY_NAME: ${{ inputs.binary-name }}
+          PLATFORMS: ${{ inputs.platforms }}
+          BUILD_TAGS: ${{ inputs.build-tags }}
+          LDFLAGS: ${{ inputs.ldflags }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: bash pipelinetemplates/shared/scripts/bash/go/go-build.sh
