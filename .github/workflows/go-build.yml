@@ -62,7 +62,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: redjax/PipelineTemplates
-          ref: feat/go-build-pipeline
+          ref: github/go-build/v0.0.2
           path: pipelinetemplates
 
       - name: Setup Go
