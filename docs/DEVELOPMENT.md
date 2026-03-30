@@ -1,13 +1,24 @@
 # PipelineTemplates - Development <!-- omit in toc -->
 
+- The [`manifests/version.yml` file](../manifests/versions.yml) tracks each pipeline's current version
+- The [`manual-release.sh` script](../.scripts/manual-release.sh) (will) detect each pipeline for individual and automated versioning
+- A pipeline (will) automatically bump versions on merges to the `main` branch
+
 ## Table of Contents <!-- omit in toc -->
 
 ## Overview
 
-- Github Actions must be in `.github/workflows/` dir
-- The [`manifests/version.yml` file](../manifests/versions.yml) tracks each pipeline's current version
-- The [`manual-release.sh` script](../.scripts/manual-release.sh) (will) detect each pipeline for individual and automated versioning
-- A pipeline (will) automatically bump versions on merges to the `main` branch
+## Github Actions and Reusable Workflows
+
+Github has 2 kinds of pipelines, Actions and reusable workflows. Github Actions (or "custom actions") are like a step or set of steps packaged into a single callable step from other pipelines, where a reusable workflow is more of a traditional pipeline template.
+
+- [Github Actions docs](https://docs.github.com/en/actions)
+- [Github reusable workflows docs](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)
+
+Some notes Github Actions/reusable workflows:
+
+- Github Actions must exist in `.github/actions/`
+- Reusable workflows must exist in `.github/workflows/` dir
 
 ## Testing Changes
 
