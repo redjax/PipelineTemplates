@@ -102,8 +102,8 @@ jobs:
       - name: Checkout PipelineTemplates repo
         uses: actions/checkout@v4
         with:
-          repository: redjax/PipelineTemplates
-          ref: github/goreleaser-build/v0.0.1
+          repository: ${{ github.action_repository }}
+          ref: ${{ github.action_ref }}
           path: ${{ inputs.working-directory }}/pipelinetemplates
 
       - name: Setup Go
