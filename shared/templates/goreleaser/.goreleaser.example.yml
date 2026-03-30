@@ -1,0 +1,149 @@
+# Example GoReleaser Configuration
+# Copy this to your repository root as .goreleaser.yml and customize
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    - go mod download
+
+builds:
+  - id: default
+    # Binary name (customize this)
+    binary: myapp
+    
+    # Main package to build
+    main: ./cmd/myapp
+    
+    # Build environment
+    env:
+      - CGO_ENABLED=0
+    
+    # Target platforms
+    goos:
+      - linux
+      - darwin
+      - windows
+    
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    
+    goarm:
+      - "6"
+      - "7"
+    
+    # Ignore specific platform combinations
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm
+    
+    # Build flags and ldflags
+    flags:
+      - -trimpath
+    
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+
+# Archive settings
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    
+    # Format per OS
+    format_overrides:
+      - goos: windows
+        format: zip
+    
+    # Files to include in archives
+    files:
+      - LICENSE*
+      - README*
+      - CHANGELOG*
+      - docs/*
+
+# Checksums
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+# Changelog generation
+changelog:
+  use: github
+  sort: asc
+  abbrev: 0
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Documentation
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+  filters:
+    exclude:
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+
+# Release settings
+release:
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Release {{.Tag}}
+    
+    This release includes the following changes:
+  footer: |
+    **Full Changelog**: https://github.com/{{.Env.GITHUB_REPOSITORY}}/compare/{{.PreviousTag}}...{{.Tag}}
+
+# Optional: Homebrew tap
+# brews:
+#   - repository:
+#       owner: yourusername
+#       name: homebrew-tap
+#     homepage: https://github.com/yourusername/yourrepo
+#     description: Your app description
+#     license: MIT
+
+# Optional: Docker images
+# dockers:
+#   - image_templates:
+#       - "ghcr.io/{{.Env.GITHUB_REPOSITORY_OWNER}}/{{.ProjectName}}:{{.Version}}"
+#       - "ghcr.io/{{.Env.GITHUB_REPOSITORY_OWNER}}/{{.ProjectName}}:latest"
+#     dockerfile: Dockerfile
+#     build_flag_templates:
+#       - "--pull"
+#       - "--label=org.opencontainers.image.created={{.Date}}"
+#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
+#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+#       - "--label=org.opencontainers.image.version={{.Version}}"
+#       - "--platform=linux/amd64"
+
+# Optional: Snapcraft
+# snapcrafts:
+#   - name: yourapp
+#     summary: Short description
+#     description: |
+#       Longer description
+#     grade: stable
+#     confinement: strict
