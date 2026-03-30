@@ -1,12 +1,22 @@
 # PipelineTemplates - Development <!-- omit in toc -->
 
-- The [`manifests/version.yml` file](../manifests/versions.yml) tracks each pipeline's current version
-- The [`manual-release.sh` script](../.scripts/manual-release.sh) (will) detect each pipeline for individual and automated versioning
-- A pipeline (will) automatically bump versions on merges to the `main` branch
-
 ## Table of Contents <!-- omit in toc -->
 
 ## Overview
+
+Pipelines created in this repository can be called/imported from other repositories to reduce code repetition and standardize processes. The [`manifests/version.yml` file](../manifests/versions.yml) tracks each pipeline's current version.
+
+> [!NOTE]
+> Each time you create a new template, i.e. a new file in `.github/workflows` or `gitlab/**`, you must add the initial tag to the `manifests/version.yml` file. The tag can be derived from the path:
+>
+> ```plaintext
+> .github/workflows/demo-hello.yml -> github/demo-hello: v0.0.1
+> gitlab/demo/hello.yml -> gitlab/demo/hello: v0.0.1
+> ```
+
+When the PipelineTemplates repository is hosted on Github, the [`pipelinetemplates-pullrequest.yml` pipeline](../.github/workflows/pipelinetemplates-pullrequest.yml) runs each time a PR to `main` is opened. It detects changes to individual pipeline files in any (known) path (`.github/workflows/`, `gitlab/**/`, etc), runs the [`release.sh` script](../.scripts/release.sh) which finds all changed pipeline files in the current PR, and bumps the version for changed files in the [`manifests/versions.yml` file](../manifests/versions.yml).
+
+You can also manually bump a specific file's version tag using the [`manual-release.sh` script](../.scripts/manual-release.sh). You must manually push tags created by this script (`git push origin <tag_name>`).
 
 ## Github Actions and Reusable Workflows
 
