@@ -72,6 +72,11 @@ on:
         required: false
         type: string
         default: ""
+      artifact-name:
+        description: "Name for uploaded artifacts (default: <repo-name>-dist or <repo-name>-snapshot-dist)"
+        required: false
+        type: string
+        default: ""
     secrets:
       github-token:
         description: "GitHub token for creating releases (defaults to GITHUB_TOKEN)"
@@ -153,11 +158,30 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.github-token || secrets.GITHUB_TOKEN }}
 
+      - name: Determine artifact name
+        if: ${{ inputs.snapshot || inputs.skip-publish }}
+        id: artifact-name
+        run: |
+          if [[ -n "${{ inputs.artifact-name }}" ]]; then
+            # User provided a name
+            ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          else
+            # Generate default name
+            REPO_NAME="${{ github.event.repository.name }}"
+            if [[ "${{ inputs.snapshot }}" == "true" ]]; then
+              ARTIFACT_NAME="${REPO_NAME}-snapshot-dist"
+            else
+              ARTIFACT_NAME="${REPO_NAME}-dist"
+            fi
+          fi
+          echo "name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "Artifact will be named: $ARTIFACT_NAME"
+
       - name: Upload artifacts
         if: ${{ inputs.snapshot || inputs.skip-publish }}
         uses: actions/upload-artifact@v4
         with:
-          name: goreleaser-dist
+          name: ${{ steps.artifact-name.outputs.name }}
           path: ${{ inputs.working-directory }}/dist/
           retention-days: 7
           if-no-files-found: warn
