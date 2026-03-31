@@ -64,13 +64,6 @@ log_info "Found GoReleaser config: $goreleaser_config"
 ## Install GoReleaser
 log_info "Installing GoReleaser $goreleaser_version"
 
-## Check if goreleaser is already in PATH
-if command -v goreleaser >/dev/null 2>&1; then
-  existing_version="$(goreleaser --version 2>/dev/null | head -n1 || echo 'unknown')"
-  log_info "Found existing GoReleaser: $existing_version"
-  log_info "Will install to $HOME/.local/bin to override"
-fi
-
 ## Create bin directory
 GORELEASER_DIR="${HOME}/.local/bin"
 mkdir -p "$GORELEASER_DIR"
