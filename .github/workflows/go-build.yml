@@ -66,7 +66,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout caller repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Parse workflow reference
         id: workflow-ref
@@ -80,7 +80,7 @@ jobs:
           echo "ref=$REF" >> $GITHUB_OUTPUT
 
       - name: Checkout PipelineTemplates repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ steps.workflow-ref.outputs.repository }}
           ref: ${{ steps.workflow-ref.outputs.ref }}
