@@ -97,7 +97,7 @@ jobs:
     
     steps:
       - name: Checkout caller repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history for changelog generation
 
@@ -105,14 +105,14 @@ jobs:
         run: git fetch --force --tags
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ inputs.go-version }}
           cache: true
 
       - name: Docker Login (if Docker build enabled)
         if: ${{ inputs.docker-build }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -120,11 +120,11 @@ jobs:
 
       - name: Setup QEMU (for cross-platform Docker builds)
         if: ${{ inputs.docker-build }}
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Setup Docker Buildx (for cross-platform Docker builds)
         if: ${{ inputs.docker-build }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build GoReleaser args
         id: goreleaser-args
@@ -149,7 +149,7 @@ jobs:
           echo "GoReleaser will run: goreleaser $ARGS"
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: ${{ inputs.goreleaser-version }}
@@ -179,7 +179,7 @@ jobs:
 
       - name: Upload artifacts
         if: ${{ inputs.snapshot || inputs.skip-publish }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifact-name.outputs.name }}
           path: ${{ inputs.working-directory }}/dist/
