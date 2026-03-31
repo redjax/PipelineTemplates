@@ -69,12 +69,18 @@ jobs:
         run: |
           # github.workflow_ref format: "owner/repo/.github/workflows/workflow.yml@refs/heads/branch"
           # Extract repository (everything before /.github/) and ref (everything after @)
+          echo "=== Debugging workflow reference ==="
+          echo "github.workflow_ref: ${{ github.workflow_ref }}"
+          echo "github.repository: ${{ github.repository }}"
+          echo "github.ref: ${{ github.ref }}"
+          echo "===================================="
+          
           WORKFLOW_REF="${{ github.workflow_ref }}"
           REPO="${WORKFLOW_REF%%/.github/*}"
           REF="${WORKFLOW_REF##*@}"
           echo "repository=$REPO" >> $GITHUB_OUTPUT
           echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "Parsed workflow ref: repo=$REPO, ref=$REF"
+          echo "Parsed values: repo=$REPO, ref=$REF"
 
       ## Checkout the PipelineTemplates repo at the same ref as the calling workflow,
       #  so that we can access the shared go-build.sh script.
@@ -84,6 +90,22 @@ jobs:
           repository: ${{ steps.workflow-ref.outputs.repository }}
           ref: ${{ steps.workflow-ref.outputs.ref }}
           path: pipelinetemplates
+
+      - name: Debug - Verify checkout
+        run: |
+          echo "=== Verifying PipelineTemplates checkout ==="
+          ls -la pipelinetemplates/ 2>&1 || echo "ERROR: pipelinetemplates/ directory not found!"
+          echo ""
+          echo "Looking for bash script:"
+          if [[ -f "pipelinetemplates/shared/scripts/bash/go/go-build.sh" ]]; then
+            echo "✓ Script found at: pipelinetemplates/shared/scripts/bash/go/go-build.sh"
+            ls -lh pipelinetemplates/shared/scripts/bash/go/go-build.sh
+          else
+            echo "✗ Script NOT found!"
+            echo "Contents of pipelinetemplates:"
+            find pipelinetemplates -type f 2>/dev/null | head -20 || echo "find command failed"
+          fi
+          echo "============================================"
 
       - name: Setup Go
         uses: actions/setup-go@v5
