@@ -149,7 +149,7 @@ jobs:
           echo "GoReleaser will run: goreleaser $ARGS"
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: ${{ inputs.goreleaser-version }}
