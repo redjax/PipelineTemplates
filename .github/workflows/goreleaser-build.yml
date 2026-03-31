@@ -124,7 +124,7 @@ jobs:
 
       - name: Setup Docker Buildx (for cross-platform Docker builds)
         if: ${{ inputs.docker-build }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build GoReleaser args
         id: goreleaser-args
