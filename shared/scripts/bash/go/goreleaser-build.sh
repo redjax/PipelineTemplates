@@ -64,6 +64,13 @@ log_info "Found GoReleaser config: $goreleaser_config"
 ## Install GoReleaser
 log_info "Installing GoReleaser $goreleaser_version"
 
+## Check if goreleaser is already in PATH
+if command -v goreleaser >/dev/null 2>&1; then
+  existing_version="$(goreleaser --version 2>/dev/null | head -n1 || echo 'unknown')"
+  log_info "Found existing GoReleaser: $existing_version"
+  log_info "Will install to $HOME/.local/bin to override"
+fi
+
 ## Create bin directory
 GORELEASER_DIR="${HOME}/.local/bin"
 mkdir -p "$GORELEASER_DIR"
@@ -71,35 +78,56 @@ mkdir -p "$GORELEASER_DIR"
 if [[ "$goreleaser_version" == "latest" ]]; then
   ## Install latest version
   GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/latest/download/goreleaser_Linux_x86_64.tar.gz"
-  log_info "Downloading from GitHub releases"
+  log_info "Downloading from: $GORELEASER_URL"
   
   if ! curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz; then
-    log_error "Failed to download GoReleaser"
+    log_error "Failed to download GoReleaser from $GORELEASER_URL"
     exit 1
   fi
+  
+ log_info "Downloaded $(du -h /tmp/goreleaser.tar.gz | cut -f1) to /tmp/goreleaser.tar.gz"
+  log_info "Extracting"
   
   if ! tar -xzf /tmp/goreleaser.tar.gz -C /tmp; then
     log_error "Failed to extract GoReleaser"
     rm -f /tmp/goreleaser.tar.gz
+    exit 1
+  fi
+  
+  log_info "Extracted. Looking for binary"
+  ls -lh /tmp/goreleaser 2>&1 || log_error "Binary not found in /tmp after extraction"
+  
+  if [[ ! -f /tmp/goreleaser ]]; then
+    log_error "goreleaser binary not found after extraction"
+    log_info "Contents of /tmp after extraction:"
+    ls -la /tmp/*.* 2>&1 | head -20
     exit 1
   fi
   
   mv /tmp/goreleaser "$GORELEASER_DIR/goreleaser"
   chmod +x "$GORELEASER_DIR/goreleaser"
   rm -f /tmp/goreleaser.tar.gz
+  log_info "Moved to $GORELEASER_DIR/goreleaser"
 else
   ## Install specific version
   GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/download/v${goreleaser_version}/goreleaser_Linux_x86_64.tar.gz"
-  log_info "Downloading from GitHub releases"
+  log_info "Downloading from: $GORELEASER_URL"
   
   if ! curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz; then
-    log_error "Failed to download GoReleaser"
+    log_error "Failed to download GoReleaser from $GORELEASER_URL"
     exit 1
   fi
+  
+  log_info "Downloaded. Extracting"
   
   if ! tar -xzf /tmp/goreleaser.tar.gz -C /tmp; then
     log_error "Failed to extract GoReleaser"
     rm -f /tmp/goreleaser.tar.gz
+    exit 1
+  fi
+  
+  if [[ ! -f /tmp/goreleaser ]]; then
+    log_error "goreleaser binary not found after extraction"
     exit 1
   fi
   
