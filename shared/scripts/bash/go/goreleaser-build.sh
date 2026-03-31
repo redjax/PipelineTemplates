@@ -64,42 +64,65 @@ log_info "Found GoReleaser config: $goreleaser_config"
 ## Install GoReleaser
 log_info "Installing GoReleaser $goreleaser_version"
 
-# Create bin directory
+## Create bin directory
 GORELEASER_DIR="${HOME}/.local/bin"
 mkdir -p "$GORELEASER_DIR"
 
 if [[ "$goreleaser_version" == "latest" ]]; then
-  # Install latest version
+  ## Install latest version
   GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/latest/download/goreleaser_Linux_x86_64.tar.gz"
-  log_verbose "Downloading from: $GORELEASER_URL"
-  curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz
-  tar -xzf /tmp/goreleaser.tar.gz -C /tmp
+  log_info "Downloading from GitHub releases"
+  
+  if ! curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz; then
+    log_error "Failed to download GoReleaser"
+    exit 1
+  fi
+  
+  if ! tar -xzf /tmp/goreleaser.tar.gz -C /tmp; then
+    log_error "Failed to extract GoReleaser"
+    rm -f /tmp/goreleaser.tar.gz
+    exit 1
+  fi
+  
   mv /tmp/goreleaser "$GORELEASER_DIR/goreleaser"
   chmod +x "$GORELEASER_DIR/goreleaser"
   rm -f /tmp/goreleaser.tar.gz
 else
-  # Install specific version
+  ## Install specific version
   GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/download/v${goreleaser_version}/goreleaser_Linux_x86_64.tar.gz"
-  log_verbose "Downloading from: $GORELEASER_URL"
-  curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz
-  tar -xzf /tmp/goreleaser.tar.gz -C /tmp
+  log_info "Downloading from GitHub releases"
+  
+  if ! curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz; then
+    log_error "Failed to download GoReleaser"
+    exit 1
+  fi
+  
+  if ! tar -xzf /tmp/goreleaser.tar.gz -C /tmp; then
+    log_error "Failed to extract GoReleaser"
+    rm -f /tmp/goreleaser.tar.gz
+    exit 1
+  fi
+  
   mv /tmp/goreleaser "$GORELEASER_DIR/goreleaser"
   chmod +x "$GORELEASER_DIR/goreleaser"
   rm -f /tmp/goreleaser.tar.gz
 fi
 
-# Add to PATH
+## Add to PATH
 export PATH="$GORELEASER_DIR:$PATH"
-log_verbose "Added $GORELEASER_DIR to PATH"
-fi
 
 ## Verify installation
-if ! command -v goreleaser >/dev/null 2>&1; then
-  log_error "GoReleaser installation failed"
+if [[ ! -f "$GORELEASER_DIR/goreleaser" ]]; then
+  log_error "GoReleaser binary not found at $GORELEASER_DIR/goreleaser"
   exit 1
 fi
 
-goreleaser_actual_version="$(goreleaser --version | head -n1)"
+if ! "$GORELEASER_DIR/goreleaser" --version >/dev/null 2>&1; then
+  log_error "GoReleaser binary is not executable or damaged"
+  exit 1
+fi
+
+goreleaser_actual_version="$("$GORELEASER_DIR/goreleaser" --version | head -n1)"
 log_info "Installed: $goreleaser_actual_version"
 echo ""
 
@@ -159,13 +182,14 @@ if [[ -n "$extra_args" ]]; then
 fi
 
 echo ""
+echo ""
 log_info "Executing GoReleaser"
-log_verbose "Command: goreleaser ${goreleaser_args[*]}"
+log_verbose "Command: $GORELEASER_DIR/goreleaser ${goreleaser_args[*]}"
 echo ""
 
 ## Execute GoReleaser
 set +e
-goreleaser "${goreleaser_args[@]}"
+"$GORELEASER_DIR/goreleaser" "${goreleaser_args[@]}"
 exit_code=$?
 set -e
 
