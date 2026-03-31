@@ -64,30 +64,33 @@ log_info "Found GoReleaser config: $goreleaser_config"
 ## Install GoReleaser
 log_info "Installing GoReleaser $goreleaser_version"
 
-# Create a temp directory for GoReleaser
+# Create bin directory
 GORELEASER_DIR="${HOME}/.local/bin"
 mkdir -p "$GORELEASER_DIR"
 
 if [[ "$goreleaser_version" == "latest" ]]; then
   # Install latest version
   GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/latest/download/goreleaser_Linux_x86_64.tar.gz"
-  wget -q "$GORELEASER_URL" -O /tmp/goreleaser.tar.gz
-  tar -xzf /tmp/goreleaser.tar.gz -C /tmp goreleaser
+  log_verbose "Downloading from: $GORELEASER_URL"
+  curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz
+  tar -xzf /tmp/goreleaser.tar.gz -C /tmp
   mv /tmp/goreleaser "$GORELEASER_DIR/goreleaser"
   chmod +x "$GORELEASER_DIR/goreleaser"
-  rm /tmp/goreleaser.tar.gz
+  rm -f /tmp/goreleaser.tar.gz
 else
   # Install specific version
-  wget -q "https://github.com/goreleaser/goreleaser/releases/download/v${goreleaser_version}/goreleaser_Linux_x86_64.tar.gz" -O /tmp/goreleaser.tar.gz
-  tar -xzf /tmp/goreleaser.tar.gz -C /tmp goreleaser
+  GORELEASER_URL="https://github.com/goreleaser/goreleaser/releases/download/v${goreleaser_version}/goreleaser_Linux_x86_64.tar.gz"
+  log_verbose "Downloading from: $GORELEASER_URL"
+  curl -sfL "$GORELEASER_URL" -o /tmp/goreleaser.tar.gz
+  tar -xzf /tmp/goreleaser.tar.gz -C /tmp
   mv /tmp/goreleaser "$GORELEASER_DIR/goreleaser"
   chmod +x "$GORELEASER_DIR/goreleaser"
-  rm /tmp/goreleaser.tar.gz
+  rm -f /tmp/goreleaser.tar.gz
 fi
 
-# Add to PATH if not already there
-if [[ ":$PATH:" != *":$GORELEASER_DIR:"* ]]; then
-  export PATH="$GORELEASER_DIR:$PATH"
+# Add to PATH
+export PATH="$GORELEASER_DIR:$PATH"
+log_verbose "Added $GORELEASER_DIR to PATH"
 fi
 
 ## Verify installation
