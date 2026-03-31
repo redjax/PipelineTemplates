@@ -47,6 +47,16 @@ on:
         required: false
         type: string
         default: "1.25.6"
+      artifact-name:
+        description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
+        required: false
+        type: string
+        default: ""
+      upload-artifacts:
+        description: "Upload build artifacts (default: true)"
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -91,3 +101,25 @@ jobs:
           LDFLAGS: ${{ inputs.ldflags }}
           OUTPUT_DIR: ${{ inputs.output-dir }}
         run: bash pipelinetemplates/shared/scripts/bash/go/go-build.sh
+
+      - name: Determine artifact name
+        if: ${{ inputs.upload-artifacts }}
+        id: artifact-name
+        run: |
+          if [[ -n "${{ inputs.artifact-name }}" ]]; then
+            ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          else
+            REPO_NAME="${{ github.event.repository.name }}"
+            ARTIFACT_NAME="${REPO_NAME}-${{ inputs.binary-name }}-dist"
+          fi
+          echo "name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "Artifact will be named: $ARTIFACT_NAME"
+
+      - name: Upload artifacts
+        if: ${{ inputs.upload-artifacts }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: ${{ inputs.module-dir }}/${{ inputs.output-dir }}/
+          retention-days: 7
+          if-no-files-found: warn
