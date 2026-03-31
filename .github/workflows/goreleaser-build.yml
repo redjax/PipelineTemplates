@@ -99,28 +99,17 @@ jobs:
       - name: Fetch all tags
         run: git fetch --force --tags
 
-      ## This pipeline needs to clone the whole PipelineTemplates repo in order to access
-      #  the shared go-build.sh script. We need to parse the incoming workflow reference
-      #  to determine which revision to checkout based on the tag given in the calling workflow.
-      #
-      # This step extracts the repository and ref from the github.workflow_ref variable, which has the format:
-      # "owner/repo/.github/workflows/workflow.yml@refs/heads/branch"
       - name: Parse workflow reference
         id: workflow-ref
         run: |
           # Extract the ref from github.action_ref (available in reusable workflows)
           # For a call like @github/goreleaser-build/v0.0.1, this gives us the tag
           REF="${{ github.action_ref }}"
-          
-          # Hardcode repository since we know it's always PipelineTemplates
           REPO="redjax/PipelineTemplates"
           
           echo "repository=$REPO" >> $GITHUB_OUTPUT
           echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "Using values: repo=$REPO, ref=$REF"
 
-      ## Checkout the PipelineTemplates repo at the same ref as the calling workflow,
-      #  so that we can access the shared go-build.sh script.
       - name: Checkout PipelineTemplates repo
         uses: actions/checkout@v4
         with:
