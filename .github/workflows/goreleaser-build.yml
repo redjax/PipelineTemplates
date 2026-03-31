@@ -99,24 +99,6 @@ jobs:
       - name: Fetch all tags
         run: git fetch --force --tags
 
-      - name: Parse workflow reference
-        id: workflow-ref
-        run: |
-          # Extract the ref from github.action_ref (available in reusable workflows)
-          # For a call like @github/goreleaser-build/v0.0.1, this gives us the tag
-          REF="${{ github.action_ref }}"
-          REPO="redjax/PipelineTemplates"
-          
-          echo "repository=$REPO" >> $GITHUB_OUTPUT
-          echo "ref=$REF" >> $GITHUB_OUTPUT
-
-      - name: Checkout PipelineTemplates repo
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.workflow-ref.outputs.repository }}
-          ref: ${{ steps.workflow-ref.outputs.ref }}
-          path: ${{ inputs.working-directory }}/pipelinetemplates
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -139,31 +121,37 @@ jobs:
         if: ${{ inputs.docker-build }}
         uses: docker/setup-buildx-action@v3
 
-      - name: Validate GoReleaser config
-        if: ${{ !inputs.dry-run }}
-        env:
-          GORELEASER_CONFIG: ${{ inputs.goreleaser-config }}
+      - name: Build GoReleaser args
+        id: goreleaser-args
         run: |
-          if [[ ! -f "$GORELEASER_CONFIG" ]]; then
-            echo "[ERROR] GoReleaser config not found: $GORELEASER_CONFIG"
-            exit 1
+          ARGS=""
+          
+          # Determine command (build or release)
+          if [[ "${{ inputs.snapshot }}" == "true" ]] || [[ "${{ inputs.skip-publish }}" == "true" ]]; then
+            ARGS="build"
+          else
+            ARGS="release"
           fi
-          echo "[INFO] Found GoReleaser config: $GORELEASER_CONFIG"
+          
+          # Add flags
+          [[ "${{ inputs.clean }}" == "true" ]] && ARGS="$ARGS --clean"
+          [[ "${{ inputs.snapshot }}" == "true" ]] && ARGS="$ARGS --snapshot"
+          [[ "${{ inputs.skip-validate }}" == "true" ]] && ARGS="$ARGS --skip=validate"
+          [[ -n "${{ inputs.release-notes }}" ]] && ARGS="$ARGS --release-notes=${{ inputs.release-notes }}"
+          [[ -n "${{ inputs.extra-args }}" ]] && ARGS="$ARGS ${{ inputs.extra-args }}"
+          
+          echo "args=$ARGS" >> $GITHUB_OUTPUT
+          echo "GoReleaser will run: goreleaser $ARGS"
 
       - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: ${{ inputs.goreleaser-version }}
+          args: ${{ steps.goreleaser-args.outputs.args }} --config=${{ inputs.goreleaser-config }}
+          workdir: ${{ inputs.working-directory }}
         env:
           GITHUB_TOKEN: ${{ secrets.github-token || secrets.GITHUB_TOKEN }}
-          GORELEASER_CONFIG: ${{ inputs.goreleaser-config }}
-          SNAPSHOT: ${{ inputs.snapshot }}
-          CLEAN: ${{ inputs.clean }}
-          SKIP_VALIDATE: ${{ inputs.skip-validate }}
-          SKIP_PUBLISH: ${{ inputs.skip-publish }}
-          GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
-          DOCKER_BUILD: ${{ inputs.docker-build }}
-          EXTRA_ARGS: ${{ inputs.extra-args }}
-          DRY_RUN: ${{ inputs.dry-run }}
-          RELEASE_NOTES: ${{ inputs.release-notes }}
-        run: bash pipelinetemplates/shared/scripts/bash/go/goreleaser-build.sh
 
       - name: Upload artifacts
         if: ${{ inputs.snapshot || inputs.skip-publish }}
