@@ -67,20 +67,24 @@ jobs:
       - name: Parse workflow reference
         id: workflow-ref
         run: |
-          # github.workflow_ref format: "owner/repo/.github/workflows/workflow.yml@refs/heads/branch"
-          # Extract repository (everything before /.github/) and ref (everything after @)
+          # Extract the ref from github.action_ref (available in reusable workflows)
+          # For a call like @github/go-build/v0.0.4, this gives us the tag
           echo "=== Debugging workflow reference ==="
+          echo "github.action_ref: ${{ github.action_ref }}"
           echo "github.workflow_ref: ${{ github.workflow_ref }}"
           echo "github.repository: ${{ github.repository }}"
           echo "github.ref: ${{ github.ref }}"
           echo "===================================="
           
-          WORKFLOW_REF="${{ github.workflow_ref }}"
-          REPO="${WORKFLOW_REF%%/.github/*}"
-          REF="${WORKFLOW_REF##*@}"
+          # Use action_ref which is available in reusable workflows
+          REF="${{ github.action_ref }}"
+          
+          # Hardcode repository since we know it's always PipelineTemplates
+          REPO="redjax/PipelineTemplates"
+          
           echo "repository=$REPO" >> $GITHUB_OUTPUT
           echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "Parsed values: repo=$REPO, ref=$REF"
+          echo "Using values: repo=$REPO, ref=$REF"
 
       ## Checkout the PipelineTemplates repo at the same ref as the calling workflow,
       #  so that we can access the shared go-build.sh script.
