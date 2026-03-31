@@ -112,7 +112,7 @@ jobs:
 
       - name: Docker Login (if Docker build enabled)
         if: ${{ inputs.docker-build }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
