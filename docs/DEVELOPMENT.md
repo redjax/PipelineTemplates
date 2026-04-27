@@ -14,6 +14,7 @@ TODO:
 
 - [Overview](#overview)
 - [Github Actions and Reusable Workflows](#github-actions-and-reusable-workflows)
+  - [Workflow Reference Parsing Pattern](#workflow-reference-parsing-pattern)
 - [Testing Changes](#testing-changes)
   - [Examples](#examples)
     - [Github Action](#github-action)
@@ -46,6 +47,90 @@ Some notes Github Actions/reusable workflows:
 
 - Github Actions must exist in `.github/actions/`
 - Reusable workflows must exist in `.github/workflows/` dir
+
+### Workflow Reference Parsing Pattern
+
+When creating reusable workflows that need to access bash scripts or other files from the PipelineTemplates repository, you must explicitly checkout the repository. The workflow file itself is executed from the specified version/tag, but it doesn't automatically include other files from the repository.
+
+**The Problem:**
+
+When a caller uses your workflow like this:
+```yaml
+uses: redjax/PipelineTemplates/.github/workflows/go-build.yml@github/go-build/v0.0.3
+```
+
+GitHub Actions runs the workflow file from that tag, but doesn't provide direct access to files like `shared/scripts/bash/go/go-build.sh`. The workflow needs to checkout the PipelineTemplates repository to access these files.
+
+**The Solution:**
+
+Parse the `github.workflow_ref` context variable to automatically determine which repository and ref to checkout. This variable contains the full reference in the format:
+```
+owner/repo/.github/workflows/workflow.yml@refs/tags/github/go-build/v0.0.3
+```
+
+**Copy/Paste Example:**
+
+Add these steps to your reusable workflow after checking out the caller's repository:
+
+```yaml
+steps:
+  - name: Checkout caller repo
+    uses: actions/checkout@v4
+
+  # Parse the workflow reference to determine which PipelineTemplates revision to checkout
+  - name: Parse workflow reference
+    id: workflow-ref
+    run: |
+      # github.workflow_ref format: "owner/repo/.github/workflows/workflow.yml@refs/heads/branch"
+      # Extract repository (everything before /.github/) and ref (everything after @)
+      WORKFLOW_REF="${{ github.workflow_ref }}"
+      REPO="${WORKFLOW_REF%%/.github/*}"
+      REF="${WORKFLOW_REF##*@}"
+      echo "repository=$REPO" >> $GITHUB_OUTPUT
+      echo "ref=$REF" >> $GITHUB_OUTPUT
+      echo "Parsed workflow ref: repo=$REPO, ref=$REF"
+
+  # Checkout PipelineTemplates at the same version as the calling workflow
+  - name: Checkout PipelineTemplates repo
+    uses: actions/checkout@v4
+    with:
+      repository: ${{ steps.workflow-ref.outputs.repository }}
+      ref: ${{ steps.workflow-ref.outputs.ref }}
+      path: pipelinetemplates
+
+  # Now you can access bash scripts via: pipelinetemplates/shared/scripts/bash/...
+  - name: Run build script
+    run: bash pipelinetemplates/shared/scripts/bash/go/go-build.sh
+```
+
+When a Go application repository calls the `go-build.yml` workflow with a specific version tag, the parsing automatically ensures everything stays in sync. Here's what happens:
+
+```yaml
+# In your Go app repo: .github/workflows/build.yml
+---
+name: Build My Go App
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    uses: redjax/PipelineTemplates/.github/workflows/go-build.yml@github/go-build/v0.0.4
+    with:
+      build-package: ./cmd/myapp
+      binary-name: myapp
+      platforms: linux/amd64,linux/arm64,darwin/amd64
+```
+
+Behind the scenes:
+1. GitHub runs the `go-build.yml` workflow file from tag `github/go-build/v0.0.4`
+2. The workflow parses `github.workflow_ref` which contains: `redjax/PipelineTemplates/.github/workflows/go-build.yml@refs/tags/github/go-build/v0.0.4`
+3. It extracts `repository=redjax/PipelineTemplates` and `ref=refs/tags/github/go-build/v0.0.4`
+4. It checks out the PipelineTemplates repo at that exact tag into the `pipelinetemplates/` directory
+5. The workflow can now execute `pipelinetemplates/shared/scripts/bash/go/go-build.sh` from the same version
+
+This means the workflow and bash scripts are always from the same version, and the scripts will be available to the calling pipeline because it checks out the PipelineTemplates repository.
 
 ## Testing Changes
 
