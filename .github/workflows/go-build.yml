@@ -1,0 +1,125 @@
+---
+#######################################
+# Pipeline to build a Go application. #
+#######################################
+
+name: Go Build
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: "(default: .) Path to directory containing main.go entrypoint"
+        required: false
+        type: string
+        default: .
+      build-package:
+        description: "Go package path to build, for example . or ./cmd/example."
+        required: true
+        type: string
+
+      binary-name:
+        description: "Name for binary file."
+        required: true
+        type: string
+      platforms:
+        description: "Comma-separated list of GOOS/GOARCH targets, such as linux/amd64,linux/arm64."
+        required: false
+        type: string
+        default: linux/amd64
+      build-tags:
+        description: "Optional Go build tags."
+        required: false
+        type: string
+        default: ""
+      ldflags:
+        description: "Optional ldflags passed to go build."
+        required: false
+        type: string
+        default: ""
+      output-dir:
+        description: "Directory to write build artifacts to."
+        required: false
+        type: string
+        default: dist
+      go-version:
+        description: "Go toolchain version to install."
+        required: false
+        type: string
+        default: "1.25.6"
+      artifact-name:
+        description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
+        required: false
+        type: string
+        default: ""
+      upload-artifacts:
+        description: "Upload build artifacts (default: true)"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v6
+
+      - name: Parse workflow reference
+        id: workflow-ref
+        run: |
+          # Extract the ref from github.action_ref (available in reusable workflows)
+          # For a call like @github/go-build/v0.0.4, this gives us the tag
+          REF="${{ github.action_ref }}"
+          REPO="redjax/PipelineTemplates"
+          
+          echo "repository=$REPO" >> $GITHUB_OUTPUT
+          echo "ref=$REF" >> $GITHUB_OUTPUT
+
+      - name: Checkout PipelineTemplates repo
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ steps.workflow-ref.outputs.repository }}
+          ref: ${{ steps.workflow-ref.outputs.ref }}
+          path: pipelinetemplates
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Build
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          BUILD_PACKAGE: ${{ inputs.build-package }}
+          BINARY_NAME: ${{ inputs.binary-name }}
+          PLATFORMS: ${{ inputs.platforms }}
+          BUILD_TAGS: ${{ inputs.build-tags }}
+          LDFLAGS: ${{ inputs.ldflags }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: bash pipelinetemplates/shared/scripts/bash/go/go-build.sh
+
+      - name: Determine artifact name
+        if: ${{ inputs.upload-artifacts }}
+        id: artifact-name
+        run: |
+          if [[ -n "${{ inputs.artifact-name }}" ]]; then
+            ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          else
+            REPO_NAME="${{ github.event.repository.name }}"
+            ARTIFACT_NAME="${REPO_NAME}-${{ inputs.binary-name }}-dist"
+          fi
+          echo "name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "Artifact will be named: $ARTIFACT_NAME"
+
+      - name: Upload artifacts
+        if: ${{ inputs.upload-artifacts }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: ${{ inputs.module-dir }}/${{ inputs.output-dir }}/
+          retention-days: 7
+          if-no-files-found: warn

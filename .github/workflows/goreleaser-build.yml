@@ -1,0 +1,205 @@
+---
+##############################################
+# Pipeline to build and release Go apps     #
+# with GoReleaser.                          #
+#                                           #
+# Supports full releases, snapshots, and   #
+# custom configurations via .goreleaser.yml #
+##############################################
+
+name: GoReleaser Build
+
+on:
+  workflow_call:
+    inputs:
+      goreleaser-config:
+        description: "Path to .goreleaser.yml config file in calling repo (default: .goreleaser.yml)"
+        required: false
+        type: string
+        default: .goreleaser.yml
+      snapshot:
+        description: "Build snapshot (no release/publish). Use for non-release branches."
+        required: false
+        type: boolean
+        default: false
+      clean:
+        description: "Remove dist directory before building"
+        required: false
+        type: boolean
+        default: true
+      skip-validate:
+        description: "Skip validation checks"
+        required: false
+        type: boolean
+        default: false
+      skip-publish:
+        description: "Skip publishing artifacts (build only)"
+        required: false
+        type: boolean
+        default: false
+      goreleaser-version:
+        description: "GoReleaser version to use (default: latest)"
+        required: false
+        type: string
+        default: latest
+      go-version:
+        description: "Go toolchain version to install (default: 1.25.6)"
+        required: false
+        type: string
+        default: "1.25.6"
+      working-directory:
+        description: "Working directory for the build (default: .)"
+        required: false
+        type: string
+        default: .
+      docker-build:
+        description: "Enable Docker image building (if configured in .goreleaser.yml)"
+        required: false
+        type: boolean
+        default: false
+      extra-args:
+        description: "Additional GoReleaser CLI arguments (space-separated)"
+        required: false
+        type: string
+        default: ""
+      dry-run:
+        description: "Perform dry-run (validate config without building)"
+        required: false
+        type: boolean
+        default: false
+      release-notes:
+        description: "Path to custom release notes file"
+        required: false
+        type: string
+        default: ""
+      artifact-name:
+        description: "Name for uploaded artifacts (default: <repo-name>-dist or <repo-name>-snapshot-dist)"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      github-token:
+        description: "GitHub token for creating releases (defaults to GITHUB_TOKEN)"
+        required: false
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+    
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Full history for changelog generation
+
+      - name: Fetch all tags
+        run: git fetch --force --tags
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: true
+
+      - name: Docker Login (if Docker build enabled)
+        if: ${{ inputs.docker-build }}
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.github-token || secrets.GITHUB_TOKEN }}
+
+      - name: Setup QEMU (for cross-platform Docker builds)
+        if: ${{ inputs.docker-build }}
+        uses: docker/setup-qemu-action@v4
+
+      - name: Setup Docker Buildx (for cross-platform Docker builds)
+        if: ${{ inputs.docker-build }}
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build GoReleaser args
+        id: goreleaser-args
+        run: |
+          ARGS=""
+          
+          # Determine command (build or release)
+          if [[ "${{ inputs.snapshot }}" == "true" ]] || [[ "${{ inputs.skip-publish }}" == "true" ]]; then
+            ARGS="build"
+          else
+            ARGS="release"
+          fi
+          
+          # Add flags
+          [[ "${{ inputs.clean }}" == "true" ]] && ARGS="$ARGS --clean"
+          [[ "${{ inputs.snapshot }}" == "true" ]] && ARGS="$ARGS --snapshot"
+          [[ "${{ inputs.skip-validate }}" == "true" ]] && ARGS="$ARGS --skip=validate"
+          [[ -n "${{ inputs.release-notes }}" ]] && ARGS="$ARGS --release-notes=${{ inputs.release-notes }}"
+          [[ -n "${{ inputs.extra-args }}" ]] && ARGS="$ARGS ${{ inputs.extra-args }}"
+          
+          echo "args=$ARGS" >> $GITHUB_OUTPUT
+          echo "GoReleaser will run: goreleaser $ARGS"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: ${{ inputs.goreleaser-version }}
+          args: ${{ steps.goreleaser-args.outputs.args }} --config=${{ inputs.goreleaser-config }}
+          workdir: ${{ inputs.working-directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.github-token || secrets.GITHUB_TOKEN }}
+
+      - name: Determine artifact name
+        if: ${{ inputs.snapshot || inputs.skip-publish }}
+        id: artifact-name
+        run: |
+          if [[ -n "${{ inputs.artifact-name }}" ]]; then
+            # User provided a name
+            ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          else
+            # Generate default name
+            REPO_NAME="${{ github.event.repository.name }}"
+            if [[ "${{ inputs.snapshot }}" == "true" ]]; then
+              ARTIFACT_NAME="${REPO_NAME}-snapshot-dist"
+            else
+              ARTIFACT_NAME="${REPO_NAME}-dist"
+            fi
+          fi
+          echo "name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "Artifact will be named: $ARTIFACT_NAME"
+
+      - name: Upload artifacts
+        if: ${{ inputs.snapshot || inputs.skip-publish }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.artifact-name.outputs.name }}
+          path: ${{ inputs.working-directory }}/dist/
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Generate build summary
+        if: always()
+        run: |
+          echo "## GoReleaser Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Config**: \`${{ inputs.goreleaser-config }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Snapshot**: ${{ inputs.snapshot }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Go Version**: ${{ inputs.go-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GoReleaser Version**: ${{ inputs.goreleaser-version }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ -d dist ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Artifacts Generated" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            find dist -type f | head -20 >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
