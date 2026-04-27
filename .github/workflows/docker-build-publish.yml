@@ -1,0 +1,83 @@
+---
+name: Docker build and publish
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        type: string
+        required: true
+        default: .
+      dockerfile:
+        type: string
+        required: false
+        default: Dockerfile
+      image_name:
+        type: string
+        required: true
+      tags:
+        type: string
+        required: true
+        description: Newline-separated list of tags
+      push:
+        type: boolean
+        required: false
+        default: true
+      platforms:
+        type: string
+        required: false
+        default: linux/amd64
+      build_args:
+        type: string
+        required: false
+        default: ""
+      cache_from:
+        type: string
+        required: false
+        default: ""
+      cache_to:
+        type: string
+        required: false
+        default: ""
+    secrets:
+      registry_username:
+        required: true
+      registry_password:
+        required: true
+      registry:
+        required: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ secrets.registry }}
+          username: ${{ secrets.registry_username }}
+          password: ${{ secrets.registry_password }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: ${{ inputs.push }}
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ inputs.tags }}
+          build-args: ${{ inputs.build_args }}
+          cache-from: ${{ inputs.cache_from }}
+          cache-to: ${{ inputs.cache_to }}
