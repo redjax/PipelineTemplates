@@ -55,6 +55,7 @@ When creating reusable workflows that need to access bash scripts or other files
 **The Problem:**
 
 When a caller uses your workflow like this:
+
 ```yaml
 uses: redjax/PipelineTemplates/.github/workflows/go-build.yml@github/go-build/v0.0.3
 ```
@@ -64,7 +65,8 @@ GitHub Actions runs the workflow file from that tag, but doesn't provide direct 
 **The Solution:**
 
 Parse the `github.workflow_ref` context variable to automatically determine which repository and ref to checkout. This variable contains the full reference in the format:
-```
+
+```text
 owner/repo/.github/workflows/workflow.yml@refs/tags/github/go-build/v0.0.3
 ```
 
@@ -124,6 +126,7 @@ jobs:
 ```
 
 Behind the scenes:
+
 1. GitHub runs the `go-build.yml` workflow file from tag `github/go-build/v0.0.4`
 2. The workflow parses `github.workflow_ref` which contains: `redjax/PipelineTemplates/.github/workflows/go-build.yml@refs/tags/github/go-build/v0.0.4`
 3. It extracts `repository=redjax/PipelineTemplates` and `ref=refs/tags/github/go-build/v0.0.4`
