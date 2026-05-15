@@ -2,3 +2,281 @@
 ##########################################
 # Send a notification to a Gotify server #
 ##########################################
+
+name: Gotify Notification
+
+on:
+  workflow_call:
+    inputs:
+      gotify-url:
+        description: "Base URL of the Gotify server"
+        required: true
+        type: string
+
+      title:
+        description: "Notification title"
+        required: false
+        type: string
+        default: ""
+
+      message:
+        description: "Notification message"
+        required: true
+        type: string
+
+      priority:
+        description: "Gotify priority"
+        required: false
+        type: number
+        default: 0
+
+      use-json:
+        description: "Use application/json payload instead of multipart form"
+        required: false
+        type: boolean
+        default: true
+
+      content-type:
+        description: "Message rendering type"
+        required: false
+        type: string
+        default: "text/plain"
+
+      click-url:
+        description: "URL to open when notification is clicked"
+        required: false
+        type: string
+        default: ""
+
+      big-image-url:
+        description: "Large notification image"
+        required: false
+        type: string
+        default: ""
+
+      intent-url:
+        description: "Android intent URL"
+        required: false
+        type: string
+        default: ""
+
+      extras-json:
+        description: "Additional extras JSON merged into generated extras"
+        required: false
+        type: string
+        default: "{}"
+
+      raw-json-payload:
+        description: "Completely override generated JSON payload"
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      gotify-token:
+        required: true
+
+jobs:
+  send-notification:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Gotify Notification
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          GOTIFY_URL="${{ inputs.gotify-url }}"
+          TOKEN="${{ secrets.gotify-token }}"
+
+          TITLE="${{ inputs.title }}"
+          MESSAGE="${{ inputs.message }}"
+          PRIORITY="${{ inputs.priority }}"
+
+          USE_JSON="${{ inputs.use-json }}"
+
+          CONTENT_TYPE="${{ inputs.content-type }}"
+          CLICK_URL="${{ inputs.click-url }}"
+          BIG_IMAGE_URL="${{ inputs.big-image-url }}"
+          INTENT_URL="${{ inputs.intent-url }}"
+
+          USER_EXTRAS='${{ inputs.extras-json }}'
+          RAW_JSON_PAYLOAD='${{ inputs.raw-json-payload }}'
+
+          ## Validate User Extras JSON
+          if ! echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1; then
+            echo "ERROR: extras-json is not valid JSON"
+            exit 1
+          fi
+
+          ## Validate Raw Payload JSON
+          if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
+            if ! echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1; then
+              echo "ERROR: raw-json-payload is not valid JSON"
+              exit 1
+            fi
+          fi
+
+          ## Multipart/Form-Data Mode
+          if [[ "$USE_JSON" != "true" ]]; then
+
+            CURL_ARGS=(
+              --fail
+              --silent
+              --show-error
+              --retry 3
+              --retry-delay 5
+              -X POST
+              "${GOTIFY_URL}/message?token=${TOKEN}"
+              -F "message=${MESSAGE}"
+            )
+
+            if [[ -n "$TITLE" ]]; then
+              CURL_ARGS+=(-F "title=${TITLE}")
+            fi
+
+            if [[ "$PRIORITY" -gt 0 ]]; then
+              CURL_ARGS+=(-F "priority=${PRIORITY}")
+            fi
+
+            echo "Sending multipart/form-data Gotify notification"
+
+            curl "${CURL_ARGS[@]}"
+
+            echo
+            echo "Notification sent successfully"
+
+            exit 0
+          fi
+
+          GENERATED_EXTRAS='{}'
+
+          ## client::display
+          if [[ -n "$CONTENT_TYPE" ]]; then
+            GENERATED_EXTRAS=$(
+              echo "$GENERATED_EXTRAS" | jq \
+                --arg ct "$CONTENT_TYPE" \
+                '
+                . + {
+                  "client::display": {
+                    "contentType": $ct
+                  }
+                }
+                '
+            )
+          fi
+
+          ## client::notification.click.url
+          if [[ -n "$CLICK_URL" ]]; then
+            GENERATED_EXTRAS=$(
+              echo "$GENERATED_EXTRAS" | jq \
+                --arg url "$CLICK_URL" \
+                '
+                .["client::notification"] += {
+                  "click": {
+                    "url": $url
+                  }
+                }
+                '
+            )
+          fi
+
+          ## client::notification.bigImageUrl
+          if [[ -n "$BIG_IMAGE_URL" ]]; then
+            GENERATED_EXTRAS=$(
+              echo "$GENERATED_EXTRAS" | jq \
+                --arg url "$BIG_IMAGE_URL" \
+                '
+                .["client::notification"] += {
+                  "bigImageUrl": $url
+                }
+                '
+            )
+          fi
+
+          ## android::action.onReceive.intentUrl
+          if [[ -n "$INTENT_URL" ]]; then
+            GENERATED_EXTRAS=$(
+              echo "$GENERATED_EXTRAS" | jq \
+                --arg url "$INTENT_URL" \
+                '
+                .["android::action"] += {
+                  "onReceive": {
+                    "intentUrl": $url
+                  }
+                }
+                '
+            )
+          fi
+
+          ## Deep Merge Generated + User Extras
+          FINAL_EXTRAS=$(
+            jq -s '
+              reduce .[] as $item ({}; . * $item)
+            ' \
+            <(echo "$GENERATED_EXTRAS") \
+            <(echo "$USER_EXTRAS")
+          )
+
+          ## Raw Payload Override
+          if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
+
+            PAYLOAD="$RAW_JSON_PAYLOAD"
+
+            echo "Using raw JSON payload override"
+
+          else
+
+            ## Build Standard Payload
+            PAYLOAD=$(
+              jq -n \
+                --arg title "$TITLE" \
+                --arg message "$MESSAGE" \
+                --argjson priority "$PRIORITY" \
+                --argjson extras "$FINAL_EXTRAS" \
+                '
+                {
+                  message: $message
+                }
+
+                + (if $title != "" then
+                    { title: $title }
+                  else
+                    {}
+                  end)
+
+                + (if $priority > 0 then
+                    { priority: $priority }
+                  else
+                    {}
+                  end)
+
+                + (if $extras != {} then
+                    { extras: $extras }
+                  else
+                    {}
+                  end)
+                '
+            )
+
+          fi
+
+          ## Send JSON Request
+          echo "Sending JSON Gotify notification"
+
+          echo "Payload:"
+          echo "$PAYLOAD" | jq
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 5 \
+            -X POST \
+            "${GOTIFY_URL}/message?token=${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
+
+          echo
+          echo "Notification sent successfully"
