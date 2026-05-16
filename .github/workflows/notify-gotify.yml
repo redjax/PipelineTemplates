@@ -93,16 +93,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Debug network path
-        run: |
-          set -euxo pipefail
-
-          echo "DNS resolution:"
-          nslookup "${{ vars.GOTIFY_URL }}" || true
-
-          echo "Curl verbose:"
-          curl -v "${{ vars.GOTIFY_URL }}/health" || true
-
       - name: Send Gotify Notification
         shell: bash
         env:
