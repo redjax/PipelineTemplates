@@ -186,14 +186,28 @@ done
 ## Debug URL
 debug "Gotify URL: $GOTIFY_URL"
 
-## Validate JSON inputs
+## Normalize USER_EXTRAS & RAW_JSON_PAYLOAD
+USER_EXTRAS="$(echo -n "${USER_EXTRAS:-}" | xargs)" # trim spaces
+if [[ -z "$USER_EXTRAS" ]]; then
+  USER_EXTRAS='{}'
+fi
+
+if [[ ! "$USER_EXTRAS" =~ ^[\{\[] ]]; then
+  USER_EXTRAS=$(jq -Rn --arg s "$USER_EXTRAS" '$s')
+fi
+
 echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
-  echo "ERROR: USER_EXTRAS invalid JSON"
+  echo "ERROR: USER_EXTRAS invalid JSON after normalization"
   exit 1
 }
+
+RAW_JSON_PAYLOAD="$(echo -n "${RAW_JSON_PAYLOAD:-}" | xargs)"
 if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
+  if [[ ! "$RAW_JSON_PAYLOAD" =~ ^[\{\[] ]]; then
+    RAW_JSON_PAYLOAD=$(jq -Rn --arg s "$RAW_JSON_PAYLOAD" '$s')
+  fi
   echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1 || {
-    echo "ERROR: RAW_JSON_PAYLOAD invalid JSON"
+    echo "ERROR: RAW_JSON_PAYLOAD invalid JSON after normalization"
     exit 1
   }
 fi
