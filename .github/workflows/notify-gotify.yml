@@ -117,8 +117,8 @@ jobs:
           CLICK_URL: ${{ inputs.click-url }}
           BIG_IMAGE_URL: ${{ inputs.big-image-url }}
           INTENT_URL: ${{ inputs.intent-url }}
-          USER_EXTRAS: ${{ toJson(inputs.extras-json) }}
-          RAW_JSON_PAYLOAD: ${{ toJson(inputs.raw-json-payload) }}
+          USER_EXTRAS: ${{ inputs.extras-json }}
+          RAW_JSON_PAYLOAD: ${{ inputs.raw-json-payload }}
           USER_AGENT: ${{ inputs.user-agent }}
           DEBUG: ${{ inputs.debug }}
         run: bash pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
