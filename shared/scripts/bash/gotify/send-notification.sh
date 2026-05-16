@@ -292,7 +292,7 @@ echo "$PAYLOAD" | jq .
 
 log "Sending JSON notification"
 
-## Send reques
+## Send request
 curl "${CURL_FLAGS[@]}" \
   "${GOTIFY_URL}/message?token=${TOKEN}" \
   -H "Content-Type: application/json" \
