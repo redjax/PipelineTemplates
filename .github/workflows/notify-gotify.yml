@@ -72,6 +72,12 @@ on:
         type: string
         default: ""
 
+      user-agent:
+        description: "HTTP UA string to send with requests"
+        required: false
+        type: string
+        default: "redjax/PipelineTemplates"
+
     secrets:
       gotify-token:
         required: true
@@ -87,6 +93,8 @@ jobs:
           set -Eeuo pipefail
 
           GOTIFY_URL="${{ inputs.gotify-url }}"
+          USER_AGENT="${{ inputs.user-agent }}"
+          UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
           TOKEN="${{ secrets.gotify-token }}"
 
           TITLE="${{ inputs.title }}"
@@ -129,6 +137,7 @@ jobs:
               -X POST
               "${GOTIFY_URL}/message?token=${TOKEN}"
               -F "message=${MESSAGE}"
+              "${UA_HEADER[@]}"
             )
 
             if [[ -n "$TITLE" ]]; then
@@ -276,6 +285,7 @@ jobs:
             -X POST \
             "${GOTIFY_URL}/message?token=${TOKEN}" \
             -H "Content-Type: application/json" \
+            "${UA_HEADER[@]}" \
             -d "$PAYLOAD"
 
           echo
