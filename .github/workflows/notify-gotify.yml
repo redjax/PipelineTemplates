@@ -154,16 +154,16 @@ jobs:
               --connect-timeout 5 \
               --max-time 15 \
               --fail \
-              --silent \
+              --verbose \
               --show-error \
               --retry 3 \
               --retry-delay 5 \
               -X POST \
               "${GOTIFY_URL}/message?token=${TOKEN}" \
-              "${UA_HEADER[@]}" \
               -F "message=${MESSAGE}" \
               ${TITLE:+-F "title=${TITLE}"} \
-              ${PRIORITY:+-F "priority=${PRIORITY}"}
+              ${PRIORITY:+-F "priority=${PRIORITY}"} \
+              "${UA_HEADER[@]}"
 
             echo "Notification sent successfully"
             exit 0
@@ -250,14 +250,14 @@ jobs:
             --connect-timeout 5 \
             --max-time 15 \
             --fail \
-            --silent \
+            --verbose \
             --show-error \
             --retry 3 \
             --retry-delay 5 \
             -X POST \
             "${GOTIFY_URL}/message?token=${TOKEN}" \
             -H "Content-Type: application/json" \
-            "${UA_HEADER[@]}" \
-            -d "$PAYLOAD"
+            -d "$PAYLOAD" \
+            "${UA_HEADER[@]}"
 
           echo "Notification sent successfully"
