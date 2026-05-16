@@ -93,179 +93,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Debug network path
-        run: |
-          set -euxo pipefail
-
-          echo "DNS resolution:"
-          nslookup "${{ vars.GOTIFY_URL }}" || true
-
-          echo "Curl verbose:"
-          curl -v "${{ vars.GOTIFY_URL }}/health" || true
+      - name: Checkout PipelineTemplates repo
+        uses: actions/checkout@v6
+        with:
+          repository: redjax/PipelineTemplates
+          ref: feat/refactor-gotify-script # temporary while testing
+          path: pipelinetemplates
 
       - name: Send Gotify Notification
         shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          GOTIFY_URL="${{ inputs.gotify-url }}"
-          USER_AGENT="${{ inputs.user-agent }}"
-          TOKEN="${{ secrets.gotify-token }}"
-
-          TITLE="${{ inputs.title }}"
-          MESSAGE="${{ inputs.message }}"
-          PRIORITY="${{ inputs.priority }}"
-
-          USE_JSON="${{ inputs.use-json }}"
-
-          CONTENT_TYPE="${{ inputs.content-type }}"
-          CLICK_URL="${{ inputs.click-url }}"
-          BIG_IMAGE_URL="${{ inputs.big-image-url }}"
-          INTENT_URL="${{ inputs.intent-url }}"
-
-          USER_EXTRAS='${{ inputs.extras-json }}'
-          RAW_JSON_PAYLOAD='${{ inputs.raw-json-payload }}'
-
-          UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
-
-          echo "[DEBUG] Gotify URL: ${GOTIFY_URL}"
-
-          # -----------------------------
-          # Validate JSON inputs safely
-          # -----------------------------
-          echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
-            echo "ERROR: extras-json invalid JSON"
-            exit 1
-          }
-
-          if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-            echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1 || {
-              echo "ERROR: raw-json-payload invalid JSON"
-              exit 1
-            }
-          fi
-
-          # Normalize priority (avoid jq argjson issues)
-          PRIORITY="${PRIORITY:-0}"
-          [[ "$PRIORITY" =~ ^[0-9]+$ ]] || PRIORITY=0
-
-          # -----------------------------
-          # Multipart mode
-          # -----------------------------
-          if [[ "$USE_JSON" != "true" ]]; then
-
-            echo "Sending multipart Gotify notification"
-
-            ## To debug, temporarily remove --silent, or replace with --verbose
-            curl \
-              --connect-timeout 5 \
-              --max-time 15 \
-              --fail \
-              --silent \
-              --show-error \
-              --retry 3 \
-              --retry-delay 5 \
-              -X POST \
-              "${GOTIFY_URL}/message?token=${TOKEN}" \
-              -F "message=${MESSAGE}" \
-              ${TITLE:+-F "title=${TITLE}"} \
-              ${PRIORITY:+-F "priority=${PRIORITY}"} \
-              "${UA_HEADER[@]}"
-
-            echo "Notification sent successfully"
-            exit 0
-          fi
-
-          # -----------------------------
-          # Build JSON extras
-          # -----------------------------
-          GENERATED_EXTRAS=$(jq -n '{}')
-
-          ## client::display
-          if [[ -n "$CONTENT_TYPE" ]]; then
-            GENERATED_EXTRAS=$(jq -n \
-              --arg ct "$CONTENT_TYPE" \
-              '{ "client::display": { "contentType": $ct } }')
-          fi
-
-          ## client::notification.click.url
-          if [[ -n "$CLICK_URL" ]]; then
-            GENERATED_EXTRAS=$(
-              echo "$GENERATED_EXTRAS" | jq \
-                --arg url "$CLICK_URL" \
-                '. + { "client::notification": { "click": { "url": $url } } }'
-            )
-          fi
-
-          ## client::notification.bigImageUrl
-          if [[ -n "$BIG_IMAGE_URL" ]]; then
-            GENERATED_EXTRAS=$(
-              echo "$GENERATED_EXTRAS" | jq \
-                --arg url "$BIG_IMAGE_URL" \
-                '. + { "client::notification": { "bigImageUrl": $url } }'
-            )
-          fi
-
-          ## android::action.onReceive.intentUrl
-          if [[ -n "$INTENT_URL" ]]; then
-            GENERATED_EXTRAS=$(
-              echo "$GENERATED_EXTRAS" | jq \
-                --arg url "$INTENT_URL" \
-                '. + { "android::action": { "onReceive": { "intentUrl": $url } } }'
-            )
-          fi
-
-          # Merge extras safely (NO fragile argjson)
-          FINAL_EXTRAS=$(
-            jq -s 'reduce .[] as $i ({}; . * $i)' \
-              <(echo "$GENERATED_EXTRAS") \
-              <(echo "$USER_EXTRAS")
-          )
-
-          # -----------------------------
-          # Build payload safely
-          # -----------------------------
-          if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-            PAYLOAD="$RAW_JSON_PAYLOAD"
-            echo "Using raw payload override"
-          else
-            PAYLOAD=$(
-              jq -n \
-                --arg message "$MESSAGE" \
-                --arg title "$TITLE" \
-                --argjson priority "$PRIORITY" \
-                --argjson extras "$FINAL_EXTRAS" \
-                '
-                { message: $message }
-
-                + (if $title != "" then { title: $title } else {} end)
-                + (if $priority > 0 then { priority: $priority } else {} end)
-                + (if $extras != {} then { extras: $extras } else {} end)
-                '
-            )
-          fi
-
-          # -----------------------------
-          # Final validation BEFORE sending
-          # -----------------------------
-          echo "Final payload validation:"
-          echo "$PAYLOAD" | jq .
-
-          echo "Sending JSON Gotify notification"
-
-          ## To debug, temporarily remove --silent, or replace with --verbose
-          curl \
-            --connect-timeout 5 \
-            --max-time 15 \
-            --fail \
-            --silent \
-            --show-error \
-            --retry 3 \
-            --retry-delay 5 \
-            -X POST \
-            "${GOTIFY_URL}/message?token=${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "${UA_HEADER[@]}"
-
-          echo "Notification sent successfully"
+        env:
+          GOTIFY_URL: ${{ inputs.gotify-url }}
+          GOTIFY_TOKEN: ${{ secrets.gotify-token }}
+          TITLE: ${{ inputs.title }}
+          MESSAGE: ${{ inputs.message }}
+          PRIORITY: ${{ inputs.priority }}
+          USE_JSON: ${{ inputs.use-json }}
+          CONTENT_TYPE: ${{ inputs.content-type }}
+          CLICK_URL: ${{ inputs.click-url }}
+          BIG_IMAGE_URL: ${{ inputs.big-image-url }}
+          INTENT_URL: ${{ inputs.intent-url }}
+          USER_EXTRAS: ${{ toJson(inputs.extras-json) }}
+          RAW_JSON_PAYLOAD: ${{ toJson(inputs.raw-json-payload) }}
+          USER_AGENT: ${{ inputs.user-agent }}
+          DEBUG: ${{ inputs.debug }}
+        run: bash pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
