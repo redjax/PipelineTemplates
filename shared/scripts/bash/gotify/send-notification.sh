@@ -193,7 +193,6 @@ if [[ -z "$RAW_JSON_PAYLOAD" && -z "$MESSAGE" ]]; then
 fi
 
 ## Normalize USER_EXTRAS & RAW_JSON_PAYLOAD
-USER_EXTRAS
 if [[ -z "$USER_EXTRAS" ]]; then
   USER_EXTRAS='{}'
 fi
@@ -287,7 +286,7 @@ echo "$PAYLOAD" | jq .
 
 log "Sending JSON notification"
 
-## Send reques
+## Send request
 curl "${CURL_FLAGS[@]}" \
   "${GOTIFY_URL}/message?token=${TOKEN}" \
   -H "Content-Type: application/json" \
