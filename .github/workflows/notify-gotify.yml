@@ -97,7 +97,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: redjax/PipelineTemplates
-          ref: feat/refactor-gotify-script # temporary while testing
+          ref: feat/gotify-notification # temporary while testing
           path: pipelinetemplates
 
       - name: Send Gotify Notification
