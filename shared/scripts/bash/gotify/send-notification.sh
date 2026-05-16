@@ -11,6 +11,16 @@ set -Eeuo pipefail
 # It was designed to be called from a CI/CD pipeline.  #
 ########################################################
 
+if ! command -v curl >&/dev/null; then
+  echo "[ERROR] curl is not installed." >&2
+  exit 1
+fi
+
+if ! command -v jq >&/dev/null; then
+  echo "[ERROR] jq is not installed" >&2
+  exit 1
+fi
+
 GOTIFY_URL="${GOTIFY_URL:-}"
 TOKEN="${GOTIFY_TOKEN:-}"
 
