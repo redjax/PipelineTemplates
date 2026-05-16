@@ -79,12 +79,6 @@ on:
         type: string
         default: "redjax/PipelineTemplates"
 
-      debug:
-        description: "Show extra logging"
-        required: false
-        type: boolean
-        default: false
-
     secrets:
       gotify-token:
         required: true
@@ -120,5 +114,4 @@ jobs:
           USER_EXTRAS: ${{ inputs.extras-json }}
           RAW_JSON_PAYLOAD: ${{ inputs.raw-json-payload }}
           USER_AGENT: ${{ inputs.user-agent }}
-          DEBUG: ${{ inputs.debug }}
         run: pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
