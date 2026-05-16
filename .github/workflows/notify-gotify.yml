@@ -93,6 +93,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout PipelineTemplates repo
+        uses: actions/checkout@v6
+        with:
+          repository: redjax/PipelineTemplates
+          ref: feat/refactor-gotify-script # temporary while testing
+          path: pipelinetemplates
+
       - name: Send Gotify Notification
         shell: bash
         env:
