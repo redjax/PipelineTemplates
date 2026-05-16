@@ -11,11 +11,11 @@ set -Eeuo pipefail
 # It was designed to be called from a CI/CD pipeline.  #
 ########################################################
 
-GOTIFY_URL="${GOTIFY_URL:?GOTIFY_URL is required}"
-TOKEN="${GOTIFY_TOKEN:?GOTIFY_TOKEN is required}"
+GOTIFY_URL="${GOTIFY_URL:-}"
+TOKEN="${GOTIFY_TOKEN:-}"
 
 TITLE="${TITLE:-}"
-MESSAGE="${MESSAGE:?MESSAGE is required}"
+MESSAGE="${MESSAGE:-}"
 PRIORITY="${PRIORITY:-0}"
 
 USE_JSON="${USE_JSON:-true}"
