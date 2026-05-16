@@ -187,13 +187,19 @@ done
 debug "Gotify URL: $GOTIFY_URL"
 
 ## Normalize USER_EXTRAS & RAW_JSON_PAYLOAD
-USER_EXTRAS="$(echo -n "${USER_EXTRAS:-}" | xargs)" # trim spaces
+USER_EXTRAS="$(echo -n "${USER_EXTRAS:-}" | xargs)"
 if [[ -z "$USER_EXTRAS" ]]; then
   USER_EXTRAS='{}'
 fi
 
-if [[ ! "$USER_EXTRAS" =~ ^[\{\[] ]]; then
-  USER_EXTRAS=$(jq -Rn --arg s "$USER_EXTRAS" '$s')
+## If it's already an object, leave it
+if ! echo "$USER_EXTRAS" | jq -e 'type=="object"' >/dev/null 2>&1; then
+  ## If it starts and ends with quotes, remove them
+  if [[ "$USER_EXTRAS" =~ ^\".*\"$ ]]; then
+    USER_EXTRAS="${USER_EXTRAS:1:-1}"
+  fi
+  ## Wrap as object if it's not one
+  USER_EXTRAS=$(jq -n --arg s "$USER_EXTRAS" '$s | try fromjson catch {}')
 fi
 
 echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
@@ -201,13 +207,19 @@ echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
   exit 1
 }
 
+## Normalize RAW_JSON_PAYLOAD
 RAW_JSON_PAYLOAD="$(echo -n "${RAW_JSON_PAYLOAD:-}" | xargs)"
 if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-  if [[ ! "$RAW_JSON_PAYLOAD" =~ ^[\{\[] ]]; then
-    RAW_JSON_PAYLOAD=$(jq -Rn --arg s "$RAW_JSON_PAYLOAD" '$s')
+  ## If it's a quoted string, try unquoting it
+  if [[ "$RAW_JSON_PAYLOAD" =~ ^\".*\"$ ]]; then
+    RAW_JSON_PAYLOAD="${RAW_JSON_PAYLOAD:1:-1}"
   fi
+  ## Try parsing it as JSON; if it fails, wrap as string
+  RAW_JSON_PAYLOAD=$(jq -Rn --arg s "$RAW_JSON_PAYLOAD" '$s | try fromjson catch $s')
+
+  ## Validate
   echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1 || {
-    echo "ERROR: RAW_JSON_PAYLOAD invalid JSON after normalization"
+    echo "[ERROR] RAW_JSON_PAYLOAD invalid JSON after normalization"
     exit 1
   }
 fi
