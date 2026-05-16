@@ -111,6 +111,8 @@ jobs:
           USER_EXTRAS='${{ inputs.extras-json }}'
           RAW_JSON_PAYLOAD='${{ inputs.raw-json-payload }}'
 
+          echo "[DEBUG] Gotify URL: ${GOTIFY_URL:-<NOT DETECTED>}"
+
           ## Validate User Extras JSON
           if ! echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1; then
             echo "ERROR: extras-json is not valid JSON"
