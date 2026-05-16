@@ -79,6 +79,12 @@ on:
         type: string
         default: "redjax/PipelineTemplates"
 
+      debug:
+        description: "Show extra logging"
+        required: false
+        type: boolean
+        default: false
+
     secrets:
       gotify-token:
         required: true
