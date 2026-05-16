@@ -4,51 +4,36 @@ set -Eeuo pipefail
 ########################################################
 # Gotify Notification Script                           #
 #                                                      #
-# This script controls sending notifications to        #
-# a Gotify server. It can handle simple notifications. #
-# and more complex ones with JSON payloads & images.   #
-#                                                      #
-# It was designed to be called from a CI/CD pipeline.  #
+# Sends notifications to a Gotify server, supporting   #
+# simple messages, clickable notifications, images,    #
+# raw JSON payload overrides, and JSON extras merge.   #
 ########################################################
 
-if ! command -v curl >&/dev/null; then
+if ! command -v curl >/dev/null 2>&1; then
   echo "[ERROR] curl is not installed." >&2
   exit 1
 fi
 
-if ! command -v jq >&/dev/null; then
-  echo "[ERROR] jq is not installed" >&2
+if ! command -v jq >/dev/null 2>&1; then
+  echo "[ERROR] jq is not installed." >&2
   exit 1
 fi
 
-GOTIFY_URL="${GOTIFY_URL:-}"
-TOKEN="${GOTIFY_TOKEN:-}"
+## Trim whitespace from input string
+function trim_ws() {
+  local s="$1"
 
-TITLE="${TITLE:-}"
-MESSAGE="${MESSAGE:-}"
-PRIORITY="${PRIORITY:-0}"
-
-USE_JSON="${USE_JSON:-true}"
-
-CONTENT_TYPE="${CONTENT_TYPE:-text/plain}"
-CLICK_URL="${CLICK_URL:-}"
-BIG_IMAGE_URL="${BIG_IMAGE_URL:-}"
-INTENT_URL="${INTENT_URL:-}"
-
-USER_EXTRAS="${USER_EXTRAS:-{}}"
-RAW_JSON_PAYLOAD="${RAW_JSON_PAYLOAD:-}"
-
-USER_AGENT="${USER_AGENT:-redjax/PipelineTemplates}"
-DEBUG="${DEBUG:-false}"
-
-UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
+  s="${s#"${s%%[!$' \t\r\n']*}"}"
+  s="${s%"${s##*[!$' \t\r\n']}"}"
+  printf '%s' "$s"
+}
 
 function log() {
   echo "[INFO] $*"
 }
 
 function debug() {
-  if [[ "$DEBUG" == "true" ]]; then
+  if [[ "${DEBUG:-false}" == "true" ]]; then
     echo "[DEBUG] $*"
   fi
 }
@@ -61,28 +46,22 @@ USAGE:
   send-notification.sh [OPTIONS]
 
 REQUIRED:
-  -m, --message        Notification message
+  -m, --message        Notification message (unless --raw-payload is used)
 
 OPTIONAL:
   -u, --gotify-url     Gotify base URL (or env GOTIFY_URL)
   -t, --token          Gotify token (or env GOTIFY_TOKEN)
-
   --title              Notification title
   --priority           Priority (default: 0)
-
   --use-json           true|false (default: true)
-
   --content-type       default: text/plain
   --click-url
   --big-image-url
   --intent-url
-
-  --extras-json        JSON string (default: {})
+  --extras-json        JSON object string (default: {})
   --raw-payload        Override full JSON payload
-
   --user-agent         default: redjax/PipelineTemplates
   --debug              Enable debug logs
-
   -h, --help           Show this help
 
 ENV FALLBACKS:
@@ -104,11 +83,26 @@ EXAMPLES:
 
   GOTIFY_URL=https://... GOTIFY_TOKEN=... \
   send-notification.sh -m "CI done"
-
 EOF
 }
 
-## Parse CLI args
+GOTIFY_URL="${GOTIFY_URL:-}"
+TOKEN="${GOTIFY_TOKEN:-}"
+TITLE="${TITLE:-}"
+MESSAGE="${MESSAGE:-}"
+PRIORITY="${PRIORITY:-0}"
+USE_JSON="${USE_JSON:-true}"
+CONTENT_TYPE="${CONTENT_TYPE:-text/plain}"
+CLICK_URL="${CLICK_URL:-}"
+BIG_IMAGE_URL="${BIG_IMAGE_URL:-}"
+INTENT_URL="${INTENT_URL:-}"
+USER_EXTRAS="${USER_EXTRAS:-}"
+RAW_JSON_PAYLOAD="${RAW_JSON_PAYLOAD:-}"
+USER_AGENT="${USER_AGENT:-redjax/PipelineTemplates}"
+DEBUG="${DEBUG:-false}"
+
+UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -u | --gotify-url)
@@ -161,6 +155,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --user-agent)
     USER_AGENT="$2"
+    UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
     shift 2
     ;;
   --debug)
@@ -172,7 +167,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   *)
-    echo "Unknown option: $1"
+    echo "Unknown option: $1" >&2
     usage
     exit 1
     ;;
@@ -181,60 +176,40 @@ done
 
 ## Validate required inputs
 [[ -n "$GOTIFY_URL" ]] || {
-  echo "ERROR: GOTIFY_URL required"
+  echo "ERROR: GOTIFY_URL required" >&2
   exit 1
 }
 [[ -n "$TOKEN" ]] || {
-  echo "ERROR: GOTIFY_TOKEN required"
-  exit 1
-}
-[[ -n "$MESSAGE" ]] || {
-  echo "ERROR: MESSAGE required"
+  echo "ERROR: GOTIFY_TOKEN required" >&2
   exit 1
 }
 
-## Debug URL
-debug "Gotify URL: $GOTIFY_URL"
+RAW_JSON_PAYLOAD="$(trim_ws "$RAW_JSON_PAYLOAD")"
+USER_EXTRAS="$(trim_ws "$USER_EXTRAS")"
+
+if [[ -z "$RAW_JSON_PAYLOAD" && -z "$MESSAGE" ]]; then
+  echo "ERROR: MESSAGE required unless RAW_JSON_PAYLOAD is provided" >&2
+  exit 1
+fi
 
 ## Normalize USER_EXTRAS & RAW_JSON_PAYLOAD
-USER_EXTRAS="$(echo -n "${USER_EXTRAS:-}" | xargs)"
+USER_EXTRAS
 if [[ -z "$USER_EXTRAS" ]]; then
   USER_EXTRAS='{}'
 fi
 
-## If it's already an object, leave it
-if ! echo "$USER_EXTRAS" | jq -e 'type=="object"' >/dev/null 2>&1; then
-  ## If it starts and ends with quotes, remove them
-  if [[ "$USER_EXTRAS" =~ ^\".*\"$ ]]; then
-    USER_EXTRAS="${USER_EXTRAS:1:-1}"
-  fi
-  ## Wrap as object if it's not one
-  USER_EXTRAS=$(jq -n --arg s "$USER_EXTRAS" '$s | try fromjson catch {}')
-fi
-
-echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
-  echo "ERROR: USER_EXTRAS invalid JSON after normalization"
-  exit 1
-}
-
-## Normalize RAW_JSON_PAYLOAD
-RAW_JSON_PAYLOAD="$(echo -n "${RAW_JSON_PAYLOAD:-}" | xargs)"
 if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-  ## If it's a quoted string, try unquoting it
-  if [[ "$RAW_JSON_PAYLOAD" =~ ^\".*\"$ ]]; then
-    RAW_JSON_PAYLOAD="${RAW_JSON_PAYLOAD:1:-1}"
-  fi
-  ## Try parsing it as JSON; if it fails, wrap as string
-  RAW_JSON_PAYLOAD=$(jq -Rn --arg s "$RAW_JSON_PAYLOAD" '$s | try fromjson catch $s')
-
-  ## Validate
-  echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1 || {
-    echo "[ERROR] RAW_JSON_PAYLOAD invalid JSON after normalization"
+  echo "$RAW_JSON_PAYLOAD" | jq -e . >/dev/null || {
+    echo "ERROR: RAW_JSON_PAYLOAD invalid JSON" >&2
     exit 1
   }
 fi
 
-## Normalize priority
+echo "$USER_EXTRAS" | jq -e 'type=="object"' >/dev/null || {
+  echo "ERROR: USER_EXTRAS must be a JSON object" >&2
+  exit 1
+}
+
 PRIORITY="${PRIORITY:-0}"
 [[ "$PRIORITY" =~ ^[0-9]+$ ]] || PRIORITY=0
 
@@ -248,6 +223,7 @@ CURL_FLAGS=(
   --retry-delay 5
   -X POST
 )
+
 if [[ "$DEBUG" != "true" ]]; then
   CURL_FLAGS+=(--silent)
 fi
@@ -255,74 +231,55 @@ fi
 ## Multipart mode
 if [[ "$USE_JSON" != "true" ]]; then
   log "Sending multipart notification"
+
   curl "${CURL_FLAGS[@]}" \
     "${GOTIFY_URL}/message?token=${TOKEN}" \
     "${UA_HEADER[@]}" \
     -F "message=${MESSAGE}" \
     ${TITLE:+-F "title=${TITLE}"} \
     ${PRIORITY:+-F "priority=${PRIORITY}"}
+
   echo "Notification sent successfully"
   exit 0
 fi
 
-## Build JSON extras
-GENERATED_EXTRAS=$(jq -n '{}')
+GENERATED_EXTRAS='{}'
 
 if [[ -n "$CONTENT_TYPE" ]]; then
-  GENERATED_EXTRAS=$(jq -n \
-    --arg ct "$CONTENT_TYPE" \
-    '{ "client::display": { "contentType": $ct } }')
+  GENERATED_EXTRAS="$(jq -n --arg ct "$CONTENT_TYPE" '{ "client::display": { "contentType": $ct } }')"
 fi
 
 if [[ -n "$CLICK_URL" ]]; then
-  GENERATED_EXTRAS=$(
-    echo "$GENERATED_EXTRAS" | jq \
-      --arg url "$CLICK_URL" \
-      '. + { "client::notification": { "click": { "url": $url } } }'
-  )
+  GENERATED_EXTRAS="$(jq -n --arg url "$CLICK_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "client::notification": { "click": { "url": $url } } }')"
 fi
 
 if [[ -n "$BIG_IMAGE_URL" ]]; then
-  GENERATED_EXTRAS=$(
-    echo "$GENERATED_EXTRAS" | jq \
-      --arg url "$BIG_IMAGE_URL" \
-      '. + { "client::notification": { "bigImageUrl": $url } }'
-  )
+  GENERATED_EXTRAS="$(jq -n --arg url "$BIG_IMAGE_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "client::notification": { "bigImageUrl": $url } }')"
 fi
 
 if [[ -n "$INTENT_URL" ]]; then
-  GENERATED_EXTRAS=$(
-    echo "$GENERATED_EXTRAS" | jq \
-      --arg url "$INTENT_URL" \
-      '. + { "android::action": { "onReceive": { "intentUrl": $url } } }'
-  )
+  GENERATED_EXTRAS="$(jq -n --arg url "$INTENT_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "android::action": { "onReceive": { "intentUrl": $url } } }')"
 fi
 
-## Merge extras safely
-FINAL_EXTRAS=$(
-  jq -s 'reduce .[] as $i ({}; . * $i)' \
-    <(echo "$GENERATED_EXTRAS") \
-    <(echo "$USER_EXTRAS")
-)
+FINAL_EXTRAS="$(jq -s 'reduce .[] as $i ({}; . * $i)' <(printf '%s\n' "$GENERATED_EXTRAS") <(printf '%s\n' "$USER_EXTRAS"))"
 
-## Build payload
 if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
   PAYLOAD="$RAW_JSON_PAYLOAD"
   log "Using raw payload override"
 else
-  PAYLOAD=$(
+  PAYLOAD="$(
     jq -n \
       --arg message "$MESSAGE" \
       --arg title "$TITLE" \
       --argjson priority "$PRIORITY" \
       --argjson extras "$FINAL_EXTRAS" \
-      '
-      { message: $message }
+      '{
+        message: $message
+      }
       + (if $title != "" then { title: $title } else {} end)
       + (if $priority > 0 then { priority: $priority } else {} end)
-      + (if $extras != {} then { extras: $extras } else {} end)
-      '
-  )
+      + (if $extras != {} then { extras: $extras } else {} end)'
+  )"
 fi
 
 ## Validate final payload
@@ -330,7 +287,7 @@ echo "$PAYLOAD" | jq .
 
 log "Sending JSON notification"
 
-## Send request
+## Send reques
 curl "${CURL_FLAGS[@]}" \
   "${GOTIFY_URL}/message?token=${TOKEN}" \
   -H "Content-Type: application/json" \
