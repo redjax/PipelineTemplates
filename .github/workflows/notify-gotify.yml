@@ -94,7 +94,6 @@ jobs:
 
           GOTIFY_URL="${{ inputs.gotify-url }}"
           USER_AGENT="${{ inputs.user-agent }}"
-          UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
           TOKEN="${{ secrets.gotify-token }}"
 
           TITLE="${{ inputs.title }}"
@@ -111,70 +110,65 @@ jobs:
           USER_EXTRAS='${{ inputs.extras-json }}'
           RAW_JSON_PAYLOAD='${{ inputs.raw-json-payload }}'
 
-          echo "[DEBUG] Gotify URL: ${GOTIFY_URL:-<NOT DETECTED>}"
+          UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
 
-          ## Validate User Extras JSON
-          if ! echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1; then
-            echo "ERROR: extras-json is not valid JSON"
+          echo "[DEBUG] Gotify URL: ${GOTIFY_URL}"
+
+          # -----------------------------
+          # Validate JSON inputs safely
+          # -----------------------------
+          echo "$USER_EXTRAS" | jq empty >/dev/null 2>&1 || {
+            echo "ERROR: extras-json invalid JSON"
             exit 1
-          fi
+          }
 
-          ## Validate Raw Payload JSON
           if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-            if ! echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1; then
-              echo "ERROR: raw-json-payload is not valid JSON"
+            echo "$RAW_JSON_PAYLOAD" | jq empty >/dev/null 2>&1 || {
+              echo "ERROR: raw-json-payload invalid JSON"
               exit 1
-            fi
+            }
           fi
 
-          ## Multipart/Form-Data Mode
+          # Normalize priority (avoid jq argjson issues)
+          PRIORITY="${PRIORITY:-0}"
+          [[ "$PRIORITY" =~ ^[0-9]+$ ]] || PRIORITY=0
+
+          # -----------------------------
+          # Multipart mode
+          # -----------------------------
           if [[ "$USE_JSON" != "true" ]]; then
 
-            CURL_ARGS=(
-              --fail
-              --silent
-              --show-error
-              --retry 3
-              --retry-delay 5
-              -X POST
-              "${GOTIFY_URL}/message?token=${TOKEN}"
-              -F "message=${MESSAGE}"
-              "${UA_HEADER[@]}"
-            )
+            echo "Sending multipart Gotify notification"
 
-            if [[ -n "$TITLE" ]]; then
-              CURL_ARGS+=(-F "title=${TITLE}")
-            fi
+            curl \
+              --connect-timeout 5 \
+              --max-time 15 \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 3 \
+              --retry-delay 5 \
+              -X POST \
+              "${GOTIFY_URL}/message?token=${TOKEN}" \
+              "${UA_HEADER[@]}" \
+              -F "message=${MESSAGE}" \
+              ${TITLE:+-F "title=${TITLE}"} \
+              ${PRIORITY:+-F "priority=${PRIORITY}"}
 
-            if [[ "$PRIORITY" -gt 0 ]]; then
-              CURL_ARGS+=(-F "priority=${PRIORITY}")
-            fi
-
-            echo "Sending multipart/form-data Gotify notification"
-
-            curl "${CURL_ARGS[@]}"
-
-            echo
             echo "Notification sent successfully"
-
             exit 0
           fi
 
-          GENERATED_EXTRAS='{}'
-
+          # -----------------------------
+          # Build JSON extras
+          # -----------------------------
+          GENERATED_EXTRAS=$(jq -n '{}')
+          
           ## client::display
           if [[ -n "$CONTENT_TYPE" ]]; then
-            GENERATED_EXTRAS=$(
-              echo "$GENERATED_EXTRAS" | jq \
-                --arg ct "$CONTENT_TYPE" \
-                '
-                . + {
-                  "client::display": {
-                    "contentType": $ct
-                  }
-                }
-                '
-            )
+            GENERATED_EXTRAS=$(jq -n \
+              --arg ct "$CONTENT_TYPE" \
+              '{ "client::display": { "contentType": $ct } }')
           fi
 
           ## client::notification.click.url
@@ -182,13 +176,7 @@ jobs:
             GENERATED_EXTRAS=$(
               echo "$GENERATED_EXTRAS" | jq \
                 --arg url "$CLICK_URL" \
-                '
-                .["client::notification"] += {
-                  "click": {
-                    "url": $url
-                  }
-                }
-                '
+                '. + { "client::notification": { "click": { "url": $url } } }'
             )
           fi
 
@@ -197,11 +185,7 @@ jobs:
             GENERATED_EXTRAS=$(
               echo "$GENERATED_EXTRAS" | jq \
                 --arg url "$BIG_IMAGE_URL" \
-                '
-                .["client::notification"] += {
-                  "bigImageUrl": $url
-                }
-                '
+                '. + { "client::notification": { "bigImageUrl": $url } }'
             )
           fi
 
@@ -210,75 +194,51 @@ jobs:
             GENERATED_EXTRAS=$(
               echo "$GENERATED_EXTRAS" | jq \
                 --arg url "$INTENT_URL" \
-                '
-                .["android::action"] += {
-                  "onReceive": {
-                    "intentUrl": $url
-                  }
-                }
-                '
+                '. + { "android::action": { "onReceive": { "intentUrl": $url } } }'
             )
           fi
 
-          ## Deep Merge Generated + User Extras
+          # Merge extras safely (NO fragile argjson)
           FINAL_EXTRAS=$(
-            jq -s '
-              reduce .[] as $item ({}; . * $item)
-            ' \
-            <(echo "$GENERATED_EXTRAS") \
-            <(echo "$USER_EXTRAS")
+            jq -s 'reduce .[] as $i ({}; . * $i)' \
+              <(echo "$GENERATED_EXTRAS") \
+              <(echo "$USER_EXTRAS")
           )
 
-          ## Raw Payload Override
+          # -----------------------------
+          # Build payload safely
+          # -----------------------------
           if [[ -n "$RAW_JSON_PAYLOAD" ]]; then
-
             PAYLOAD="$RAW_JSON_PAYLOAD"
-
-            echo "Using raw JSON payload override"
-
+            echo "Using raw payload override"
           else
-
-            ## Build Standard Payload
             PAYLOAD=$(
               jq -n \
-                --arg title "$TITLE" \
                 --arg message "$MESSAGE" \
+                --arg title "$TITLE" \
                 --argjson priority "$PRIORITY" \
                 --argjson extras "$FINAL_EXTRAS" \
                 '
-                {
-                  message: $message
-                }
+                { message: $message }
 
-                + (if $title != "" then
-                    { title: $title }
-                  else
-                    {}
-                  end)
-
-                + (if $priority > 0 then
-                    { priority: $priority }
-                  else
-                    {}
-                  end)
-
-                + (if $extras != {} then
-                    { extras: $extras }
-                  else
-                    {}
-                  end)
+                + (if $title != "" then { title: $title } else {} end)
+                + (if $priority > 0 then { priority: $priority } else {} end)
+                + (if $extras != {} then { extras: $extras } else {} end)
                 '
             )
-
           fi
 
-          ## Send JSON Request
+          # -----------------------------
+          # Final validation BEFORE sending
+          # -----------------------------
+          echo "Final payload validation:"
+          echo "$PAYLOAD" | jq .
+
           echo "Sending JSON Gotify notification"
 
-          echo "Payload:"
-          echo "$PAYLOAD" | jq
-
           curl \
+            --connect-timeout 5 \
+            --max-time 15 \
             --fail \
             --silent \
             --show-error \
@@ -290,5 +250,4 @@ jobs:
             "${UA_HEADER[@]}" \
             -d "$PAYLOAD"
 
-          echo
           echo "Notification sent successfully"
