@@ -115,4 +115,4 @@ jobs:
           RAW_JSON_PAYLOAD: ${{ inputs.raw-json-payload }}
           USER_AGENT: ${{ inputs.user-agent }}
           DEBUG: ${{ inputs.debug }}
-        run: shared/scripts/bash/gotify/send-notification.sh
+        run: pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
