@@ -94,11 +94,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      ## Clone PipelineTemplates repo to dir named `pipelinetemplates/`,
+      #  making scripts & other files in the PipelineTemplates repo available
+      #  to the calling pipeline.
       - name: Checkout PipelineTemplates repo
         uses: actions/checkout@v6
         with:
           repository: redjax/PipelineTemplates
-          ref: feat/gotify-notification
+          ref: main
           path: pipelinetemplates
 
       - name: Send Gotify Notification
@@ -118,4 +121,4 @@ jobs:
           RAW_JSON_PAYLOAD: ${{ inputs.raw-json-payload }}
           USER_AGENT: ${{ inputs.user-agent }}
           DEBUG: ${{ inputs.debug }}
-        run: bash pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
+        run: pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
