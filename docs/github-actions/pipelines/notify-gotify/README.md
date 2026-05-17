@@ -4,13 +4,105 @@
 
 Send a notification to a [Gotify](https://gotify.net) server.
 
+## Table of Contents <!-- omit in toc -->
+
+- [Requirements](#requirements)
+  - [Repository Variables](#repository-variables)
+  - [Repository Secrets](#repository-secrets)
+- [Inputs](#inputs)
+- [Workflow Reference](#workflow-reference)
+- [JSON vs Multipart Mode](#json-vs-multipart-mode)
+- [Example calling pipelines](#example-calling-pipelines)
+  - [Manual run, predefined messages](#manual-run-predefined-messages)
+  - [As a pipeline step](#as-a-pipeline-step)
+- [Links](#links)
+
+## Requirements
+
+The calling repository must define:
+
+### Repository Variables
+
+| Name         | Description                   |
+| ------------ | ----------------------------- |
+| `GOTIFY_URL` | Base URL of the Gotify server |
+
+### Repository Secrets
+
+| Name           | Description              |
+| -------------- | ------------------------ |
+| `GOTIFY_TOKEN` | Gotify application token |
+
+## Inputs
+
+| Input              | Type    | Default                    | Description                                |
+| ------------------ | ------- | -------------------------- | ------------------------------------------ |
+| `gotify-url`       | string  | required                   | Base URL of the Gotify server              |
+| `title`            | string  | `""`                       | Notification title                         |
+| `message`          | string  | `""`                       | Notification message                       |
+| `priority`         | number  | `0`                        | Notification priority                      |
+| `use-json`         | boolean | `true`                     | Use JSON payload instead of multipart form |
+| `content-type`     | string  | `text/plain`               | Notification rendering type                |
+| `click-url`        | string  | `""`                       | URL opened when notification is clicked    |
+| `big-image-url`    | string  | `""`                       | Large notification image                   |
+| `intent-url`       | string  | `""`                       | Android intent URL                         |
+| `extras-json`      | string  | `{}`                       | Additional Gotify extras JSON              |
+| `raw-json-payload` | string  | `""`                       | Override generated payload entirely        |
+| `user-agent`       | string  | `redjax/PipelineTemplates` | HTTP User-Agent                            |
+| `debug`            | boolean | `false`                    | Enable debug logging                       |
+
+## Workflow Reference
+
+Reference this reusable workflow from another repository (tagging format is: `github/notify-gotify/<version>`):
+
+```yaml
+uses: redjax/PipelineTemplates/.github/workflows/notify-gotify.yml@github/notify-gotify/vx.x.x
+```
+
+## JSON vs Multipart Mode
+
+By default, notifications are sent as `application/json`.
+
+JSON mode supports:
+
+- Markdown
+- Clickable notifications
+- Images
+- Extras
+- Android actions
+- Raw payload overrides
+
+Multipart mode (`use-json: false`) is intended for compatibility scenarios and only supports:
+
+- `title`
+- `message`
+- `priority`
+
 ## Example calling pipelines
 
 See the sections below for examples detailing calling this pipeline from another repository.
 
+A simple notification step might look like:
+
+```yaml
+---
+jobs:
+  notify:
+    uses: redjax/PipelineTemplates/.github/workflows/notify-gotify.yml@github/notify-gotify/v0.0.2
+
+    with:
+      gotify-url: ${{ vars.GOTIFY_URL }}
+      title: CI Complete
+      message: Build completed successfully
+
+    secrets:
+      gotify-token: ${{ secrets.GOTIFY_TOKEN }}
+
+```
+
 ### Manual run, predefined messages
 
-Below is an example of a pipeline that pre-defines messages to send for each type the pipeline supports. When the pipeline is manually triggered, the user will be presented a list of buttons to check to send the predefined message:
+Below is a unified test pipeline demonstrating all supported notification types. When manually triggered, users can select which notification variants to send.
 
 ```yaml
 ---
