@@ -242,23 +242,29 @@ if [[ "$USE_JSON" != "true" ]]; then
   exit 0
 fi
 
-GENERATED_EXTRAS='{}'
-
-if [[ -n "$CONTENT_TYPE" ]]; then
-  GENERATED_EXTRAS="$(jq -n --arg ct "$CONTENT_TYPE" '{ "client::display": { "contentType": $ct } }')"
-fi
-
-if [[ -n "$CLICK_URL" ]]; then
-  GENERATED_EXTRAS="$(jq -n --arg url "$CLICK_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "client::notification": { "click": { "url": $url } } }')"
-fi
-
-if [[ -n "$BIG_IMAGE_URL" ]]; then
-  GENERATED_EXTRAS="$(jq -n --arg url "$BIG_IMAGE_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "client::notification": { "bigImageUrl": $url } }')"
-fi
-
-if [[ -n "$INTENT_URL" ]]; then
-  GENERATED_EXTRAS="$(jq -n --arg url "$INTENT_URL" --argjson base "$GENERATED_EXTRAS" '$base + { "android::action": { "onReceive": { "intentUrl": $url } } }')"
-fi
+GENERATED_EXTRAS="$(
+  jq -n \
+    --arg ct "$CONTENT_TYPE" \
+    --arg click_url "$CLICK_URL" \
+    --arg big_image_url "$BIG_IMAGE_URL" \
+    --arg intent_url "$INTENT_URL" \
+    '
+    {
+      "client::display": (
+        if $ct != "" then { "contentType": $ct } else {} end
+      ),
+      "client::notification": (
+        {}
+        + (if $click_url != "" then { click: { url: $click_url } } else {} end)
+        + (if $big_image_url != "" then { bigImageUrl: $big_image_url } else {} end)
+      ),
+      "android::action": (
+        if $intent_url != "" then { onReceive: { intentUrl: $intent_url } } else {} end
+      )
+    }
+    | with_entries(select(.value != {}))
+    '
+)"
 
 FINAL_EXTRAS="$(jq -s 'reduce .[] as $i ({}; . * $i)' <(printf '%s\n' "$GENERATED_EXTRAS") <(printf '%s\n' "$USER_EXTRAS"))"
 
