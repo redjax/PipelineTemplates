@@ -6,7 +6,7 @@ TODO:
 - [x] Create `docs/development/` dir
   - [x] Create top level `README.md` for introduction/ToC
   - [x] Create `GITHUB.md` for Github pipeline development docs
-  - [ ] Create `GITLAB.md` for Gitlab pipeline development docs
+  - [x] Create `GITLAB.md` for Gitlab pipeline development docs
   - [ ] Create `CONCOURSE.md` for Concourse CI pipeline development docs
   - [ ] Create `WOODPECKER.md` for Woodpecker CI pipeline development docs
   - [ ] Create `DAGGER.md` for Dagger pipeline development docs
@@ -14,6 +14,7 @@ TODO:
 ## Sections
 
 - [Github](./GITHUB.md): Documentation for Github Actions/Workflows
+- [Gitlab](./GITLAB.md): Documentation for Gitlab CI
 - [Testing](./TESTING.md): Documentation for testing pipelines during development, i.e. calling from another repository
 
 ## Overview
