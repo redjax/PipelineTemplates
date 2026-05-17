@@ -96,6 +96,10 @@ jobs:
     steps:
       - name: Checkout PipelineTemplates repo
         uses: actions/checkout@v6
+        with:
+          repository: redjax/PipelineTemplates
+          ref: fix/gotify-repo-checkout
+          path: pipelinetemplates
 
       - name: Send Gotify Notification
         shell: bash
