@@ -101,7 +101,8 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: redjax/PipelineTemplates
-          ref: main
+          ## `github.ref` uses the ref from the calling repo
+          ref: ${{ github.ref }}
           path: pipelinetemplates
 
       - name: Send Gotify Notification
