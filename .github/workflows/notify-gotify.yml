@@ -96,10 +96,6 @@ jobs:
     steps:
       - name: Checkout PipelineTemplates repo
         uses: actions/checkout@v6
-        with:
-          repository: redjax/PipelineTemplates
-          ref: feat/gotify-notification
-          path: pipelinetemplates
 
       - name: Send Gotify Notification
         shell: bash
@@ -118,4 +114,4 @@ jobs:
           RAW_JSON_PAYLOAD: ${{ inputs.raw-json-payload }}
           USER_AGENT: ${{ inputs.user-agent }}
           DEBUG: ${{ inputs.debug }}
-        run: bash pipelinetemplates/shared/scripts/bash/gotify/send-notification.sh
+        run: shared/scripts/bash/gotify/send-notification.sh
