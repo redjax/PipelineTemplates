@@ -2,6 +2,14 @@
 name: Demo - Hello
 
 on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Message to print.
+        required: false
+        type: string
+        default: Hello from PipelineTemplates
+
   workflow_call:
     inputs:
       message:
