@@ -1,0 +1,17 @@
+---
+name: "Hello message"
+description: "Prints a message (demo component)"
+author: "Your Name"
+
+inputs:
+  message:
+    description: "Message to print"
+    required: false
+    default: "hello from pipeline templates"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Print message
+      shell: bash
+      run: echo "${{ inputs.message }}"
