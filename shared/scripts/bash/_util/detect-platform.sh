@@ -57,21 +57,52 @@ function detect_arch() {
 
 ## Detect package manager
 function detect_pkg_manager() {
-  if command -v apt-get >/dev/null 2>&1; then
-    echo "apt"
-  elif command -v dnf >/dev/null 2>&1; then
-    echo "dnf"
-  elif command -v yum >/dev/null 2>&1; then
-    echo "yum"
-  elif command -v apk >/dev/null 2>&1; then
-    echo "apk"
-  elif command -v pacman >/dev/null 2>&1; then
-    echo "pacman"
-  elif command -v brew >/dev/null 2>&1; then
-    echo "brew"
+  local os id
+
+  os="$(detect_os_family)"
+
+  ## Set based on distro ID
+  if [[ -f /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    source /etc/os-release
+    id="${ID:-unknown}"
   else
-    echo "unknown"
+    id="unknown"
   fi
+
+  ## Set package manager based on distro ID
+  case "$id" in
+  ubuntu | debian | linuxmint | pop)
+    echo "apt"
+    ;;
+  fedora | rhel | centos | rocky | almalinux)
+    echo "dnf"
+    ;;
+  arch | manjaro | endeavouros)
+    echo "pacman"
+    ;;
+  alpine)
+    echo "apk"
+    ;;
+  *)
+    ## Attempt to detect package manager as a fallback
+    if command -v apt-get >/dev/null 2>&1; then
+      echo "apt"
+    elif command -v dnf >/dev/null 2>&1; then
+      echo "dnf"
+    elif command -v yum >/dev/null 2>&1; then
+      echo "yum"
+    elif command -v apk >/dev/null 2>&1; then
+      echo "apk"
+    elif command -v pacman >/dev/null 2>&1; then
+      echo "pacman"
+    elif command -v brew >/dev/null 2>&1; then
+      echo "brew"
+    else
+      echo "unknown"
+    fi
+    ;;
+  esac
 }
 
 ## OS family grouping
