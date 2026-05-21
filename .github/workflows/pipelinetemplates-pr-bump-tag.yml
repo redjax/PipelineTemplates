@@ -1,10 +1,10 @@
 ---
-#################################################
-# Detect changes in versioned component files,  #
-# bump version, & release.                      #
-#################################################
+####################################################
+# PR pipeline: Detect changes in versioned         #
+# component files bump version, & create git tag.  #
+####################################################
 
-name: Release changed components
+name: PR checks - Bump & tag
 
 on:
   pull_request:
