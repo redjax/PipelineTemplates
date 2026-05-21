@@ -38,6 +38,17 @@ Options:
 EOF
 }
 
+## Ensure minimum released version is 0.0.1
+function normalize_release_version() {
+  local version="$1"
+
+  if [[ "$version" == "0.0.0" ]]; then
+    echo "0.0.1"
+  else
+    echo "$version"
+  fi
+}
+
 ## Function to run bump-my-version
 function bump_version() {
   local bump_type="${1:-patch}"
@@ -58,12 +69,17 @@ function bump_version() {
         --increment "$bump_type" \
         --config-file "$bumpversion_file"
     )"
+    new_version="$(normalize_release_version "$new_version")"
   else
     bump-my-version bump "$bump_type" \
       --config-file "$bumpversion_file" \
       >/dev/null
 
     new_version="$(cat "$version_file")"
+    new_version="$(normalize_release_version "$new_version")"
+
+    ## Ensure VERSION file is at least 0.0.1 (auto-bump 0.0.0 versions)
+    printf '%s\n' "$new_version" >"$version_file"
   fi
 
   msg="Bump ${component_name}: ${current_version} -> ${new_version}"
