@@ -21,7 +21,7 @@ PUSH="${PUSH:-false}"
 COMMIT="${COMMIT:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../..")"
+REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../../../..")"
 
 function usage() {
   cat <<EOF
