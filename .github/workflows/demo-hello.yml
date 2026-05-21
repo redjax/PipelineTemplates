@@ -1,0 +1,32 @@
+---
+name: Demo - Hello
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Message to print.
+        required: false
+        type: string
+        default: Hello from PipelineTemplates
+
+  workflow_call:
+    inputs:
+      message:
+        description: The message to print. Passed from the calling pipeline.
+        required: false
+        type: string
+        default: Hello from PipelineTemplates
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Print message
+        uses: ./.github/actions/hello
+        with:
+          message: ${{ inputs.message }}
