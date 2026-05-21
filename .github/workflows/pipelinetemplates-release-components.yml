@@ -1,0 +1,47 @@
+---
+#################################################
+# Detect changes in versioned component files,  #
+# bump version, & release.                      #
+#################################################
+
+name: Release changed components
+
+on:
+  pull_request:
+    branches:
+      - main
+    ## Only run when files matching path patterns have changed
+    paths:
+      - ".github/actions/**"
+      - "gitlab/components/**"
+      - "concourse/components/**"
+      - "woodpecker/components/**"
+      - "**/VERSION"
+      - "**/.bumpversion.toml"
+
+  ## Trigger release flow manually with optional dry-run
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run component release script
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./.scripts/versioning/release-components.sh --dry-run
+          else
+            ./.scripts/versioning/release-components.sh
+          fi
