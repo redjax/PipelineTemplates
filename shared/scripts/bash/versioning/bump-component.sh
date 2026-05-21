@@ -13,7 +13,7 @@ if ! command -v bump-my-version >&/dev/null; then
 fi
 
 _BUMP_COMPONENT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT=$(realpath -m "${_BUMP_COMPONENT_DIR}/../..")
+REPO_ROOT=$(realpath -m "${_BUMP_COMPONENT_DIR}/../../../..")
 
 ## Defaults
 COMPONENT_PATH=""

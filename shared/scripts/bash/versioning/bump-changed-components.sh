@@ -13,7 +13,7 @@ set -euo pipefail
 ########################################################################
 
 _BUMP_COMPONENTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(realpath -m "${_BUMP_COMPONENTS_DIR}/../..")"
+REPO_ROOT="$(realpath -m "${_BUMP_COMPONENTS_DIR}/../../../..")"
 
 BASE_REF="${BASE_REF:-origin/main}"
 DRY_RUN="false"
