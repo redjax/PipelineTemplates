@@ -63,6 +63,10 @@ function detect_pkg_manager() {
     echo "dnf"
   elif command -v yum >/dev/null 2>&1; then
     echo "yum"
+  elif command -v apk >/dev/null 2>&1; then
+    echo "apk"
+  elif command -v pacman >/dev/null 2>&1; then
+    echo "pacman"
   elif command -v brew >/dev/null 2>&1; then
     echo "brew"
   else
