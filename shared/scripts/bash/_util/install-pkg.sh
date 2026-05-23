@@ -4,6 +4,7 @@ set -euo pipefail
 _UTIL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${_UTIL_DIR}/detect-platform.sh"
+source "${_UTIL_DIR}/elevate.sh"
 
 ## Create ephemeral cache dir once per script execution
 if [[ -z "${PKG_UPDATE_CACHE_DIR:-}" ]]; then
@@ -16,15 +17,6 @@ if [[ -z "${PKG_UPDATE_CACHE_DIR:-}" ]]; then
 
   trap cleanup_pkg_update_cache EXIT
 fi
-
-## Run command with sudo
-function run_privileged() {
-  if [[ "$(id -u)" -eq 0 ]]; then
-    "$@"
-  else
-    sudo "$@"
-  fi
-}
 
 ## Create file indicating a package manager has recently run its update command
 function _pkg_update_cache_file() {
