@@ -11,6 +11,11 @@ function install_curl_linux() {
   local pkg_manager
   pkg_manager="$(detect_pkg_manager)"
 
+  if [[ "$pkg_manager" == "unknown" ]]; then
+    echo "Unable to detect package manager for curl installation" >&2
+    exit 1
+  fi
+
   case "$pkg_manager" in
   apt)
     sudo apt-get update -y
@@ -22,18 +27,27 @@ function install_curl_linux() {
   yum)
     sudo yum install -y curl
     ;;
+  apk)
+    sudo apk update
+    sudo apk add curl
+    ;;
+  pacman)
+    sudo pacman -Syu --noconfirm curl
+    ;;
   *)
-    echo "No supported package manager found." >&2
+    echo "No supported package manager found: $pkg_manager" >&2
+    echo "Falling back to manual installation may be required." >&2
+    return 1
     ;;
   esac
 }
 
 function install_curl_macos() {
-  if command -v curl >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
     brew install curl
   else
     echo "Homebrew not found. Please install brew or curl manually."
-    exit 1
+    return 1
   fi
 }
 
