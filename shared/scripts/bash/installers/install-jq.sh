@@ -11,6 +11,11 @@ function install_jq_linux() {
   local pkg_manager
   pkg_manager="$(detect_pkg_manager)"
 
+  if [[ "$pkg_manager" == "unknown" ]]; then
+    echo "Unable to detect package manager for jq installation" >&2
+    exit 1
+  fi
+
   case "$pkg_manager" in
   apt)
     sudo apt-get update -y
@@ -21,6 +26,12 @@ function install_jq_linux() {
     ;;
   yum)
     sudo yum install -y jq
+    ;;
+  apk)
+    sudo apk add jq
+    ;;
+  pacman)
+    sudo pacman -Sy --noconfirm jq
     ;;
   *)
     echo "No supported package manager found. Falling back to binary install"
