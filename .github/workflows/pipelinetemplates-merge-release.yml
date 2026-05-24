@@ -7,68 +7,34 @@ name: Publish components
 
 on:
   push:
-    branches:
-      - main
-
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: Dry run
-        required: false
-        type: boolean
-        default: true
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Fetch tags
-        run: git fetch --tags --force
+      - run: git fetch origin main --force
 
-      - name: Install bump-my-version
+      - name: Install deps
         run: ./shared/scripts/bash/installers/install-bump-my-version.sh
 
-      - name: Release components (bump + commit)
+      - name: Release components
         env:
           PUSH: "true"
           COMMIT: "true"
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/release-components.sh \
-              --dry-run \
-              --no-push \
-              --no-commit
-          else
-            ./shared/scripts/bash/versioning/release-components.sh
-          fi
+          ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Create git tags from VERSION files
+      - name: Tag components
         env:
           PUSH: "true"
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/git-tag-components.sh \
-              --dry-run
-          else
-            ./shared/scripts/bash/versioning/git-tag-components.sh \
-              --push
-          fi
-
-      - name: Create GitHub Releases
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/release/create-github-release.sh --dry-run
-          else
-            ./shared/scripts/bash/release/create-github-release.sh
-          fi
+          ./shared/scripts/bash/versioning/git-tag-components.sh --push

@@ -14,25 +14,14 @@ set -euo pipefail
 #   concourse/    --> concourse               #
 ###############################################
 
-_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${_DIR}/../_util/git-tag-lib.sh"
-
 BASE_DIR="${BASE_DIR:-.}"
 DRY_RUN="false"
 PUSH="${PUSH:-false}"
+BASE_REF="${BASE_REF:-}"
 
-function usage() {
-  cat <<EOF
-Usage: ${0} [OPTIONS]
+source "$(dirname "$0")/../_util/git-tag-lib.sh"
 
-Options:
-  --dry-run
-  --push
-  -h, --help
-EOF
-}
-
-resolve_prefix() {
+function resolve_prefix() {
   case "$1" in
   .github/*) echo "gh" ;;
   gitlab/*) echo "gl" ;;
@@ -52,10 +41,6 @@ while [[ $# -gt 0 ]]; do
     PUSH="true"
     shift
     ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
   *)
     echo "[ERROR] Unknown arg: $1" >&2
     exit 1
@@ -65,35 +50,44 @@ done
 
 cd "$BASE_DIR"
 
+git fetch origin main >/dev/null 2>&1 || true
+
+if [[ -z "$BASE_REF" ]]; then
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
+
 fetch_git_tags
 
 mapfile -t COMPONENTS < <(
   find . -type f -name "VERSION" -exec dirname {} + | sort -u
 )
 
-CREATED=()
+CREATED_TAGS=()
 
 for component in "${COMPONENTS[@]}"; do
   component="${component#./}"
 
-  version="$(tr -d '[:space:]' <"$component/VERSION")"
+  version_file="$component/VERSION"
+  [[ -f "$version_file" ]] || continue
 
-  ## Do not create v0.0.0 tags
-  if [[ "$version" == "0.0.0" ]]; then
-    echo "[SKIP] $component (unreleased)"
-    continue
-  fi
+  version="$(tr -d '[:space:]' <"$version_file")"
 
   component_name="${component##*/}"
   prefix="$(resolve_prefix "$component")"
 
   tag="${prefix}/${component_name}/v${version}"
 
-  if tag_exists "$tag"; then
+  if [[ "$version" == "0.0.0" ]]; then
+    echo "[SKIP] unreleased: $component"
     continue
   fi
 
-  echo "[INFO] tag: $tag"
+  if tag_exists "$tag"; then
+    echo "[SKIP] $tag"
+    continue
+  fi
+
+  echo "[INFO] creating tag: $tag"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY RUN] git tag -a $tag -m $tag"
@@ -101,9 +95,9 @@ for component in "${COMPONENTS[@]}"; do
   fi
 
   git tag -a "$tag" -m "$tag"
-  CREATED+=("$tag")
+  CREATED_TAGS+=("$tag")
 done
 
 if [[ "$PUSH" == "true" && "$DRY_RUN" != "true" ]]; then
-  git push origin "${CREATED[@]}"
+  git push origin "${CREATED_TAGS[@]}"
 fi

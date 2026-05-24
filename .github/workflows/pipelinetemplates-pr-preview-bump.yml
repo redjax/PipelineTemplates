@@ -8,36 +8,25 @@ name: PR checks - Bump & tag
 
 on:
   pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/actions/**"
-      - "gitlab/components/**"
-      - "concourse/components/**"
-      - "woodpecker/components/**"
-      - "**/VERSION"
-      - "**/.bumpversion.toml"
-
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
-  release-preview:
+  preview:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Preview component version bumps & releases
+      - name: Preview release (no changes)
         run: |
           ./shared/scripts/bash/versioning/release-components.sh \
             --dry-run \
             --no-push \
             --no-commit
 
-      - name: Preview git tags
+      - name: Preview tags (no tags created)
         run: |
           ./shared/scripts/bash/versioning/git-tag-components.sh \
             --dry-run
