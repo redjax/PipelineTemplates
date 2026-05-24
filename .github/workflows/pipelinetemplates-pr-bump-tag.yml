@@ -1,7 +1,7 @@
 ---
 ####################################################
-# PR pipeline: Detect changes in versioned         #
-# component files bump version, & create git tag.  #
+# PR pipeline: detect changed components and preview
+# releases without publishing tags.
 ####################################################
 
 name: PR checks - Bump & tag
@@ -10,7 +10,6 @@ on:
   pull_request:
     branches:
       - main
-    ## Only run when files matching path patterns have changed
     paths:
       - ".github/actions/**"
       - "gitlab/components/**"
@@ -19,7 +18,6 @@ on:
       - "**/VERSION"
       - "**/.bumpversion.toml"
 
-  ## Trigger release flow manually with optional dry-run
   workflow_dispatch:
     inputs:
       dry_run:
@@ -40,8 +38,8 @@ jobs:
 
       - name: Run component release script
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "false" ]]; then
-            ./shared/scripts/bash/versioning/release-components.sh
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/versioning/release-components.sh --dry-run --no-push
           else
-            ./shared/scripts/bash/versioning/release-components.sh --dry-run
+            ./shared/scripts/bash/versioning/release-components.sh --dry-run --no-push
           fi
