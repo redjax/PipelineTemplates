@@ -43,7 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/release/create-github-releases.sh --dry-run
+            ./shared/scripts/bash/release/create-github-release.sh --dry-run
           else
-            ./shared/scripts/bash/release/create-github-releases.sh
+            ./shared/scripts/bash/release/create-github-release.sh
           fi
