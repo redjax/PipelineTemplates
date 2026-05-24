@@ -15,9 +15,14 @@ set -euo pipefail
 _BUMP_COMPONENTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "${_BUMP_COMPONENTS_DIR}/../../../..")"
 
-BASE_REF="${BASE_REF:-origin/main}"
+BASE_REF="${BASE_REF:-}"
 DRY_RUN="false"
 CWD=$(pwd)
+
+if [[ -z "$BASE_REF" ]]; then
+  git fetch origin main --quiet || true
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
 
 function usage() {
   cat <<EOF
