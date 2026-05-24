@@ -30,6 +30,12 @@ function install_bump_my_version_pip() {
   if is_installed pip3; then
     echo "[INFO] Installing bump-my-version via pip3"
     pip3 install --user bump-my-version
+
+    ## Add .local/bin to path in Github pipelines
+    if [[ -n "${GITHUB_PATH:-}" ]]; then
+      echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+    fi
+
     return 0
   fi
 
