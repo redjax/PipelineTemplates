@@ -27,6 +27,14 @@ Options:
 EOF
 }
 
+function tag_exists_locally() {
+  git rev-parse -q --verify "refs/tags/$1" >/dev/null
+}
+
+function tag_exists_remotely() {
+  git ls-remote --tags origin "refs/tags/$1" | grep -q "$1" || true
+}
+
 ## Resolve platform prefix from component path
 function resolve_prefix() {
   local component="$1"
