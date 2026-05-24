@@ -1,0 +1,52 @@
+---
+#########################################################
+# Tag reconciliation pipeline                           #
+#                                                       #
+# Ensures all VERSION files have matching git tags.     #
+#########################################################
+
+name: Reconcile git tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run (no tags created)
+        required: false
+        type: boolean
+        default: true
+
+  schedule:
+    ## Run a weekly tag reconciliation
+    - cron: "0 3 * * 0"
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile-tags:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Install dependencies
+        run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
+      - name: Reconcile tags from VERSION files
+        env:
+          PUSH: "true"
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/versioning/git-tag-components.sh \
+              --dry-run
+          else
+            ./shared/scripts/bash/versioning/git-tag-components.sh \
+              --push
+          fi

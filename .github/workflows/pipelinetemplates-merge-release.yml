@@ -1,7 +1,6 @@
 ---
 ################################################
-# Create Github releases for tagged components #
-# on merge to main.                            #
+# Release changed components and publish tags. #
 ################################################
 
 name: Publish components
@@ -23,7 +22,7 @@ permissions:
   contents: write
 
 jobs:
-  publish-releases:
+  publish:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,6 +36,32 @@ jobs:
 
       - name: Install bump-my-version
         run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
+      - name: Release components (bump + commit)
+        env:
+          PUSH: "true"
+          COMMIT: "true"
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/versioning/release-components.sh \
+              --dry-run \
+              --no-push \
+              --no-commit
+          else
+            ./shared/scripts/bash/versioning/release-components.sh
+          fi
+
+      - name: Create git tags from VERSION files
+        env:
+          PUSH: "true"
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/versioning/git-tag-components.sh \
+              --dry-run
+          else
+            ./shared/scripts/bash/versioning/git-tag-components.sh \
+              --push
+          fi
 
       - name: Create GitHub Releases
         env:
