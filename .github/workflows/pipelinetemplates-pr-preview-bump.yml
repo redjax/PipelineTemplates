@@ -9,6 +9,13 @@ name: PR checks - Bump & tag
 on:
   pull_request:
     branches: [main]
+    paths:
+      - ".github/actions/**"
+      - "gitlab/components/**"
+      - "concourse/components/**"
+      - "woodpecker/components/**"
+      - "**/VERSION"
+      - "**/.bumpversion.toml"
 
 jobs:
   preview:
@@ -19,14 +26,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Preview release (no changes)
+      - name: Fetch main
+        run: git fetch origin main --tags --force
+
+      - name: Preview release
         run: |
           ./shared/scripts/bash/versioning/release-components.sh \
             --dry-run \
             --no-push \
             --no-commit
 
-      - name: Preview tags (no tags created)
+      - name: Preview tags
         run: |
           ./shared/scripts/bash/versioning/git-tag-components.sh \
             --dry-run
