@@ -28,6 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Fetch tags + base
         run: git fetch origin main --tags --force
 
