@@ -68,12 +68,13 @@ fi
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+git checkout -b "$BRANCH_NAME"
+
 for vf in "${ZERO_VERSION_FILES[@]}"; do
   printf '0.0.1\n' >"$vf"
 done
 
-git checkout -b "$BRANCH_NAME"
 git add "${ZERO_VERSION_FILES[@]}"
 git commit -m "$COMMIT_MESSAGE"
 
-echo "[INFO] Created branch $BRANCH_NAME with zero-version fixes."
+echo "$BRANCH_NAME"

@@ -37,11 +37,27 @@ jobs:
         run: git fetch origin main --tags --force
 
       - name: Run reconciliation
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        id: reconcile
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             ./shared/scripts/bash/versioning/reconcile-zero-versions.sh --dry-run
           else
-            ./shared/scripts/bash/versioning/reconcile-zero-versions.sh
+            BRANCH_NAME="$(./shared/scripts/bash/versioning/reconcile-zero-versions.sh)"
+            echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Push branch
+        if: inputs.dry_run == false
+        run: |
+          git push -u origin "${{ steps.reconcile.outputs.branch_name }}"
+
+      - name: Create PR
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ steps.reconcile.outputs.branch_name }}" \
+            --title "chore(versioning): reconcile zero versions" \
+            --body "Automated zero-version reconciliation."
