@@ -1,8 +1,8 @@
 ---
-####################################################
-# PR pipeline: detect changed components and preview
-# releases without publishing tags.
-####################################################
+######################################################
+# PR pipeline: detect changed components and preview #
+# releases without publishing tags.                  #
+######################################################
 
 name: PR checks - Bump & tag
 
@@ -27,7 +27,7 @@ on:
         default: true
 
 jobs:
-  release:
+  release-preview:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,10 +36,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run component release script
+      - name: Preview component version bumps & releases
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/release-components.sh --dry-run --no-push
-          else
-            ./shared/scripts/bash/versioning/release-components.sh --dry-run --no-push
-          fi
+          ./shared/scripts/bash/versioning/release-components.sh \
+            --dry-run \
+            --no-push \
+            --no-commit
+
+      - name: Preview git tags
+        run: |
+          ./shared/scripts/bash/versioning/git-tag-components.sh \
+            --dry-run
