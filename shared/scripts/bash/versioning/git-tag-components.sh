@@ -82,6 +82,9 @@ mapfile -t COMPONENTS < <(
     sort -u
 )
 
+## Fetch all tags
+git fetch --tags --force
+
 ## Tag each component if needed
 for component in "${COMPONENTS[@]}"; do
   ## Strip ./ from component path string
