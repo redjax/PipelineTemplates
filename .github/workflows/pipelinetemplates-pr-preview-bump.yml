@@ -1,14 +1,15 @@
 ---
 ######################################################
-# PR pipeline: detect changed components and preview #
-# releases without publishing tags.                  #
+# PR pipeline: detect changed components and bump    #
+# versions, then commit back to the PR branch.       #
 ######################################################
 
-name: PR checks - Bump & tag
+name: PR preview - component releases
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths:
       - ".github/actions/**"
       - "gitlab/components/**"
@@ -17,26 +18,45 @@ on:
       - "**/VERSION"
       - "**/.bumpversion.toml"
 
+permissions:
+  contents: write
+
 jobs:
-  preview:
+  bump-components:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Fetch main
+      - name: Fetch refs
         run: git fetch origin main --tags --force
 
-      - name: Preview release
+      - name: Install bump-my-version
+        run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
+      - name: Configure git
         run: |
-          ./shared/scripts/bash/versioning/release-components.sh \
-            --dry-run \
-            --no-push \
-            --no-commit
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump changed components
+        env:
+          COMMIT: "false"
+        run: ./shared/scripts/bash/versioning/release-components.sh
+
+      - name: Commit VERSION updates
+        run: |
+          if git diff --quiet; then
+            echo "[INFO] No VERSION updates"
+            exit 0
+          fi
+
+          git add "**/VERSION"
+          git commit -m "chore(release): bump component versions"
+          git push origin HEAD:${{ github.head_ref }}
 
       - name: Preview tags
-        run: |
-          ./shared/scripts/bash/versioning/git-tag-components.sh \
-            --dry-run
+        run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run
