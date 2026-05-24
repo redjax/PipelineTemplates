@@ -4,8 +4,8 @@ set -euo pipefail
 ######################################################################
 # Component release orchestrator script.                             #
 #                                                                    #
-# Detects changed components, bumps versions, tags releases, and     #
-# optionally commits/pushes the result.                              #
+# Detects changed components, bumps versions, and optionally commits #
+# the result.                                                        #
 #                                                                    #
 # A component is any directory containing a .bumpversion.toml file.  #
 #                                                                    #
@@ -17,7 +17,6 @@ set -euo pipefail
 
 BASE_REF="${BASE_REF:-}"
 DRY_RUN="false"
-PUSH="${PUSH:-false}"
 COMMIT="${COMMIT:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -29,7 +28,6 @@ Usage: ${0} [OPTIONS]
 
 Options:
   --dry-run
-  --no-push
   --no-commit
   -h, --help
 EOF
@@ -39,10 +37,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
   --dry-run)
     DRY_RUN="true"
-    shift
-    ;;
-  --no-push)
-    PUSH="false"
     shift
     ;;
   --no-commit)
@@ -77,7 +71,6 @@ CHANGED_COMPONENTS=()
 for c in "${COMPONENTS[@]}"; do
   c="${c#./}"
 
-  # FIX: include version-only forced bump support
   version_file="$c/VERSION"
   if [[ -f "$version_file" ]]; then
     v="$(tr -d '[:space:]' <"$version_file")"
@@ -87,7 +80,6 @@ for c in "${COMPONENTS[@]}"; do
     fi
   fi
 
-  # FIX: correct diff behavior
   if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
     CHANGED_COMPONENTS+=("$c")
   fi
@@ -101,11 +93,9 @@ fi
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-RELEASED=()
 VERSION_FILES=()
 
 for component in "${CHANGED_COMPONENTS[@]}"; do
-
   commits="$(git log --format=%s "${BASE_REF}..HEAD" -- "$component" || true)"
 
   if echo "$commits" | grep -q 'BREAKING CHANGE\|!:'; then
@@ -119,20 +109,23 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
   echo "[INFO] Bumping $component -> $bump"
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY RUN] bump-component.sh $component $bump"
+    echo "[DRY RUN] $SCRIPT_DIR/bump-component.sh --component-path $component --bump-type $bump"
   else
     "$SCRIPT_DIR/bump-component.sh" \
       --component-path "$component" \
       --bump-type "$bump"
   fi
 
-  RELEASED+=("$component")
   VERSION_FILES+=("$component/VERSION")
 done
 
 if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
-  git add "${VERSION_FILES[@]}"
-  git commit -m "chore(release): bump component versions" || true
+  if ! git diff --quiet; then
+    git add "${VERSION_FILES[@]}"
+    git commit -m "chore(release): bump component versions"
+  else
+    echo "[INFO] No version changes to commit."
+  fi
 fi
 
 echo "[INFO] Release complete."

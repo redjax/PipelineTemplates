@@ -2,7 +2,7 @@
 set -euo pipefail
 
 function fetch_git_tags() {
-  git fetch --tags --force
+  git fetch origin +refs/tags/*:refs/tags/* --force
 }
 
 function tag_exists_local() {
@@ -10,7 +10,7 @@ function tag_exists_local() {
 }
 
 function tag_exists_remote() {
-  git ls-remote --tags origin "refs/tags/$1" | grep -q "$1" >/dev/null 2>&1
+  git ls-remote --exit-code --tags origin "refs/tags/$1" >/dev/null 2>&1
 }
 
 function tag_exists() {

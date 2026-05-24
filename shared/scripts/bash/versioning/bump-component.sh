@@ -7,19 +7,17 @@ set -euo pipefail
 # Composes bump-my-version command and bumps a .bumpversion.toml file. #
 ########################################################################
 
-if ! command -v bump-my-version >&/dev/null; then
-  echo "[ERROR] bump-my-version is not installed." <&2
+if ! command -v bump-my-version >/dev/null 2>&1; then
+  echo "[ERROR] bump-my-version is not installed." >&2
   exit 1
 fi
 
 _BUMP_COMPONENT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT=$(realpath -m "${_BUMP_COMPONENT_DIR}/../../../..")
 
-## Defaults
 COMPONENT_PATH=""
 BUMPVERSION_FILE=".bumpversion.toml"
 BUMP_TYPE="patch"
-
 DRY_RUN="false"
 CWD=$(pwd)
 
@@ -39,6 +37,7 @@ Description:
   component's .bumpversion.toml to determine versioning logic.
 
   Automatically bumps any 0.0.0 versions.
+
 Options:
   -h, --help             Show this help message
   -p, --component-path   Path to component directory containing .bumpversion.toml (required)
