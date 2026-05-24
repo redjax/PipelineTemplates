@@ -35,6 +35,9 @@ jobs:
       - name: Fetch tags
         run: git fetch --tags --force
 
+      - name: Install bump-my-version
+        run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
       - name: Create GitHub Releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
