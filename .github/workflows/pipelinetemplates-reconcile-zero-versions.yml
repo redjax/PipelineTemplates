@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Preview changes only
+        description: Dry run - preview changes without pushing
         required: false
         type: boolean
         default: true
