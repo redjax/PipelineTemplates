@@ -35,6 +35,14 @@ function tag_exists_remotely() {
   git ls-remote --tags origin "refs/tags/$1" | grep -q "$1" || true
 }
 
+function tag_exists() {
+  local tag="$1"
+
+  git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1 && return 0
+
+  git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1
+}
+
 ## Resolve platform prefix from component path
 function resolve_prefix() {
   local component="$1"
