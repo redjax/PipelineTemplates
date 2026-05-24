@@ -7,7 +7,14 @@ name: Publish components
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -21,20 +28,49 @@ jobs:
         with:
           fetch-depth: 0
 
-      - run: git fetch origin main --force
+      - name: Fetch tags + base
+        run: git fetch origin main --tags --force
 
-      - name: Install deps
+      - name: Install bump tool
         run: ./shared/scripts/bash/installers/install-bump-my-version.sh
 
+      - name: Set mode flags
+        id: mode
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "dry_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Release components
-        env:
-          PUSH: "true"
-          COMMIT: "true"
+        if: steps.mode.outputs.dry_run == 'false'
         run: |
           ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Tag components
-        env:
-          PUSH: "true"
+      - name: Commit VERSION changes
+        if: steps.mode.outputs.dry_run == 'false'
+        run: |
+          git add "**/VERSION"
+          git commit -m "chore(release): bump component versions" || true
+
+      - name: Create tags
+        if: steps.mode.outputs.dry_run == 'false'
         run: |
           ./shared/scripts/bash/versioning/git-tag-components.sh --push
+
+      - name: Push changes
+        if: steps.mode.outputs.dry_run == 'false'
+        run: |
+          git push origin HEAD --follow-tags
+
+      - name: Dry run preview
+        if: steps.mode.outputs.dry_run == 'true'
+        run: |
+          ./shared/scripts/bash/versioning/release-components.sh \
+            --dry-run \
+            --no-push \
+            --no-commit
+
+          ./shared/scripts/bash/versioning/git-tag-components.sh \
+            --dry-run
