@@ -13,8 +13,6 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Dry run
-        required: false
         type: boolean
         default: true
 
@@ -22,53 +20,57 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Fetch tags
-        run: git fetch --tags --force
+      - name: Fetch tags + base
+        run: git fetch origin main --tags --force
 
-      - name: Install bump-my-version
+      - name: Install bump tool
         run: ./shared/scripts/bash/installers/install-bump-my-version.sh
 
-      - name: Release components (bump + commit)
-        env:
-          PUSH: "true"
-          COMMIT: "true"
+      - name: Set mode flags
+        id: mode
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/release-components.sh \
-              --dry-run \
-              --no-push \
-              --no-commit
+            echo "dry_run=true" >> $GITHUB_OUTPUT
           else
-            ./shared/scripts/bash/versioning/release-components.sh
+            echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create git tags from VERSION files
-        env:
-          PUSH: "true"
+      - name: Release components
+        if: steps.mode.outputs.dry_run == 'false'
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/git-tag-components.sh \
-              --dry-run
-          else
-            ./shared/scripts/bash/versioning/git-tag-components.sh \
-              --push
-          fi
+          ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Create GitHub Releases
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit VERSION changes
+        if: steps.mode.outputs.dry_run == 'false'
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/release/create-github-release.sh --dry-run
-          else
-            ./shared/scripts/bash/release/create-github-release.sh
-          fi
+          git add "**/VERSION"
+          git commit -m "chore(release): bump component versions" || true
+
+      - name: Create tags
+        if: steps.mode.outputs.dry_run == 'false'
+        run: |
+          ./shared/scripts/bash/versioning/git-tag-components.sh --push
+
+      - name: Push changes
+        if: steps.mode.outputs.dry_run == 'false'
+        run: |
+          git push origin HEAD --follow-tags
+
+      - name: Dry run preview
+        if: steps.mode.outputs.dry_run == 'true'
+        run: |
+          ./shared/scripts/bash/versioning/release-components.sh \
+            --dry-run \
+            --no-push \
+            --no-commit
+
+          ./shared/scripts/bash/versioning/git-tag-components.sh \
+            --dry-run

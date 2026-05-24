@@ -15,7 +15,7 @@ set -euo pipefail
 #   everything else         -> patch                                 #
 ######################################################################
 
-BASE_REF="${BASE_REF:-origin/main}"
+BASE_REF="${BASE_REF:-}"
 DRY_RUN="false"
 PUSH="${PUSH:-false}"
 COMMIT="${COMMIT:-true}"
@@ -62,29 +62,51 @@ done
 
 cd "$REPO_ROOT"
 
+git fetch origin main >/dev/null 2>&1 || true
+
+if [[ -z "$BASE_REF" ]]; then
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
+
 mapfile -t COMPONENTS < <(
   find . -type f -name ".bumpversion.toml" -exec dirname {} + | sort -u
 )
 
-CHANGED=()
+CHANGED_COMPONENTS=()
 
 for c in "${COMPONENTS[@]}"; do
   c="${c#./}"
-  if ! git diff --quiet "${BASE_REF}...HEAD" -- "$c"; then
-    CHANGED+=("$c")
+
+  # FIX: include version-only forced bump support
+  version_file="$c/VERSION"
+  if [[ -f "$version_file" ]]; then
+    v="$(tr -d '[:space:]' <"$version_file")"
+    if [[ "$v" == "0.0.0" ]]; then
+      CHANGED_COMPONENTS+=("$c")
+      continue
+    fi
+  fi
+
+  # FIX: correct diff behavior
+  if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
+    CHANGED_COMPONENTS+=("$c")
   fi
 done
 
-[[ ${#CHANGED[@]} -eq 0 ]] && {
+if [[ ${#CHANGED_COMPONENTS[@]} -eq 0 ]]; then
   echo "[INFO] No changed components."
   exit 0
-}
+fi
 
 echo "[INFO] Changed components:"
-printf ' - %s\n' "${CHANGED[@]}"
+printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-for component in "${CHANGED[@]}"; do
-  commits="$(git log --format=%s "${BASE_REF}...HEAD" -- "$component" || true)"
+RELEASED=()
+VERSION_FILES=()
+
+for component in "${CHANGED_COMPONENTS[@]}"; do
+
+  commits="$(git log --format=%s "${BASE_REF}..HEAD" -- "$component" || true)"
 
   if echo "$commits" | grep -q 'BREAKING CHANGE\|!:'; then
     bump="major"
@@ -103,11 +125,14 @@ for component in "${CHANGED[@]}"; do
       --component-path "$component" \
       --bump-type "$bump"
   fi
+
+  RELEASED+=("$component")
+  VERSION_FILES+=("$component/VERSION")
 done
 
 if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
-  git add .
+  git add "${VERSION_FILES[@]}"
   git commit -m "chore(release): bump component versions" || true
 fi
 
-echo "[INFO] Done. Run git-tag-components.sh to sync tags."
+echo "[INFO] Release complete."

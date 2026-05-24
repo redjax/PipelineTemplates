@@ -8,8 +8,7 @@ name: PR checks - Bump & tag
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - ".github/actions/**"
       - "gitlab/components/**"
@@ -18,26 +17,26 @@ on:
       - "**/VERSION"
       - "**/.bumpversion.toml"
 
-  workflow_dispatch:
-
 jobs:
-  release-preview:
+  preview:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Preview component version bumps & releases
+      - name: Fetch main
+        run: git fetch origin main --tags --force
+
+      - name: Preview release
         run: |
           ./shared/scripts/bash/versioning/release-components.sh \
             --dry-run \
             --no-push \
             --no-commit
 
-      - name: Preview git tags
+      - name: Preview tags
         run: |
           ./shared/scripts/bash/versioning/git-tag-components.sh \
             --dry-run
