@@ -40,8 +40,8 @@ jobs:
 
       - name: Run component release script
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/release-components.sh --dry-run
-          else
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "false" ]]; then
             ./shared/scripts/bash/versioning/release-components.sh
+          else
+            ./shared/scripts/bash/versioning/release-components.sh --dry-run
           fi
