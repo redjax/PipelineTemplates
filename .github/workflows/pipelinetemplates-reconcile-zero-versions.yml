@@ -1,0 +1,53 @@
+---
+#################################################
+# Bump all 0.0.0 versioned components to 0.0.1. #
+#################################################
+
+name: Bump all 0.0.0 tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview changes only
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run reconciliation
+        run: |
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/versioning/reconcile-zero-versions.sh --dry-run
+          else
+            ./shared/scripts/bash/versioning/reconcile-zero-versions.sh
+          fi
+
+      - name: Push branch
+        if: inputs.dry_run == false
+        run: |
+          git push origin HEAD
+
+      - name: Create PR
+        if: inputs.dry_run == false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "${{ github.ref_name }}" \
+            --title "chore(versioning): reconcile zero versions" \
+            --body "Automated zero-version reconciliation."
