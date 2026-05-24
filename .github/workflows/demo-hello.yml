@@ -1,32 +1,32 @@
 ---
-#################################################################################################
-# DEMO PIPELINE                                                                                 #
-#                                                                                               #
-# Call from another pipeline with:                                                              #
-#                                                                                               #
-# jobs:                                                                                         #
-#   call-template:                                                                              #
-#     ## Replace vx.x.x with a version in redjax/PipelineTemplates/manifests/versions.yml       #
-#     uses: redjax/PipelineTemplates/.github/workflows/demo-hello.yml@github/demo-hello/vx.x.x  #
-#     with:                                                                                     #
-#       message: Hello from <repository-name>                                                   #
-#################################################################################################
-
-name: Hello Template
+name: Demo - Hello
 
 on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: Message to print.
+        required: false
+        type: string
+        default: Hello from PipelineTemplates
+
   workflow_call:
     inputs:
       message:
-        description: Message to print. Pass this value from the calling pipeline
+        description: The message to print. Passed from the calling pipeline.
         required: false
         type: string
-        default: hello from pipeline templates
+        default: Hello from PipelineTemplates
 
 jobs:
   hello:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Print message
-        run: echo "${{ inputs.message }}"
+        uses: ./.github/actions/hello
+        with:
+          message: ${{ inputs.message }}

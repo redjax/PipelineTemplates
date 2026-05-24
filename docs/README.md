@@ -1,6 +1,4 @@
 # PipelineTemplates Documentation
 
-- [Development docs](./development/): Help & examples for developing new pipelines in this repository.
-- [Pipelines](./pipelines/): Platform-specific documentation for individual pipelines in this repository.
-  - [Platform: Github](./pipelines/github/)
-    - [Github reusable workflows](./pipelines/github/workflows/)
+> [!NOTE]
+> This repository is undergoing a significant refactor, and documentation may lag behind. The old `main` branch is archived in [`archive/2026-05-20`](https://github.com/redjax/PipelineTemplates/tree/archive/2026-05-20)

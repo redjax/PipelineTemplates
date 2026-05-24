@@ -1,0 +1,49 @@
+---
+################################################
+# Create Github releases for tagged components #
+# on merge to main.                            #
+################################################
+
+name: Publish components
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-releases:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Install bump-my-version
+        run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
+      - name: Create GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            ./shared/scripts/bash/release/create-github-releases.sh --dry-run
+          else
+            ./shared/scripts/bash/release/create-github-releases.sh
+          fi
