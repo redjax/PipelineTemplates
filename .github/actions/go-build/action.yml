@@ -61,7 +61,7 @@ runs:
         BUILD_TAGS: ${{ inputs.build-tags }}
         LDFLAGS: ${{ inputs.ldflags }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
-      run: bash "$GITHUB_WORKSPACE/shared/scripts/bash/go/go-build.sh"
+      run: bash "${{ github.action_path }}/go-build.sh"
 
     - name: Determine artifact name
       if: ${{ inputs.upload-artifacts == 'true' }}
