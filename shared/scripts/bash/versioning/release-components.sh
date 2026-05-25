@@ -100,12 +100,14 @@ VERSION_FILES=()
 for component in "${CHANGED_COMPONENTS[@]}"; do
   version_file="$component/VERSION"
 
-  ## If VERSION file was already changed in this PR, assume we already bumped it
-  #  and don't bump again
   if [[ -f "$version_file" ]]; then
-    if git diff --name-only "${BASE_REF}..HEAD" -- "$version_file" | grep -q .; then
-      echo "[INFO] $component VERSION already changed in this PR; skipping additional bump."
-      continue
+    ## If file exists in the BASE_REF, then a diff means it was modified
+    #  and we should skip rebumping. If not, it's a new file and we should bump it.
+    if git cat-file -e "${BASE_REF}:${version_file}" 2>/dev/null; then
+      if git diff --name-only "${BASE_REF}..HEAD" -- "$version_file" | grep -q .; then
+        echo "[INFO] $component VERSION already changed in this PR; skipping additional bump."
+        continue
+      fi
     fi
   fi
 
