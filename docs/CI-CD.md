@@ -10,5 +10,7 @@ Any pipelines that begin with `pipelinetemplates-*.yml` in the [`.github/workflo
 
 The [`pipelinetemplates-bump-zero-version.yml`](../.github/workflows/pipelinetemplates-bump-zero-versions.yml) pipeline is responsible for finding any versioned component that made it to the `main` branch, but is still at version `0.0.0`. It works by calling the [`reconcile-zero-versions.sh` script](../shared/scripts/bash/versioning/reconcile-zero-versions.sh) to search the repository for any `VERSION` file that is still at `0.0.0`. The script bumps those versions to `0.0.1` and the pipeline commits them to a branch named `chore/reconcile-zero-versions`, and opens a PR to the `main` branch.
 
+Each time the pipeline runs, it hard resets the `chore/reconcile-zero-versions` to the `main` branch, then runs the version bumps. This ensures that any component versioned `0.0.0` in the main branch will bump to `0.0.1`, even modules from previous runs. The PR will always have the latest changes, and can be merged at any point.
+
 > [!NOTE]
-> As of 2026-05-25, this PR stays open until it is manually merged. This is because some of the branch protection rules run for an unpredictable amount of time, causing the version reconciliation pipelines to fail.
+> As of 2026-05-25, the PR this pipeline creates will stay open until it is manually merged. This is because some of the branch protection rules run for an unpredictable amount of time, causing the version reconciliation pipelines to fail, and I have not spent the time to figure that out.
