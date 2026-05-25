@@ -1,0 +1,107 @@
+---
+name: "Notify Gotify"
+description: "Send a notification to a Gotify server."
+
+inputs:
+  gotify-url:
+    description: "Base URL of the Gotify server"
+    required: true
+
+  title:
+    description: "Notification title"
+    required: false
+    default: ""
+
+  message:
+    description: "Notification message"
+    required: false
+    default: ""
+
+  priority:
+    description: "Gotify priority"
+    required: false
+    default: "0"
+
+  use-json:
+    description: "Use application/json payload instead of multipart form"
+    required: false
+    default: "true"
+
+  content-type:
+    description: "Message rendering type"
+    required: false
+    default: "text/plain"
+
+  click-url:
+    description: "URL to open when notification is clicked"
+    required: false
+    default: ""
+
+  big-image-url:
+    description: "Large notification image"
+    required: false
+    default: ""
+
+  intent-url:
+    description: "Android intent URL"
+    required: false
+    default: ""
+
+  extras-json:
+    description: "Additional extras JSON merged into generated extras"
+    required: false
+    default: "{}"
+
+  raw-json-payload:
+    description: "Completely override generated JSON payload"
+    required: false
+    default: ""
+
+  user-agent:
+    description: "HTTP UA string to send with requests"
+    required: false
+    default: "redjax/PipelineTemplates"
+
+  debug:
+    description: "Show extra logging"
+    required: false
+    default: "false"
+
+  gotify-token:
+    description: "Gotify application token"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure curl and jq are available
+      shell: bash
+      run: |
+        if ! command -v curl >/dev/null 2>&1; then
+          echo "curl is required but not installed" >&2
+          exit 1
+        fi
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "jq is required but not installed" >&2
+          exit 1
+        fi
+
+    - name: Send Gotify Notification
+      shell: bash
+      env:
+        GOTIFY_URL: ${{ inputs.gotify-url }}
+        GOTIFY_TOKEN: ${{ inputs.gotify-token }}
+        TITLE: ${{ inputs.title }}
+        MESSAGE: ${{ inputs.message }}
+        PRIORITY: ${{ inputs.priority }}
+        USE_JSON: ${{ inputs.use-json }}
+        CONTENT_TYPE: ${{ inputs['content-type'] }}
+        CLICK_URL: ${{ inputs['click-url'] }}
+        BIG_IMAGE_URL: ${{ inputs['big-image-url'] }}
+        INTENT_URL: ${{ inputs['intent-url'] }}
+        USER_EXTRAS: ${{ inputs['extras-json'] }}
+        RAW_JSON_PAYLOAD: ${{ inputs['raw-json-payload'] }}
+        USER_AGENT: ${{ inputs['user-agent'] }}
+        DEBUG: ${{ inputs.debug }}
+      run: |
+        bash "${{ github.action_path }}/send-notification.sh"
