@@ -22,7 +22,7 @@ COMMIT="${COMMIT:-true}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../../../..")"
 
-function usage() {
+usage() {
   cat <<EOF
 Usage: ${0} [OPTIONS]
 
@@ -71,15 +71,7 @@ CHANGED_COMPONENTS=()
 for c in "${COMPONENTS[@]}"; do
   c="${c#./}"
 
-  version_file="$c/VERSION"
-  if [[ -f "$version_file" ]]; then
-    v="$(tr -d '[:space:]' <"$version_file")"
-    if [[ "$v" == "0.0.0" ]]; then
-      CHANGED_COMPONENTS+=("$c")
-      continue
-    fi
-  fi
-
+  ## Only treat as changed if there are commits touching this component in this PR
   if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
     CHANGED_COMPONENTS+=("$c")
   fi
@@ -96,6 +88,17 @@ printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 VERSION_FILES=()
 
 for component in "${CHANGED_COMPONENTS[@]}"; do
+  version_file="$component/VERSION"
+
+  ## If VERSION file was already changed in this PR, assume we already bumped it
+  #  and don't bump again
+  if [[ -f "$version_file" ]]; then
+    if git diff --name-only "${BASE_REF}..HEAD" -- "$version_file" | grep -q .; then
+      echo "[INFO] $component VERSION already changed in this PR; skipping additional bump."
+      continue
+    fi
+  fi
+
   commits="$(git log --format=%s "${BASE_REF}..HEAD" -- "$component" || true)"
 
   if echo "$commits" | grep -q 'BREAKING CHANGE\|!:'; then
@@ -116,7 +119,7 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
       --bump-type "$bump"
   fi
 
-  VERSION_FILES+=("$component/VERSION")
+  VERSION_FILES+=("$version_file")
 done
 
 if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
