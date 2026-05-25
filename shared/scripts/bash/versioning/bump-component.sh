@@ -7,19 +7,17 @@ set -euo pipefail
 # Composes bump-my-version command and bumps a .bumpversion.toml file. #
 ########################################################################
 
-if ! command -v bump-my-version >&/dev/null; then
-  echo "[ERROR] bump-my-version is not installed." <&2
+if ! command -v bump-my-version >/dev/null 2>&1; then
+  echo "[ERROR] bump-my-version is not installed." >&2
   exit 1
 fi
 
 _BUMP_COMPONENT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT=$(realpath -m "${_BUMP_COMPONENT_DIR}/../../../..")
 
-## Defaults
 COMPONENT_PATH=""
 BUMPVERSION_FILE=".bumpversion.toml"
 BUMP_TYPE="patch"
-
 DRY_RUN="false"
 CWD=$(pwd)
 
@@ -31,10 +29,28 @@ trap cleanup EXIT
 ## Help menu
 function usage() {
   cat <<EOF
-Usage: ${0} [OPTIONS]
+Usage:
+  $(basename "$0") --component-path <path> --bump-type <patch|minor|major> [OPTIONS]
+
+Description:
+  Updates the VERSION file for a given component using bump-my-version. Reads from the
+  component's .bumpversion.toml to determine versioning logic.
+
+  Automatically bumps any 0.0.0 versions.
 
 Options:
-  -h, --help    Print this help menu
+  -h, --help             Show this help message
+  -p, --component-path   Path to component directory containing .bumpversion.toml (required)
+  --dry-run              Show what would change without modifying files
+  -b, --bump-type        Version bump type (default: patch)
+                         Allowed values:
+                           - patch
+                           - minor
+                           - major
+
+Examples:
+  $0 --component-path .github/actions/hello --bump-type patch
+  $0 -p services/api -b minor --dry-run
 EOF
 }
 

@@ -1,27 +1,19 @@
 ---
-################################################
-# Publish tags/releases for newly bumped       #
-# component versions on merge to main.         #
-################################################
+#########################################################
+# Tag reconciliation pipeline                           #
+#                                                       #
+# Ensures all VERSION files have matching git tags.     #
+#########################################################
 
-name: Publish components
+name: Reconcile component tags
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/actions/**"
-      - "gitlab/components/**"
-      - "concourse/components/**"
-      - "woodpecker/components/**"
-      - "**/VERSION"
-      - "**/.bumpversion.toml"
-
+  schedule:
+    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Preview only
+        description: Dry run
         required: false
         type: boolean
         default: true
@@ -30,7 +22,7 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  reconcile:
     runs-on: ubuntu-latest
 
     steps:
@@ -44,19 +36,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch refs
+      - name: Fetch tags
         run: git fetch origin main --tags --force
 
-      - name: Preview tags
+      - name: Preview tag reconciliation
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
         run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run
 
-      - name: Create component tags
+      - name: Reconcile tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
         run: ./shared/scripts/bash/versioning/git-tag-components.sh --push
-
-      - name: Create GitHub releases
-        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./shared/scripts/bash/release/create-github-release.sh

@@ -1,0 +1,155 @@
+---
+#############################################################
+# Manually reconcile all components that somehow            #
+# made it to main with a 0.0.0 version                      #
+#                                                           #
+# By default, resets the chore/reconcile-zero-versions      #
+# branch with the latest changes from main. This is to      #
+# ensure ALL 0.0.0 versions are found and bumped at the     #
+# same time.                                                #
+#                                                           #
+# The PR is not merged automatically by default because     #
+# or branch protection rules requiring a stage that         #
+# does not run every time. You will have to manually merge  #
+# the chore/reconcile-zero-versions PR, but it will always  #
+# be up to date after this pipeline runs.                   #
+#############################################################
+
+name: Bump all 0.0.0 tags
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Dry run
+        required: false
+        type: boolean
+        default: true
+      auto_merge:
+        description: Auto-merge PR
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch refs
+        run: git fetch origin main --tags --force
+
+      - name: Install GitHub CLI
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y gh
+          fi
+
+      - name: Create/reset chore branch from main
+        if: inputs.dry_run == false
+        id: branch
+        run: |
+          BRANCH_NAME="chore/reconcile-zero-versions"
+
+          git fetch origin
+
+          git checkout main
+          git reset --hard origin/main
+
+          git checkout -B "$BRANCH_NAME"
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Bump all 0.0.0 versions to 0.0.1
+        if: inputs.dry_run == false
+        id: reconcile
+        run: |
+          BRANCH_NAME="${{ steps.branch.outputs.branch_name }}"
+          echo "On branch: $BRANCH_NAME"
+
+          STATUS_LINE="$(./shared/scripts/bash/versioning/reconcile-zero-versions.sh)"
+          echo "Script status: $STATUS_LINE"
+
+          STATUS="${STATUS_LINE#status=}"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push bumps
+        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
+        id: commit
+        run: |
+          BRANCH_NAME="${{ steps.branch.outputs.branch_name }}"
+
+          git status --short
+
+          git add .
+          if git commit -m "chore(versioning): reconcile zero versions"; then
+            git push --force-with-lease origin "$BRANCH_NAME"
+            echo "changes_made=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes to commit."
+            echo "changes_made=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR with bumped versions
+        if: inputs.dry_run == false && steps.commit.outputs.changes_made == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
+
+          set +e
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "chore(versioning): reconcile zero versions" \
+            --body "Automated zero-version reconciliation."
+          EXIT_CODE=$?
+          set -e
+
+          if [[ $EXIT_CODE -ne 0 ]]; then
+            echo "gh pr create exited with $EXIT_CODE (likely PR already exists); continuing."
+          fi
+
+      - name: Merge PR
+        if: inputs.dry_run == false &&
+          inputs.auto_merge == true &&
+          steps.commit.outputs.changes_made == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
+
+          PR_NUMBER="$(gh pr list \
+            --head "$BRANCH_NAME" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "No open PR found for $BRANCH_NAME; nothing to merge."
+            exit 0
+          fi
+
+          gh pr merge "$PR_NUMBER" \
+            --merge \
+            --delete-branch \
+            --subject "chore(versioning): reconcile zero versions" \
+            --body "Automated merge of zero-version reconciliation."

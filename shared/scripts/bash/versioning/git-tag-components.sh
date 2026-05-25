@@ -16,22 +16,13 @@ set -euo pipefail
 
 BASE_DIR="${BASE_DIR:-.}"
 DRY_RUN="false"
+PUSH="${PUSH:-false}"
+BASE_REF="${BASE_REF:-}"
 
-function usage() {
-  cat <<EOF
-Usage: ${0} [OPTIONS]
+source "$(dirname "$0")/../_util/git-tag-lib.sh"
 
-Options:
-  -h, --help     Print help menu
-  --dry-run      Show actions without executing them
-EOF
-}
-
-## Resolve platform prefix from component path
 function resolve_prefix() {
-  local component="$1"
-
-  case "$component" in
+  case "$1" in
   .github/*) echo "gh" ;;
   gitlab/*) echo "gl" ;;
   woodpecker/*) echo "woodpecker" ;;
@@ -46,12 +37,12 @@ while [[ $# -gt 0 ]]; do
     DRY_RUN="true"
     shift
     ;;
-  -h | --help)
-    usage
-    exit 0
+  --push)
+    PUSH="true"
+    shift
     ;;
   *)
-    echo "[ERROR] Unknown argument: $1" >&2
+    echo "[ERROR] Unknown arg: $1" >&2
     exit 1
     ;;
   esac
@@ -59,38 +50,54 @@ done
 
 cd "$BASE_DIR"
 
-## Find all components (directories with VERSION file)
+git fetch origin main >/dev/null 2>&1 || true
+
+if [[ -z "$BASE_REF" ]]; then
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
+
+fetch_git_tags
+
 mapfile -t COMPONENTS < <(
-  find . -type f -name "VERSION" \
-    -exec dirname {} + |
-    sort -u
+  find . -type f -name "VERSION" -exec dirname {} + | sort -u
 )
 
-## Tag each component if needed
-for component in "${COMPONENTS[@]}"; do
-  ## Strip ./ from component path string
-  component="${component#./}"
-  version_file="${component}/VERSION"
+CREATED_TAGS=()
 
+for component in "${COMPONENTS[@]}"; do
+  component="${component#./}"
+
+  version_file="$component/VERSION"
   [[ -f "$version_file" ]] || continue
 
-  version="$(cat "$version_file")"
+  version="$(tr -d '[:space:]' <"$version_file")"
 
-  component_name="$(basename "$component")"
+  component_name="${component##*/}"
   prefix="$(resolve_prefix "$component")"
 
   tag="${prefix}/${component_name}/v${version}"
 
-  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    echo "[SKIP] Tag exists: $tag"
+  if [[ "$version" == "0.0.0" ]]; then
+    echo "[SKIP] unreleased: $component"
     continue
   fi
 
-  echo "[INFO] Tagging $tag"
+  if tag_exists "$tag"; then
+    echo "[SKIP] $tag"
+    continue
+  fi
+
+  echo "[INFO] creating tag: $tag"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY RUN] git tag -a $tag -m $tag"
-  else
-    git tag -a "$tag" -m "$tag"
+    continue
   fi
+
+  git tag -a "$tag" -m "$tag"
+  CREATED_TAGS+=("$tag")
 done
+
+if [[ "$PUSH" == "true" && "$DRY_RUN" != "true" ]]; then
+  git push origin "${CREATED_TAGS[@]}"
+fi

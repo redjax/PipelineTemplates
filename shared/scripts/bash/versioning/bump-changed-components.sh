@@ -4,7 +4,7 @@ set -euo pipefail
 ########################################################################
 # Release changed components automatically using conventional commits. #
 #                                                                      #
-# A component is any directory containing a .bumpversion.toml file     #
+# A component is any directory containing a .bumpversion.toml file.    #
 #                                                                      #
 # Version bump rules:                                                  #
 #   Breaking change / feat! -> major                                   #
@@ -15,9 +15,14 @@ set -euo pipefail
 _BUMP_COMPONENTS_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "${_BUMP_COMPONENTS_DIR}/../../../..")"
 
-BASE_REF="${BASE_REF:-origin/main}"
+BASE_REF="${BASE_REF:-}"
 DRY_RUN="false"
 CWD=$(pwd)
+
+if [[ -z "$BASE_REF" ]]; then
+  git fetch origin main --quiet || true
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
 
 function usage() {
   cat <<EOF
@@ -55,8 +60,8 @@ trap cleanup EXIT
 ## Determine highest bump level from commit history
 function determine_bump_type() {
   local component="$1"
-
   local commits
+
   commits="$(
     git log \
       --format=%s \
@@ -104,7 +109,6 @@ for component in "${COMPONENTS[@]}"; do
 
   ## Skip unchanged components
   if ! git diff --quiet "${BASE_REF}...HEAD" -- "${component}"; then
-
     bump_type="$(determine_bump_type "${component}")"
 
     if [[ -z "${bump_type}" ]]; then

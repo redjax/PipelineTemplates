@@ -1,0 +1,62 @@
+---
+######################################################
+# PR pipeline: detect changed components and bump    #
+# versions, then commit back to the PR branch.       #
+######################################################
+
+name: Pull Request steps
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/actions/**"
+      - "gitlab/components/**"
+      - "concourse/components/**"
+      - "woodpecker/components/**"
+      - "**/VERSION"
+      - "**/.bumpversion.toml"
+
+permissions:
+  contents: write
+
+jobs:
+  bump-components:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch refs
+        run: git fetch origin main --tags --force
+
+      - name: Install bump-my-version
+        run: ./shared/scripts/bash/installers/install-bump-my-version.sh
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump changed components
+        env:
+          COMMIT: "false"
+        run: ./shared/scripts/bash/versioning/release-components.sh
+
+      - name: Commit VERSION updates
+        run: |
+          if git diff --quiet; then
+            echo "[INFO] No VERSION updates"
+            exit 0
+          fi
+
+          git add "**/VERSION"
+          git commit -m "chore(release): bump component versions"
+          git push origin HEAD:${{ github.head_ref }}
+
+      - name: Preview tags
+        run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run

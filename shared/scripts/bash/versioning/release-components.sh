@@ -4,8 +4,8 @@ set -euo pipefail
 ######################################################################
 # Component release orchestrator script.                             #
 #                                                                    #
-# Detects changed components, bumps versions, tags releases, and     #
-# optionally commits/pushes the result.                              #
+# Detects changed components, bumps versions, and optionally commits #
+# the result.                                                        #
 #                                                                    #
 # A component is any directory containing a .bumpversion.toml file.  #
 #                                                                    #
@@ -15,9 +15,8 @@ set -euo pipefail
 #   everything else         -> patch                                 #
 ######################################################################
 
-BASE_REF="${BASE_REF:-origin/main}"
+BASE_REF="${BASE_REF:-}"
 DRY_RUN="false"
-PUSH="${PUSH:-false}"
 COMMIT="${COMMIT:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -28,22 +27,16 @@ function usage() {
 Usage: ${0} [OPTIONS]
 
 Options:
-  -h, --help    Print help menu
-  --dry-run     Describe actions without taking them
-  --no-push     Create tags but don't push to remote
-  --no-commit   Create tags but don't commit
+  --dry-run
+  --no-commit
+  -h, --help
 EOF
 }
 
-## Parse CLI args
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --dry-run)
     DRY_RUN="true"
-    shift
-    ;;
-  --no-push)
-    PUSH="false"
     shift
     ;;
   --no-commit)
@@ -61,101 +54,33 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-## Normalize path
-function normalize() {
-  echo "${1#./}"
-}
-
-function resolve_prefix() {
-  local component="$1"
-
-  case "$component" in
-  .github/*)
-    echo "gh"
-    ;;
-  gitlab/*)
-    echo "gl"
-    ;;
-  woodpecker/*)
-    echo "woodpecker"
-    ;;
-  concourse/*)
-    echo "concourse"
-    ;;
-  *)
-    echo "unknown"
-    ;;
-  esac
-}
-
-## Ensure minimum released version is 0.0.1
-function normalize_release_version() {
-  local version="$1"
-
-  if [[ "$version" == "0.0.0" ]]; then
-    echo "0.0.1"
-  else
-    echo "$version"
-  fi
-}
-
-function get_bump_type() {
-  local component="$1"
-  local component_name prefix last_tag range commits
-
-  component="$(normalize "$component")"
-  component_name="$(basename "$component")"
-  prefix="$(resolve_prefix "$component")"
-
-  last_tag="$(
-    git tag --list "${prefix}/${component_name}/v*" \
-      --sort=-v:refname |
-      head -n 1
-  )"
-
-  if [[ -z "$last_tag" ]]; then
-    range="${BASE_REF}..HEAD"
-  else
-    range="${last_tag}..HEAD"
-  fi
-
-  commits="$(
-    git log --format=%s "${range}" -- "$component" || true
-  )"
-
-  if [[ -z "$commits" ]]; then
-    echo ""
-    return
-  fi
-
-  if echo "$commits" | grep -Eq 'BREAKING CHANGE|!:'; then
-    echo "major"
-    return
-  fi
-
-  if echo "$commits" | grep -Eq '^feat(\(.+\))?:'; then
-    echo "minor"
-    return
-  fi
-
-  echo "patch"
-}
-
 cd "$REPO_ROOT"
+
+git fetch origin main >/dev/null 2>&1 || true
+
+if [[ -z "$BASE_REF" ]]; then
+  BASE_REF="$(git merge-base HEAD origin/main)"
+fi
 
 mapfile -t COMPONENTS < <(
   find . -type f -name ".bumpversion.toml" -exec dirname {} + | sort -u
 )
 
-if [[ ${#COMPONENTS[@]} -eq 0 ]]; then
-  echo "[INFO] No bumpable components found."
-  exit 0
-fi
-
 CHANGED_COMPONENTS=()
+
 for c in "${COMPONENTS[@]}"; do
-  c="$(normalize "$c")"
-  if ! git diff --quiet "${BASE_REF}...HEAD" -- "$c"; then
+  c="${c#./}"
+
+  version_file="$c/VERSION"
+  if [[ -f "$version_file" ]]; then
+    v="$(tr -d '[:space:]' <"$version_file")"
+    if [[ "$v" == "0.0.0" ]]; then
+      CHANGED_COMPONENTS+=("$c")
+      continue
+    fi
+  fi
+
+  if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
     CHANGED_COMPONENTS+=("$c")
   fi
 done
@@ -168,35 +93,31 @@ fi
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-RELEASED_COMPONENTS=()
 VERSION_FILES=()
 
 for component in "${CHANGED_COMPONENTS[@]}"; do
-  bump_type="$(get_bump_type "$component")"
+  commits="$(git log --format=%s "${BASE_REF}..HEAD" -- "$component" || true)"
 
-  if [[ -z "$bump_type" ]]; then
-    echo "[INFO] No commits found for $component; skipping."
-    continue
+  if echo "$commits" | grep -q 'BREAKING CHANGE\|!:'; then
+    bump="major"
+  elif echo "$commits" | grep -q '^feat'; then
+    bump="minor"
+  else
+    bump="patch"
   fi
 
-  echo "[INFO] Bumping $component -> $bump_type"
+  echo "[INFO] Bumping $component -> $bump"
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY RUN] $SCRIPT_DIR/bump-component.sh --component-path $component --bump-type $bump_type"
+    echo "[DRY RUN] $SCRIPT_DIR/bump-component.sh --component-path $component --bump-type $bump"
   else
     "$SCRIPT_DIR/bump-component.sh" \
       --component-path "$component" \
-      --bump-type "$bump_type"
+      --bump-type "$bump"
   fi
 
-  RELEASED_COMPONENTS+=("$component")
   VERSION_FILES+=("$component/VERSION")
 done
-
-if [[ ${#RELEASED_COMPONENTS[@]} -eq 0 ]]; then
-  echo "[INFO] No components were released."
-  exit 0
-fi
 
 if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
   if ! git diff --quiet; then
@@ -207,31 +128,4 @@ if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
   fi
 fi
 
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[DRY RUN] Would tag released components:"
-fi
-
-for component in "${RELEASED_COMPONENTS[@]}"; do
-  component="$(normalize "$component")"
-  component_name="$(basename "$component")"
-  prefix="$(resolve_prefix "$component")"
-  version="$(cat "$component/VERSION")"
-  version="$(normalize_release_version "$version")"
-  tag="${prefix}/${component_name}/v${version}"
-
-  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    echo "[SKIP] Tag exists: $tag"
-    continue
-  fi
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY RUN] git tag -a $tag -m $tag"
-  else
-    echo "[INFO] Tagging $tag"
-    git tag -a "$tag" -m "$tag"
-  fi
-done
-
-if [[ "$PUSH" == "true" && "$DRY_RUN" != "true" ]]; then
-  git push origin HEAD --follow-tags
-fi
+echo "[INFO] Release complete."
