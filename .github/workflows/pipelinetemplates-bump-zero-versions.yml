@@ -1,10 +1,27 @@
+---
+#############################################################
+# Manually reconcile all components that somehow            #
+# made it to main with a 0.0.0 version                      #
+#                                                           #
+# By default, resets the chore/reconcile-zero-versions      #
+# branch with the latest changes from main. This is to      #
+# ensure ALL 0.0.0 versions are found and bumped at the     #
+# same time.                                                #
+#                                                           #
+# The PR is not merged automatically by default because     #
+# or branch protection rules requiring a stage that         #
+# does not run every time. You will have to manually merge  #
+# the chore/reconcile-zero-versions PR, but it will always  #
+# be up to date after this pipeline runs.                   #
+#############################################################
+
 name: Bump all 0.0.0 tags
 
 on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Dry run - preview changes without committing/PR
+        description: Dry run
         required: false
         type: boolean
         default: true
@@ -58,7 +75,7 @@ jobs:
 
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Run reconciliation script on chore branch
+      - name: Bump all 0.0.0 versions to 0.0.1
         if: inputs.dry_run == false
         id: reconcile
         run: |
@@ -90,7 +107,7 @@ jobs:
 
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Open PR (idempotent)
+      - name: Open PR with bumped versions
         if: inputs.dry_run == false && steps.commit.outputs.changes_made == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

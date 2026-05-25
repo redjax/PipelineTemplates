@@ -4,7 +4,7 @@
 # versions, then commit back to the PR branch.       #
 ######################################################
 
-name: PR preview - component releases
+name: Pull Request steps
 
 on:
   pull_request:
