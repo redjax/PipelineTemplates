@@ -13,6 +13,11 @@ on:
         required: false
         type: boolean
         default: true
+      auto_merge:
+        description: Auto-merge PR
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -83,16 +88,20 @@ jobs:
             --base main \
             --head "${{ steps.commit.outputs.branch_name }}" \
             --title "chore(versioning): reconcile zero versions" \
-            --body "Found 0.0.0 versions and bump them to 0.0.1"
+            --body "Automated zero-version reconciliation."
 
       - name: Merge PR
-        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
+        if: >
+          inputs.dry_run == false &&
+          inputs.auto_merge == true &&
+          steps.reconcile.outputs.status == 'bumped'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # You still must satisfy required checks like "update-manifest"
+          # before this will succeed.
           gh pr merge \
             --merge \
-            --admin \
             --delete-branch \
             --subject "chore(versioning): reconcile zero versions" \
             --body "Automated merge of zero-version reconciliation."
