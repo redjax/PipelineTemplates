@@ -9,19 +9,7 @@ set -euo pipefail
 #################################################################
 
 BASE_DIR="${BASE_DIR:-.}"
-BRANCH_NAME="${BRANCH_NAME:-chore/reconcile-zero-versions}"
-COMMIT_MESSAGE="${COMMIT_MESSAGE:-chore(versioning): reconcile zero versions}"
 DRY_RUN="false"
-
-function usage() {
-  cat <<EOF
-Usage: ${0} [OPTIONS]
-
-Options:
-  --dry-run     Show what would change without modifying files
-  -h, --help    Print help menu
-EOF
-}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -30,7 +18,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   -h | --help)
-    usage
+    echo "Usage: $0 [--dry-run]" >&2
     exit 0
     ;;
   *)
@@ -53,27 +41,22 @@ for vf in "${VERSION_FILES[@]}"; do
 done
 
 if [[ ${#ZERO_VERSION_FILES[@]} -eq 0 ]]; then
-  echo "[INFO] No 0.0.0 versions found."
+  echo "[INFO] No 0.0.0 versions found." >&2
+  echo "status=none"
   exit 0
 fi
 
-echo "[INFO] Zero-version components:"
-printf ' - %s\n' "${ZERO_VERSION_FILES[@]}"
+echo "[INFO] Zero-version components:" >&2
+printf ' - %s\n' "${ZERO_VERSION_FILES[@]}" >&2
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[DRY RUN] Would bump these versions to 0.0.1 and open a PR."
+  echo "[DRY RUN] Would bump these versions to 0.0.1." >&2
+  echo "status=found"
   exit 0
 fi
-
-git config user.name "github-actions[bot]"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
 for vf in "${ZERO_VERSION_FILES[@]}"; do
   printf '0.0.1\n' >"$vf"
 done
 
-git checkout -b "$BRANCH_NAME"
-git add "${ZERO_VERSION_FILES[@]}"
-git commit -m "$COMMIT_MESSAGE"
-
-echo "[INFO] Created branch $BRANCH_NAME with zero-version fixes."
+echo "status=bumped"
