@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Dry run - preview changes without pushing
+        description: Dry run - preview changes without committing/PR
         required: false
         type: boolean
         default: true
@@ -43,28 +43,56 @@ jobs:
             sudo apt-get install -y gh
           fi
 
-      - name: Run reconciliation
+      - name: Run reconciliation script
         id: reconcile
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            ./shared/scripts/bash/versioning/reconcile-zero-versions.sh --dry-run
+            STATUS_LINE="$(./shared/scripts/bash/versioning/reconcile-zero-versions.sh --dry-run)"
           else
-            BRANCH_NAME="$(./shared/scripts/bash/versioning/reconcile-zero-versions.sh)"
-            echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+            STATUS_LINE="$(./shared/scripts/bash/versioning/reconcile-zero-versions.sh)"
           fi
 
-      - name: Push branch
-        if: inputs.dry_run == false
-        run: |
-          git push -u origin "${{ steps.reconcile.outputs.branch_name }}"
+          echo "Script status: $STATUS_LINE"
 
-      - name: Create PR
-        if: inputs.dry_run == false
+          STATUS="${STATUS_LINE#status=}"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+
+      - name: Create branch and commit
+        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
+        id: commit
+        run: |
+          BRANCH_NAME="chore/reconcile-zero-versions"
+
+          git checkout -b "$BRANCH_NAME"
+          ## All bumped VERSION files are already changed in the working tree
+          git status --short
+
+          git add .
+          git commit -m "chore(versioning): reconcile zero versions"
+
+          git push -u origin "$BRANCH_NAME"
+
+          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR
+        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr create \
             --base main \
-            --head "${{ steps.reconcile.outputs.branch_name }}" \
+            --head "${{ steps.commit.outputs.branch_name }}" \
             --title "chore(versioning): reconcile zero versions" \
-            --body "Automated zero-version reconciliation."
+            --body "Found 0.0.0 versions and bump them to 0.0.1"
+
+      - name: Merge PR
+        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge \
+            --merge \
+            --admin \
+            --delete-branch \
+            --subject "chore(versioning): reconcile zero versions" \
+            --body "Automated merge of zero-version reconciliation."
