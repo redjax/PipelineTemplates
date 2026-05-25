@@ -1,6 +1,6 @@
 ---
 ################################################
-# Publish tags/releases for already bumped     #
+# Publish tags/releases for newly bumped       #
 # component versions on merge to main.         #
 ################################################
 
