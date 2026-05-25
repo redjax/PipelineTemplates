@@ -1,8 +1,3 @@
----
-#################################################
-# Bump all 0.0.0 versioned components to 0.0.1. #
-#################################################
-
 name: Bump all 0.0.0 tags
 
 on:
@@ -68,19 +63,64 @@ jobs:
         run: |
           BRANCH_NAME="chore/reconcile-zero-versions"
 
-          git checkout -b "$BRANCH_NAME"
-          ## All bumped VERSION files are already changed in the working tree
+          git fetch origin
+
+          ## Always hard reset to the latest main
+          git checkout main
+          git reset --hard origin/main
+
+          ## Always recreate the automation branch from main
+          git checkout -B "$BRANCH_NAME"
+
+          ## Script has already edited the VERSION files at this point
           git status --short
 
           git add .
-          git commit -m "chore(versioning): reconcile zero versions"
-
-          git push -u origin "$BRANCH_NAME"
+          if git commit -m "chore(versioning): reconcile zero versions"; then
+            ## Overwrite the remote branch history with this fresh snapshot
+            git push --force-with-lease origin "$BRANCH_NAME"
+            echo "changes_made=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes to commit."
+            echo "changes_made=false" >> "$GITHUB_OUTPUT"
+          fi
 
           echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
 
+      - name: Check for existing PR
+        if: >
+          inputs.dry_run == false &&
+          steps.reconcile.outputs.status == 'bumped' &&
+          steps.commit.outputs.changes_made == 'true'
+        id: check_pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
+
+          ## Returns the URL of the open PR, or empty string if none
+          PR_URL="$(gh pr list \
+            --head "$BRANCH_NAME" \
+            --base main \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')"
+
+          if [[ -n "$PR_URL" ]]; then
+            echo "Found existing PR: $PR_URL"
+            echo "pr_exists=true" >> "$GITHUB_OUTPUT"
+            echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "No existing PR found for $BRANCH_NAME -> main"
+            echo "pr_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Open PR
-        if: inputs.dry_run == false && steps.reconcile.outputs.status == 'bumped'
+        if: >
+          inputs.dry_run == false &&
+          steps.reconcile.outputs.status == 'bumped' &&
+          steps.commit.outputs.changes_made == 'true' &&
+          steps.check_pr.outputs.pr_exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -94,13 +134,29 @@ jobs:
         if: >
           inputs.dry_run == false &&
           inputs.auto_merge == true &&
-          steps.reconcile.outputs.status == 'bumped'
+          steps.reconcile.outputs.status == 'bumped' &&
+          steps.commit.outputs.changes_made == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # You still must satisfy required checks like "update-manifest"
-          # before this will succeed.
-          gh pr merge \
+          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
+
+          ## Find the open PR number for this branch
+          PR_NUMBER="$(gh pr list \
+            --head "$BRANCH_NAME" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')"
+
+          if [[ -z "$PR_NUMBER" ]]; then
+            echo "No open PR found for $BRANCH_NAME; nothing to merge."
+            exit 0
+          fi
+
+          echo "Merging PR #$PR_NUMBER for $BRANCH_NAME"
+
+          gh pr merge "$PR_NUMBER" \
             --merge \
             --delete-branch \
             --subject "chore(versioning): reconcile zero versions" \
