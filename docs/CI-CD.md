@@ -27,3 +27,7 @@ Each time a pull request (PR) to `main` is opened, the [`pipelinetemplates-pr.ym
 - Commits any changed components back to the PR branch
 
 When a PR is left open and more changes are added, the steps will repeat, but the version will not bump more than once per PR. For example, if you bump a version from `0.0.1` to `0.0.2` when the PR is opened, then you push more changes and the pipeline runs again, the script will detect the existing bump and will not bump it again.
+
+### Github: Merge and release pipeline
+
+The [`pipelinetemplates-merge-release.yml` pipeline](../.github/workflows/pipelinetemplates-merge-release.yml) once a PR is merged into the `main` branch. The pipeline finds any changed components/`VERSION` files, then it ensures all of those tags are created.
