@@ -33,3 +33,9 @@ When a PR is left open and more changes are added, the steps will repeat, but th
 The [`pipelinetemplates-merge-release.yml` pipeline](../.github/workflows/pipelinetemplates-merge-release.yml) once a PR is merged into the `main` branch. The pipeline finds any changed components/`VERSION` files, then it ensures all of those tags are created.
 
 Read more about how pipeline versioning works in the [`VERSIONING` docs](./VERSIONING.md).
+
+### Github: Git tag reconciliation pipeline
+
+The [`pipelinetemplates-git-tag.yml` pipeline](../.github/workflows/pipelinetemplates-git-tag.yml) runs on a schedule or on-demand, ensuring a tag exists for each component.
+
+The pipeline calls the [`git-tag-components.sh` script](../shared/scripts/bash/versioning/git-tag-components.sh) to find all versioned components, then compares the versions with published tags. If any `VERSION` file is found to have a version that does not exist as a git tag, the pipeline creates that tag.
