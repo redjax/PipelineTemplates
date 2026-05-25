@@ -104,4 +104,4 @@ runs:
         USER_AGENT: ${{ inputs['user-agent'] }}
         DEBUG: ${{ inputs.debug }}
       run: |
-        bash "${{ github.action_path }}/send-notification.sh"
+        bash "${{ github.action_path }}/scripts/send-notification.sh"
