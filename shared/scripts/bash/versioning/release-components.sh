@@ -70,6 +70,16 @@ CHANGED_COMPONENTS=()
 
 for c in "${COMPONENTS[@]}"; do
   c="${c#./}"
+  version_file="$c/VERSION"
+
+  ## If this is a new component whose VERSION is still 0.0.0, treat it as changed
+  if [[ -f "$version_file" ]]; then
+    current_version="$(tr -d '[:space:]' <"$version_file")"
+    if [[ "$current_version" == "0.0.0" ]]; then
+      CHANGED_COMPONENTS+=("$c")
+      continue
+    fi
+  fi
 
   ## Only treat as changed if there are commits touching this component in this PR
   if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
