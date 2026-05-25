@@ -11,6 +11,8 @@ set -euo pipefail
 BASE_DIR="${BASE_DIR:-.}"
 BRANCH_NAME="${BRANCH_NAME:-chore/reconcile-zero-versions}"
 COMMIT_MESSAGE="${COMMIT_MESSAGE:-chore(versioning): reconcile zero versions}"
+GIT_USERNAME=${GIT_CONFIG_USER:-github-actions[bot]}
+GIT_EMAIL=${GIT_CONFIG_EMAIL:-41898282+github-actions[bot]@users.noreply.github.com}
 DRY_RUN="false"
 
 function usage() {
@@ -53,28 +55,38 @@ for vf in "${VERSION_FILES[@]}"; do
 done
 
 if [[ ${#ZERO_VERSION_FILES[@]} -eq 0 ]]; then
-  echo "[INFO] No 0.0.0 versions found."
+  echo "[INFO] No 0.0.0 versions found." >&2
   exit 0
 fi
 
-echo "[INFO] Zero-version components:"
-printf ' - %s\n' "${ZERO_VERSION_FILES[@]}"
+echo "[INFO] Zero-version components:" >&2
+printf ' - %s\n' "${ZERO_VERSION_FILES[@]}" >&2
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[DRY RUN] Would bump these versions to 0.0.1 and open a PR."
+  echo "[DRY RUN] Would bump these versions to 0.0.1 and open a PR." >&2
   exit 0
 fi
 
-git config user.name "github-actions[bot]"
-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+if [[ -z "${GIT_USERNAME}" ]]; then
+  echo "[ERROR] Missing git username" >&2
+  exit 1
+fi
 
-git checkout -b "$BRANCH_NAME"
+if [[ -z "${GIT_EMAIL}" ]]; then
+  echo "[ERROR] Missing git email address" >&2
+  exit 1
+fi
+
+git config user.name "${GIT_USERNAME}"
+git config user.email "${GIT_EMAIL}"
+
+git checkout -b "${BRANCH_NAME}" >&2
 
 for vf in "${ZERO_VERSION_FILES[@]}"; do
   printf '0.0.1\n' >"$vf"
 done
 
 git add "${ZERO_VERSION_FILES[@]}"
-git commit -m "$COMMIT_MESSAGE"
+git commit -m "${COMMIT_MESSAGE}" >&2
 
-echo "$BRANCH_NAME"
+echo "${BRANCH_NAME}"
