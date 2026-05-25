@@ -31,3 +31,5 @@ When a PR is left open and more changes are added, the steps will repeat, but th
 ### Github: Merge and release pipeline
 
 The [`pipelinetemplates-merge-release.yml` pipeline](../.github/workflows/pipelinetemplates-merge-release.yml) once a PR is merged into the `main` branch. The pipeline finds any changed components/`VERSION` files, then it ensures all of those tags are created.
+
+Read more about how pipeline versioning works in the [`VERSIONING` docs](./VERSIONING.md).
