@@ -44,7 +44,7 @@ The [`hello` Github Action](../../.github/actions/hello/) is a simple pipeline I
 
 The pipeline accepts a single input: `message`. This can be anything you want to print in the pipeline, and the default is `"hello from pipeline templates"`.
 
-In the [`PipelineTemplates-test` repository](#pipelinetemplates-test-repo-setup), create a `.github/workflows` directory if it does not already exist. Then create a `test-hello.yml` pipeline that calls the `hello` Action defined in the `PipelineTemplates` repository.
+In the [`PipelineTemplates-test` repository](#pipelinetemplates-test-repo-setup), create a `.github/workflows` directory if it does not already exist. Then create a `test-hello.yml` pipeline that calls the `hello` Action defined in the `PipelineTemplates` repository. The calling pipeline exposes the `message` input to the `PipelineTemplates-test` pipeline, then passes the value through to the Github Action in `PipelineTemplates`.
 
 ```yaml
 ---
@@ -68,12 +68,33 @@ jobs:
         with:
           message: ${{ inputs.message }}
 
-  ## If you want to call the reusable workflow instead of the action,
-  #  replace the job above with this job-level call:
-  #
-  # call-template:
-  #   uses: redjax/PipelineTemplates/.github/workflows/demo-hello.yml@gh/hello/v0.0.1
-  #   with:
-  #     message: ${ inputs.message }}  # Add another { after the $ in the 'real' version
+```
 
+### Example: Call a Github Reusable Workflow
+
+Github Reusable Workflows are pipelines you can call from other pipelines. They are different from Github Actions in that instead of being a component focused around a single task, reusable workflows define a full pipeline that might call other Actions or scripts, and can be called from other repositories.
+
+> [!WARNING]
+> Reusable workflows in the `PipelineTemplates` repository are not versioned like Github Action components. A calling pipeline will always use the latest version, unless a specific tag/ref is given.
+
+Calling a reusable workflow is pretty similar to calling a Github Action:
+
+```yaml
+---
+name: Test hello-world demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: The message to print
+        required: false
+        type: string
+        default: Hello from PipelineTemplates-test
+
+jobs:
+  call-template:
+  uses: redjax/PipelineTemplates/.github/workflows/demo-hello.yml@feat/some-branchname  # Call the workflow at a specific branch
+  with:
+    message: ${{ inputs.message }}  # Pass the input message to the workflow
 ```
