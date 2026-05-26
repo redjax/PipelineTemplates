@@ -13,14 +13,18 @@ This Action builds Docker images with `docker/build-push-action` and optionally 
 - `image_name`: Image repository name, without the registry host.
   - `my-org/my-app`
   - `my-user/tooling`
-- `tags`: Newline‑separated list of tags to apply to the image. These are typically just the tag parts (e.g. latest, v1.2.3); the action composes full references as `<registry>/<image_name>:<tag>`.
+- `tags`: Newline‑separated list of tags to apply to the image. These are typically just the tag parts (for example latest, `v1.2.3`); the action composes full references as `<registry>/<image_name>:<tag>`.
   - `latest` (single, 'latest' tag)
+  - `sha-${{ github.sha }}` (commit-based tag)
+  - `branch-${{ github.ref_name }}` (branch-based tag)
+  - `v1.2.3` (versioned release tag)
   - Multiple tags:
 
     ```plaintext
     latest
+    branch-${{ github.ref_name }}
     sha-${{ github.sha }}
-    `v1.2.3
+    v1.2.3
     ```
 
 - `push`: `"true"` to push the built image(s) to the registry, `"false"` to build only. Default: `"true"`.
