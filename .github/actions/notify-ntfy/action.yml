@@ -1,0 +1,115 @@
+---
+name: "Notify ntfy"
+description: "Send a notification to an ntfy server."
+
+inputs:
+  ntfy-server:
+    description: "Base URL of the ntfy server (e.g. https://ntfy.sh or https://ntfy.example.com)"
+    required: true
+
+  topic:
+    description: "ntfy topic name (e.g. alerts, ci-builds)"
+    required: true
+
+  title:
+    description: "Notification title (X-Title)"
+    required: false
+    default: ""
+
+  message:
+    description: "Notification message body (HTTP body, unless raw-body is used)"
+    required: false
+    default: ""
+
+  markdown:
+    description: "Render message as Markdown (X-Markdown: yes)"
+    required: false
+    default: "false"
+
+  priority:
+    description: "ntfy priority (1-5, or min|low|default|high|max)"
+    required: false
+    default: ""
+
+  tags:
+    description: "Comma-separated ntfy tags (X-Tags header)"
+    required: false
+    default: ""
+
+  click-url:
+    description: "Click URL (X-Click header)"
+    required: false
+    default: ""
+
+  actions:
+    description: "Actions definition (X-Actions header)"
+    required: false
+    default: ""
+
+  attach:
+    description: "Attachment URL or descriptor (X-Attach header)"
+    required: false
+    default: ""
+
+  raw-body:
+    description: "Override message body with raw content"
+    required: false
+    default: ""
+
+  user-agent:
+    description: "HTTP User-Agent to send with requests"
+    required: false
+    default: "redjax/PipelineTemplates"
+
+  auth-token:
+    description: "Bearer token for Authorization header"
+    required: false
+    default: ""
+
+  username:
+    description: "Basic auth username"
+    required: false
+    default: ""
+
+  password:
+    description: "Basic auth password"
+    required: false
+    default: ""
+
+  debug:
+    description: "Show extra logging"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Ensure curl is available
+      shell: bash
+      run: |
+        if ! command -v curl >/dev/null 2>&1; then
+          echo "curl is required but not installed" >&2
+          exit 1
+        fi
+
+    - name: Send ntfy Notification
+      shell: bash
+      env:
+        NTFY_SERVER: ${{ inputs.ntfy-server }}
+        NTFY_TOPIC: ${{ inputs.topic }}
+        NTFY_MESSAGE: ${{ inputs.message }}
+        NTFY_MARKDOWN: ${{ inputs.markdown }}
+        NTFY_TITLE: ${{ inputs.title }}
+        NTFY_PRIORITY: ${{ inputs.priority }}
+        NTFY_TAGS: ${{ inputs.tags }}
+        NTFY_CLICK: ${{ inputs['click-url'] }}
+        NTFY_ACTIONS: ${{ inputs.actions }}
+        NTFY_ATTACH: ${{ inputs.attach }}
+        NTFY_RAW_BODY: ${{ inputs['raw-body'] }}
+        NTFY_USER_AGENT: ${{ inputs['user-agent'] }}
+        NTFY_AUTH_TOKEN: ${{ inputs['auth-token'] }}
+        NTFY_USERNAME: ${{ inputs.username }}
+        NTFY_PASSWORD: ${{ inputs.password }}
+        DEBUG: ${{ inputs.debug }}
+      run: |
+        bash "${{ github.action_path }}/scripts/send-notification.sh"
