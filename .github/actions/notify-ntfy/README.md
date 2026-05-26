@@ -17,6 +17,7 @@ Send notifications to an [Ntfy](https://ntfy.sh) server from inside a pipeline. 
 - `message`: Notification message body (HTTP body, unless `raw-body` is set).
   - `CI pipeline finished successfully.`
   - `Job ${{ github.job }} failed on ${{ runner.os }}`
+- `markdown`: When `"true"`, message text will be rendered as Markdown (default: `"false"`)
 - `priority`: ntfy priority (`X-Priority` header), `1–5` or `min|low|default|high|max`.
   - `default`
   - `high`
@@ -146,6 +147,7 @@ Send notifications to an [Ntfy](https://ntfy.sh) server from inside a pipeline. 
               - Commit: ${{ github.sha }}
 
               View details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            markdown: true
             priority: "default"
             tags: "github,ci,summary"
             click-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
