@@ -47,6 +47,7 @@ REQUIRED (or via env):
 OPTIONAL (or via env):
   --title               Notification title
   --priority            Priority (1-5, or min|low|default|high|max)
+  --markdown            Render raw text as Markdown
   --tags                Comma-separated tags (e.g. "ci,build,success")
   --click               Click URL
   --actions             Actions header (X-Actions)
@@ -93,6 +94,7 @@ AUTH_TOKEN="${NTFY_AUTH_TOKEN:-}"
 USERNAME="${NTFY_USERNAME:-}"
 PASSWORD="${NTFY_PASSWORD:-}"
 DEBUG="${DEBUG:-false}"
+MARKDOWN="${NTFY_MARKDOWN:-false}"
 
 UA_HEADER=(-H "User-Agent: ${USER_AGENT}")
 
@@ -109,6 +111,10 @@ while [[ $# -gt 0 ]]; do
   -m | --message)
     MESSAGE="$2"
     shift 2
+    ;;
+  --markdown)
+    MARKDOWN="true"
+    shift
     ;;
   --title)
     TITLE="$2"
@@ -236,6 +242,10 @@ fi
 
 if [[ -n "$AUTH_TOKEN" ]]; then
   HEADERS+=(-H "Authorization: Bearer ${AUTH_TOKEN}")
+fi
+
+if [[ "$MARKDOWN" == "true" ]]; then
+  HEADERS+=(-H "X-Markdown: yes")
 fi
 
 AUTH_FLAGS=()

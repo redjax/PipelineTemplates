@@ -21,6 +21,11 @@ inputs:
     required: false
     default: ""
 
+  markdown:
+    description: "Render message as Markdown (X-Markdown: yes)"
+    required: false
+    default: "false"
+
   priority:
     description: "ntfy priority (1-5, or min|low|default|high|max)"
     required: false
@@ -93,6 +98,7 @@ runs:
         NTFY_SERVER: ${{ inputs.ntfy-server }}
         NTFY_TOPIC: ${{ inputs.topic }}
         NTFY_MESSAGE: ${{ inputs.message }}
+        NTFY_MARKDOWN: ${{ inputs.markdown }}
         NTFY_TITLE: ${{ inputs.title }}
         NTFY_PRIORITY: ${{ inputs.priority }}
         NTFY_TAGS: ${{ inputs.tags }}
