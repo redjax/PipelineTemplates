@@ -21,6 +21,9 @@
 
 Reusable pipeline templates for CI/CD technologies like Github Actions, Gitlab Pipelines, and Concourse CI. [Check the docs](./docs/) for more information, including development documentation for creating new pipelines, usage documentation for each platform, & examples.
 
+> [!TIP] PipelineTemplates-Test
+> I use a separate repository, [`PipelineTemplates-Test`](https://github.com/redjax/PipelineTemplates-Test), to demonstrate and mock integrations with components from this repository. The test repository includes Docker containers, Go applications, and other supporting services, along with example pipelines that consume components from this repository for demonstration and validation runs.
+
 ## Description
 
 Centralized repository where I store my CI/CD pipelines & components. Each component is versioned individually (read the [versioning docs](./docs/versioning/)) and creates a git tag so they are idempotent/repeatable; each time a pipeline is called from the same ref/tag, it will do the same thing.
