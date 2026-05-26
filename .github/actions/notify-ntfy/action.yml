@@ -106,4 +106,4 @@ runs:
         NTFY_PASSWORD: ${{ inputs.password }}
         DEBUG: ${{ inputs.debug }}
       run: |
-        bash "${{ github.action_path }}/scripts/send-ntfy-notification.sh"
+        bash "${{ github.action_path }}/scripts/send-notification.sh"
