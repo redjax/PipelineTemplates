@@ -1,0 +1,124 @@
+---
+name: "Hugo Build Site"
+description: "Build a Hugo site and optionally deploy the public/ directory to a branch."
+
+inputs:
+  hugo-version:
+    description: "Hugo version to install (e.g. 0.161.1)."
+    required: false
+    default: "0.161.1"
+
+  extended:
+    description: "Use the extended Hugo binary (required for SCSS/SASS, etc.). true/false."
+    required: false
+    default: "true"
+
+  base-url:
+    description: "Value for HUGO_BASEURL (e.g. https://example.com/). Leave empty to use the site's config."
+    required: false
+    default: ""
+
+  environment:
+    description: "Hugo environment (sets HUGO_ENVIRONMENT and HUGO_ENV, e.g. production, staging)."
+    required: false
+    default: ""
+
+  source-dir:
+    description: "Path to the Hugo project root (directory containing config and content)."
+    required: false
+    default: "."
+
+  public-dir:
+    description: "Output directory for the built site (Hugo's publishDir)."
+    required: false
+    default: "public"
+
+  build-flags:
+    description: "Extra flags passed to the hugo command (e.g. --gc --minify --enableGitInfo)."
+    required: false
+    default: "--gc --minify"
+
+  check-hugo-changed:
+    description: "If true, use git diff to detect Hugo-related changes and skip build when nothing changed."
+    required: false
+    default: "false"
+
+  deploy:
+    description: "If true, rebuild and commit the public/ directory to a branch after building."
+    required: false
+    default: "false"
+
+  deploy-branch:
+    description: "Name of the branch that receives the built site (e.g. deploy, gh-pages)."
+    required: false
+    default: "deploy"
+
+  deploy-commit-message:
+    description: "Commit message used when updating the deploy branch."
+    required: false
+    default: "Deploy from GitHub Actions"
+
+  git-user-name:
+    description: "Git user.name used when committing to the deploy branch."
+    required: false
+    default: "GitHub Action"
+
+  git-user-email:
+    description: "Git user.email used when committing to the deploy branch."
+    required: false
+    default: "action@github.com"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Hugo
+      uses: peaceiris/actions-hugo@v3
+      with:
+        hugo-version: ${{ inputs.hugo-version }}
+        extended: ${{ inputs.extended }}
+
+    - name: Check if Hugo files changed
+      id: hugo_changed
+      if: ${{ inputs.check-hugo-changed == 'true' }}
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+      run: |
+        bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
+
+    - name: Build Hugo site
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+        HUGO_BASEURL: ${{ inputs.base-url }}
+        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+        HUGO_ENVIRONMENT: ${{ inputs.environment }}
+        HUGO_ENV: ${{ inputs.environment }}
+        CHECK_HUGO_CHANGED: ${{ inputs.check-hugo-changed }}
+        HUGO_CHANGED: ${{ steps.hugo_changed.outputs.hugo-changed }}
+      run: |
+        if [[ "${CHECK_HUGO_CHANGED}" == "true" && "${HUGO_CHANGED}" != "true" ]]; then
+          echo "[INFO] No Hugo changes; skipping build."
+          exit 0
+        fi
+
+        bash "${{ github.action_path }}/scripts/hugo-build.sh"
+
+    - name: Deploy to branch
+      if: ${{ inputs.deploy == 'true' }}
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+        HUGO_PUBLIC_DIR: ${{ inputs.public-dir }}
+        HUGO_DEPLOY_BRANCH: ${{ inputs.deploy-branch }}
+        HUGO_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message }}
+        GIT_USER_NAME: ${{ inputs.git-user-name }}
+        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
+      run: |
+        bash "${{ github.action_path }}/scripts/hugo-deploy-branch.sh"
