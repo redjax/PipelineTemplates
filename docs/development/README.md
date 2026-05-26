@@ -18,6 +18,8 @@ Tags are created each time a component is updated. When an individual component 
 > - Version each individual pipeline component (Github Actions, Gitlab Components, etc) separately
 >   - While this method required much more up front work, such as writing scripts to detect each component with a `VERSION` file and the pipeline logic for determining when to bump, it also kept tags isolated to the component that was changed.
 >   - This method creates a ton of git tags, and I am still considering if this is the best method of versioning, but while there is a manageable number of tags, it makes things easier on the calling pipeline end.
+>
+> I went with individual component versions and the [`bump-my-version`](https://github.com/callowayproject/bump-my-version) library to handle the component versions and git tagging.
 
 ## Testing pipelines
 
