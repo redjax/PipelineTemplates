@@ -85,8 +85,7 @@ runs:
         push: ${{ inputs.push }}
         platforms: ${{ inputs.platforms }}
         ## Prepend registry + image name to each tag line
-        tags: |
-          ${{ inputs.registry }}/${{ inputs.image_name }}:${{ inputs.tags }}
+        tags: ${{ inputs.tags }}
         build-args: ${{ inputs.build_args }}
         cache-from: ${{ inputs.cache_from }}
         cache-to: ${{ inputs.cache_to }}
