@@ -1,0 +1,92 @@
+---
+###############################################################
+# Action to clean old releases/tags from a Github repository. #
+###############################################################
+
+name: Clean GitHub Tags and Releases
+
+description: >
+  Reusable GitHub Action to clean old Git tags and releases.
+  Supports keep-latest or older-than modes, optional tag pattern, and dry-run.
+
+author: Your Name
+
+inputs:
+  mode:
+    description: >
+      Cleanup mode: keep-latest or older-than.
+    required: true
+  keep_latest:
+    description: >
+      Number of newest releases to keep (used with mode=keep-latest).
+    required: false
+    default: "10"
+  older_than:
+    description: >
+      Delete releases older than YYYY-MM-DD (used with mode=older-than).
+    required: false
+  tag_pattern:
+    description: >
+      Regex pattern for tag names to consider (e.g. ^v[0-9]+).
+      If empty, all tags are considered.
+    required: false
+    default: ""
+  dry_run:
+    description: >
+      Preview deletions only.
+    required: false
+    default: "true"
+  repo:
+    description: >
+      Target repo as OWNER/REPO (default: current repo).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y jq gh
+
+    - name: Run cleanup script
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        SCRIPT="$(dirname "${{ github.action_path }}")/scripts/rm-old-github-tags.sh"
+
+        if [[ ! -f "$SCRIPT" ]]; then
+          echo "ERROR: Cleanup script not found at: $SCRIPT"
+          exit 1
+        fi
+
+        chmod +x "$SCRIPT"
+
+        ARGS=""
+
+        if [[ "${{ inputs.mode }}" == "keep-latest" ]]; then
+          ARGS="--keep-latest ${{ inputs.keep_latest }}"
+        else
+          ARGS="--older-than ${{ inputs.older_than }}"
+        fi
+
+        if [[ -n "${{ inputs.tag_pattern }}" ]]; then
+          ARGS="$ARGS --tag-pattern ${{ inputs.tag_pattern }}"
+        fi
+
+        if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          ARGS="$ARGS --dry-run"
+        fi
+
+        if [[ -n "${{ inputs.repo }}" ]]; then
+          ARGS="$ARGS --repo ${{ inputs.repo }}"
+        fi
+
+        "$SCRIPT" $ARGS
