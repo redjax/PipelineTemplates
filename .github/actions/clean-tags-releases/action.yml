@@ -60,7 +60,7 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-        SCRIPT="$(dirname "${{ github.action_path }}")/scripts/rm-old-github-tags.sh"
+        SCRIPT="${{ github.action_path }}/scripts/rm-old-github-tags.sh"
 
         if [[ ! -f "$SCRIPT" ]]; then
           echo "ERROR: Cleanup script not found at: $SCRIPT"
