@@ -126,14 +126,12 @@ runs:
         bash "${{ github.action_path }}/scripts/build-args.sh"
 
     - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v7
-      with:
-        distribution: goreleaser
-        version: ${{ inputs.goreleaser-version }}
-        args: ${{ steps.goreleaser-args.outputs.args }} --config=${{ inputs.goreleaser-config }}
-        workdir: ${{ inputs.working-directory }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
       env:
         GITHUB_TOKEN: ${{ inputs.github-token || github.token }}
+      run: |
+        goreleaser ${{ steps.goreleaser-args.outputs.args }} --config=${{ inputs.goreleaser-config }}
 
     - name: Determine artifact name
       if: ${{ inputs.snapshot == 'true' || inputs.skip-publish == 'true' }}
