@@ -1,0 +1,87 @@
+---
+name: "Go Build"
+description: "Build a Go application and optionally upload artifacts"
+
+inputs:
+  module-dir:
+    description: "(default: .) Path to directory containing main.go entrypoint"
+    required: false
+    default: "."
+  build-package:
+    description: "Go package path to build, for example . or ./cmd/example."
+    required: true
+  binary-name:
+    description: "Name for binary file."
+    required: true
+  platforms:
+    description: "Comma-separated list of GOOS/GOARCH targets, such as linux/amd64,linux/arm64."
+    required: false
+    default: "linux/amd64"
+  build-tags:
+    description: "Optional Go build tags."
+    required: false
+    default: ""
+  ldflags:
+    description: "Optional ldflags passed to go build."
+    required: false
+    default: ""
+  output-dir:
+    description: "Directory to write build artifacts to."
+    required: false
+    default: "dist"
+  go-version:
+    description: "Go toolchain version to install."
+    required: false
+    default: "1.25.6"
+  artifact-name:
+    description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
+    required: false
+    default: ""
+  upload-artifacts:
+    description: "Upload build artifacts (default: true)"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+
+    - name: Build
+      shell: bash
+      env:
+        MODULE_DIR: ${{ inputs.module-dir }}
+        BUILD_PACKAGE: ${{ inputs.build-package }}
+        BINARY_NAME: ${{ inputs.binary-name }}
+        PLATFORMS: ${{ inputs.platforms }}
+        BUILD_TAGS: ${{ inputs.build-tags }}
+        LDFLAGS: ${{ inputs.ldflags }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: bash "${{ github.action_path }}/go-build.sh"
+
+    - name: Determine artifact name
+      if: ${{ inputs.upload-artifacts == 'true' }}
+      id: artifact-name
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.artifact-name }}" ]]; then
+          ARTIFACT_NAME="${{ inputs.artifact-name }}"
+        else
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          ARTIFACT_NAME="${REPO_NAME}-${{ inputs.binary-name }}-dist"
+        fi
+        echo "name=$ARTIFACT_NAME" >> "$FORGEJO_OUTPUT"
+        echo "Artifact will be named: $ARTIFACT_NAME"
+
+    - name: Upload artifacts
+      if: ${{ inputs.upload-artifacts == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ steps.artifact-name.outputs.name }}
+        path: ${{ inputs.module-dir }}/${{ inputs.output-dir }}/
+        retention-days: 7
+        if-no-files-found: warn
