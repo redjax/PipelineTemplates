@@ -154,7 +154,7 @@ runs:
 
     - name: Upload artifacts
       if: ${{ inputs.snapshot == 'true' || inputs.skip-publish == 'true' }}
-      uses: actions/upload-artifact@v7
+      uses: forgejo/upload-artifact@v4
       with:
         name: ${{ steps.artifact-name.outputs.name }}
         path: ${{ inputs.working-directory }}/dist/
