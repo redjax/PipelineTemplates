@@ -16,17 +16,17 @@ require_env FJ_REPO
 require_env FJ_TOKEN
 require_env TAG_NAME
 
-echo "[DEBUG] FJ_URL=${FJ_URL}"
-echo "[DEBUG] FJ_REPO=${FJ_REPO}"
-echo "[DEBUG] TAG_NAME=${TAG_NAME}"
-echo "[DEBUG] RELEASES_URL=${RELEASES_URL}"
-echo "[DEBUG] TAG_URL=${TAG_URL}"
-
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 API_URL="${FJ_URL%/}"
 RELEASES_URL="${API_URL}/api/v1/repos/${FJ_REPO}/releases"
 TAG_URL="${RELEASES_URL}/tags/${TAG_NAME}"
+
+echo "[DEBUG] FJ_URL=${FJ_URL}"
+echo "[DEBUG] FJ_REPO=${FJ_REPO}"
+echo "[DEBUG] TAG_NAME=${TAG_NAME}"
+echo "[DEBUG] RELEASES_URL=${RELEASES_URL}"
+echo "[DEBUG] TAG_URL=${TAG_URL}"
 
 release_name="${RELEASE_NAME:-$TAG_NAME}"
 draft="${DRAFT:-false}"
