@@ -119,11 +119,25 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
     bump="patch"
   fi
 
-  echo "[INFO] Would bump $component -> $bump"
+  prefix="unknown"
+  case "$component" in
+  .github/*) prefix="gh" ;;
+  .forgejo/*) prefix="fj" ;;
+  gitlab/*) prefix="gl" ;;
+  woodpecker/*) prefix="woodpecker" ;;
+  concourse/*) prefix="concourse" ;;
+  esac
 
-  if [[ "$DRY_RUN" != "true" && "$COMMIT" == "true" ]]; then
-    echo "[INFO] COMMIT mode is disabled for PR preview; no files will be changed."
+  component_name="${component##*/}"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    new_version="$(bump-my-version show new_version --increment "$bump" --config-file "$component/.bumpversion.toml")"
+    echo "[INFO] Would bump $component -> $bump"
+    echo "[INFO] Would create tag: ${prefix}/${component_name}/v${new_version}"
+    continue
   fi
+
+  echo "[INFO] Bumping $component -> $bump"
 done
 
 echo "[INFO] Release preview complete."
