@@ -120,7 +120,8 @@ function bump_component_in_worktree() {
 
   (
     cd "$worktree_dir"
-    "$SCRIPT_DIR/bump-component.sh" \
+    REPO_ROOT="$worktree_dir" \
+      "$SCRIPT_DIR/bump-component.sh" \
       --component-path "$component" \
       --bump-type "$bump"
   )
