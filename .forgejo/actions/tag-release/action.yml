@@ -109,9 +109,7 @@ runs:
     - name: Resolve metadata
       id: meta
       shell: bash
-      run: bash "${{ github.action_path }}/scripts/common.sh" meta
-      env:
-        TAG_NAME: ${{ inputs.tag-name }}
+      run: echo "tag-name=${{ inputs.tag-name }}" >> "$GITHUB_OUTPUT"
 
     - name: Create tag
       if: ${{ inputs.create-tag == 'true' }}
