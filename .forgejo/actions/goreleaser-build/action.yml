@@ -73,6 +73,11 @@ inputs:
     required: false
     default: ""
 
+  enable-cache:
+    description: "Enable Go module/build caching"
+    required: false
+    default: "true"
+
 runs:
   using: "composite"
   steps:
@@ -85,6 +90,13 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: git fetch --force --tags
+
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: ${{ inputs.enable-cache }}
+        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
 
     - name: Verify Go installation
       shell: bash
