@@ -65,12 +65,22 @@ jq -n \
   + (if $target_commitish != "" then {target_commitish: $target_commitish} else {} end)
   ' >"$payload"
 
-existing_id="$(
-  curl -fsS \
+response="$(mktemp)"
+http_code="$(
+  curl -sS \
     -H "Authorization: token ${FJ_TOKEN}" \
-    "${TAG_URL}" |
-    jq -r '.id // empty' || true
+    -o "$response" \
+    -w "%{http_code}" \
+    "${TAG_URL}"
 )"
+
+echo "[DEBUG] TAG lookup HTTP status=${http_code}"
+
+if [[ "$http_code" == "200" ]]; then
+  existing_id="$(jq -r '.id // empty' "$response")"
+else
+  existing_id=""
+fi
 
 if [[ -n "${existing_id}" ]]; then
   curl -fsS -X PATCH \
