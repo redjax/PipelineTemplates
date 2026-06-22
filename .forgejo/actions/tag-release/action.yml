@@ -1,3 +1,4 @@
+---
 name: "Tag Release"
 description: "Create a git tag, Forgejo release, or both, with optional assets."
 
@@ -100,26 +101,31 @@ runs:
     - name: Validate inputs
       shell: bash
       run: bash "${{ github.action_path }}/scripts/common.sh" validate
+      env:
+        TAG_NAME: ${{ inputs.tag-name }}
+        CREATE_TAG: ${{ inputs.create-tag }}
+        CREATE_RELEASE: ${{ inputs.create-release }}
 
     - name: Resolve metadata
       id: meta
       shell: bash
+      run: bash "${{ github.action_path }}/scripts/common.sh" meta
       env:
         TAG_NAME: ${{ inputs.tag-name }}
-      run: bash "${{ github.action_path }}/scripts/common.sh" meta
 
     - name: Create tag
       if: ${{ inputs.create-tag == 'true' }}
       shell: bash
+      run: bash "${{ github.action_path }}/scripts/create-tag.sh"
       env:
         TAG_NAME: ${{ inputs.tag-name }}
         TAG_MESSAGE: ${{ inputs.tag-message }}
-      run: bash "${{ github.action_path }}/scripts/create-tag.sh"
 
     - name: Create or update release
       if: ${{ inputs.create-release == 'true' }}
       id: release
       shell: bash
+      run: bash "${{ github.action_path }}/scripts/create-release.sh"
       env:
         FJ_URL: ${{ inputs.url }}
         FJ_REPO: ${{ inputs.repo }}
@@ -131,11 +137,11 @@ runs:
         DRAFT: ${{ inputs.draft }}
         PRERELEASE: ${{ inputs.prerelease }}
         TARGET_COMMITISH: ${{ inputs.target-commitish }}
-      run: bash "${{ github.action_path }}/scripts/create-release.sh"
 
     - name: Upload assets
       if: ${{ inputs.create-release == 'true' && (inputs.artifact-path != '' || inputs.asset-glob != '') }}
       shell: bash
+      run: bash "${{ github.action_path }}/scripts/upload-assets.sh"
       env:
         FJ_URL: ${{ inputs.url }}
         FJ_REPO: ${{ inputs.repo }}
@@ -144,4 +150,3 @@ runs:
         ARTIFACT_PATH: ${{ inputs.artifact-path }}
         ASSET_GLOB: ${{ inputs.asset-glob }}
         OVERWRITE_ASSETS: ${{ inputs.overwrite-assets }}
-      run: bash "${{ github.action_path }}/scripts/upload-assets.sh"
