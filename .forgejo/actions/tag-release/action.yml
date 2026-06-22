@@ -1,0 +1,150 @@
+---
+name: "Tag Release"
+description: "Create a git tag, Forgejo release, or both, with optional assets."
+
+inputs:
+  url:
+    description: "Base URL of the Forgejo instance"
+    required: false
+    default: ${{ github.server_url }}
+
+  repo:
+    description: "Repository in owner/name form"
+    required: false
+    default: ${{ github.repository }}
+
+  token:
+    description: "Forgejo token with release permissions"
+    required: false
+    default: ${{ github.token }}
+
+  tag-name:
+    description: "Tag to create or use, e.g. v1.2.3"
+    required: true
+
+  tag-message:
+    description: "Annotated tag message"
+    required: false
+    default: ""
+
+  create-tag:
+    description: "Whether to create/push the git tag"
+    required: false
+    default: "false"
+
+  create-release:
+    description: "Whether to create/update the Forgejo release"
+    required: false
+    default: "true"
+
+  release-name:
+    description: "Release title; defaults to tag name if empty"
+    required: false
+    default: ""
+
+  release-body:
+    description: "Release notes text"
+    required: false
+    default: ""
+
+  release-notes-path:
+    description: "Path to file containing release notes"
+    required: false
+    default: ""
+
+  artifact-path:
+    description: "Directory or file path containing assets"
+    required: false
+    default: ""
+
+  asset-glob:
+    description: "Glob for release assets"
+    required: false
+    default: ""
+
+  draft:
+    description: "Create draft release"
+    required: false
+    default: "false"
+
+  prerelease:
+    description: "Mark release as prerelease"
+    required: false
+    default: "false"
+
+  target-commitish:
+    description: "Commit SHA or branch to attach the release to"
+    required: false
+    default: ""
+
+  overwrite-assets:
+    description: "Overwrite existing release assets with same name"
+    required: false
+    default: "false"
+
+outputs:
+  release-url:
+    description: "URL of the created or updated release"
+    value: ${{ steps.release.outputs.release-url }}
+
+  release-id:
+    description: "ID of the created or updated release"
+    value: ${{ steps.release.outputs.release-id }}
+
+  tag-name:
+    description: "Tag that was used"
+    value: ${{ steps.meta.outputs.tag-name }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/common.sh" validate
+      env:
+        TAG_NAME: ${{ inputs.tag-name }}
+        CREATE_TAG: ${{ inputs.create-tag }}
+        CREATE_RELEASE: ${{ inputs.create-release }}
+
+    - name: Resolve metadata
+      id: meta
+      shell: bash
+      run: echo "tag-name=${{ inputs.tag-name }}" >> "$GITHUB_OUTPUT"
+
+    - name: Create tag
+      if: ${{ inputs.create-tag == 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/create-tag.sh"
+      env:
+        TAG_NAME: ${{ inputs.tag-name }}
+        TAG_MESSAGE: ${{ inputs.tag-message }}
+
+    - name: Create or update release
+      if: ${{ inputs.create-release == 'true' }}
+      id: release
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/create-release.sh"
+      env:
+        FJ_URL: ${{ inputs.url }}
+        FJ_REPO: ${{ inputs.repo }}
+        FJ_TOKEN: ${{ inputs.token }}
+        TAG_NAME: ${{ inputs.tag-name }}
+        RELEASE_NAME: ${{ inputs.release-name }}
+        RELEASE_BODY: ${{ inputs.release-body }}
+        RELEASE_NOTES_PATH: ${{ inputs.release-notes-path }}
+        DRAFT: ${{ inputs.draft }}
+        PRERELEASE: ${{ inputs.prerelease }}
+        TARGET_COMMITISH: ${{ inputs.target-commitish }}
+
+    - name: Upload assets
+      if: ${{ inputs.create-release == 'true' && (inputs.artifact-path != '' || inputs.asset-glob != '') }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/upload-assets.sh"
+      env:
+        FJ_URL: ${{ inputs.url }}
+        FJ_REPO: ${{ inputs.repo }}
+        FJ_TOKEN: ${{ inputs.token }}
+        TAG_NAME: ${{ inputs.tag-name }}
+        ARTIFACT_PATH: ${{ inputs.artifact-path }}
+        ASSET_GLOB: ${{ inputs.asset-glob }}
+        OVERWRITE_ASSETS: ${{ inputs.overwrite-assets }}
