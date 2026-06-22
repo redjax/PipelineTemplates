@@ -41,6 +41,10 @@ inputs:
     description: "Upload build artifacts (default: true)"
     required: false
     default: "true"
+  enable-cache:
+    description: "Enable Go module/build caching"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
