@@ -20,23 +20,27 @@ API_URL="${FJ_URL%/}"
 RELEASES_URL="${API_URL}/api/v1/repos/${FJ_REPO}/releases"
 TAG_URL="${RELEASES_URL}/tags/${TAG_NAME}"
 
-release_notes_file="${RELEASE_NOTES_PATH:-}"
-if [[ -z "${release_notes_file}" && -n "${RELEASE_BODY:-}" ]]; then
-  release_notes_file="$(mktemp)"
-  printf '%s' "${RELEASE_BODY}" >"${release_notes_file}"
+export RELEASE_NAME="${RELEASE_NAME:-$TAG_NAME}"
+export DRAFT="${DRAFT:-false}"
+export PRERELEASE="${PRERELEASE:-false}"
+export TARGET_COMMITISH="${TARGET_COMMITISH:-}"
+
+BODY_FILE="/tmp/release-notes.txt"
+: >"$BODY_FILE"
+if [[ -n "${RELEASE_NOTES_PATH:-}" ]]; then
+  [[ -f "${RELEASE_NOTES_PATH}" ]] || fail "release notes file not found: ${RELEASE_NOTES_PATH}"
+  cat "${RELEASE_NOTES_PATH}" >"$BODY_FILE"
+elif [[ -n "${RELEASE_BODY:-}" ]]; then
+  printf '%s' "${RELEASE_BODY}" >"$BODY_FILE"
 fi
 
-release_name="${RELEASE_NAME:-$TAG_NAME}"
-draft="${DRAFT:-false}"
-prerelease="${PRERELEASE:-false}"
-target_commitish="${TARGET_COMMITISH:-}"
-
 payload="$(mktemp)"
-python3 - <<PY >"${payload}"
-import json, os
+python3 - <<PY >"$payload"
+import json, os, pathlib
 data = {
   "tag_name": os.environ["TAG_NAME"],
   "name": os.environ["RELEASE_NAME"],
+  "body": pathlib.Path("/tmp/release-notes.txt").read_text(),
   "draft": os.environ["DRAFT"].lower() == "true",
   "prerelease": os.environ["PRERELEASE"].lower() == "true",
 }
@@ -45,22 +49,19 @@ if os.environ.get("TARGET_COMMITISH"):
 print(json.dumps(data))
 PY
 
-if curl -fsS -H "Authorization: token ${FJ_TOKEN}" "${TAG_URL}" >/tmp/release.json; then
-  release_id="$(python3 -c 'import json; print(json.load(open("/tmp/release.json")).get("id",""))')"
-  if [[ -z "${release_id}" ]]; then
-    fail "Could not determine existing release id"
-  fi
+existing_id="$(
+  curl -fsS \
+    -H "Authorization: token ${FJ_TOKEN}" \
+    "${TAG_URL}" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("id",""))' || true
+)"
+
+if [[ -n "${existing_id}" ]]; then
   curl -fsS -X PATCH \
     -H "Authorization: token ${FJ_TOKEN}" \
     -H "Content-Type: application/json" \
     -d @"${payload}" \
-    "${RELEASES_URL}/${release_id}" >/tmp/release.json
+    "${RELEASES_URL}/${existing_id}" >/tmp/release.json
 else
-  export TAG_NAME
-  export RELEASE_NAME="${release_name}"
-  export DRAFT="${draft}"
-  export PRERELEASE="${prerelease}"
-  export TARGET_COMMITISH="${target_commitish}"
   curl -fsS -X POST \
     -H "Authorization: token ${FJ_TOKEN}" \
     -H "Content-Type: application/json" \
