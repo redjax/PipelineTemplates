@@ -53,7 +53,8 @@ runs:
       uses: actions/setup-go@v6
       with:
         go-version: ${{ inputs.go-version }}
-        cache: true
+        cache: ${{ inputs.enable-cache }}
+        cache-dependency-path: ${{ inputs.module-dir }}/go.sum
 
     - name: Build
       shell: bash
@@ -78,7 +79,7 @@ runs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           ARTIFACT_NAME="${REPO_NAME}-${{ inputs.binary-name }}-dist"
         fi
-        echo "name=$ARTIFACT_NAME" >> "$FORGEJO_OUTPUT"
+        echo "name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
         echo "Artifact will be named: $ARTIFACT_NAME"
 
     - name: Upload artifacts
