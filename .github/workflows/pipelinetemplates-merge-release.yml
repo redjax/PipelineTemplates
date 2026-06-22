@@ -33,12 +33,12 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Configure git
         run: |
@@ -48,10 +48,28 @@ jobs:
       - name: Fetch refs
         run: git fetch origin main --tags --force
 
-      - name: Preview tags
-        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
-        run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run
+      - name: Create bump branch
+        run: git checkout -b chore/bump-components
+
+      - name: Apply version bumps
+        run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
+
+      - name: Commit bumps
+        run: |
+          if git diff --quiet; then
+            echo "[INFO] No component bumps"
+            exit 0
+          fi
+
+          git add "**/VERSION" "**/.bumpversion.toml"
+          git commit -m "chore(release): bump component versions"
+
+      - name: Merge bump branch
+        run: |
+          git checkout main
+          git merge --no-ff chore/bump-components
+          git push origin main
 
       - name: Create component tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
-        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push
+        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push --components-file .changed-components.txt

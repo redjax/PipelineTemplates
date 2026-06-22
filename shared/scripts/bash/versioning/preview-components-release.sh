@@ -4,7 +4,8 @@ set -euo pipefail
 ######################################################################
 # Component release orchestrator script.                             #
 #                                                                    #
-# Detects changed components and performs version bumps.             #
+# Detects changed components, bumps versions, and optionally commits #
+# the result.                                                        #
 #                                                                    #
 # A component is any directory containing a .bumpversion.toml file.  #
 #                                                                    #
@@ -16,7 +17,7 @@ set -euo pipefail
 
 BASE_REF="${BASE_REF:-}"
 DRY_RUN="${DRY_RUN:-false}"
-OUTPUT_FILE="${OUTPUT_FILE:-}"
+COMMIT="${COMMIT:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../../../..")"
@@ -27,7 +28,7 @@ Usage: ${0} [OPTIONS]
 
 Options:
   --dry-run
-  --output-file <path>
+  --no-commit
   -h, --help
 EOF
 }
@@ -38,9 +39,9 @@ while [[ $# -gt 0 ]]; do
     DRY_RUN="true"
     shift
     ;;
-  --output-file)
-    OUTPUT_FILE="$2"
-    shift 2
+  --no-commit)
+    COMMIT="false"
+    shift
     ;;
   -h | --help)
     usage
@@ -71,6 +72,7 @@ for c in "${COMPONENTS[@]}"; do
   c="${c#./}"
   version_file="$c/VERSION"
 
+  ## If this is a new component whose VERSION is still 0.0.0, treat it as changed
   if [[ -f "$version_file" ]]; then
     current_version="$(tr -d '[:space:]' <"$version_file")"
     if [[ "$current_version" == "0.0.0" ]]; then
@@ -79,6 +81,7 @@ for c in "${COMPONENTS[@]}"; do
     fi
   fi
 
+  ## Only treat as changed if there are commits touching this component in this PR
   if git log --oneline "${BASE_REF}..HEAD" -- "$c" | grep -q .; then
     CHANGED_COMPONENTS+=("$c")
   fi
@@ -86,24 +89,21 @@ done
 
 if [[ ${#CHANGED_COMPONENTS[@]} -eq 0 ]]; then
   echo "[INFO] No changed components."
-  [[ -n "$OUTPUT_FILE" ]] && : >"$OUTPUT_FILE"
   exit 0
 fi
 
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-if [[ -n "$OUTPUT_FILE" ]]; then
-  printf '%s\n' "${CHANGED_COMPONENTS[@]}" >"$OUTPUT_FILE"
-fi
-
 for component in "${CHANGED_COMPONENTS[@]}"; do
   version_file="$component/VERSION"
 
   if [[ -f "$version_file" ]]; then
+    ## If file exists in the BASE_REF, then a diff means it was modified
+    #  and we should skip rebumping. If not, it's a new file and we should bump it.
     if git cat-file -e "${BASE_REF}:${version_file}" 2>/dev/null; then
       if git diff --name-only "${BASE_REF}..HEAD" -- "$version_file" | grep -q .; then
-        echo "[INFO] $component VERSION already changed in this release branch; skipping."
+        echo "[INFO] $component VERSION already changed in this PR; skipping additional bump."
         continue
       fi
     fi
@@ -119,18 +119,25 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
     bump="patch"
   fi
 
-  echo "[INFO] Bumping $component -> $bump"
+  prefix="unknown"
+  case "$component" in
+  .github/*) prefix="gh" ;;
+  .forgejo/*) prefix="fj" ;;
+  gitlab/*) prefix="gl" ;;
+  woodpecker/*) prefix="woodpecker" ;;
+  concourse/*) prefix="concourse" ;;
+  esac
+
+  component_name="${component##*/}"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     new_version="$(bump-my-version show new_version --increment "$bump" --config-file "$component/.bumpversion.toml")"
-    echo "[DRY RUN] Would bump: ${component} -> ${new_version}"
+    echo "[INFO] Would bump $component -> $bump"
+    echo "[INFO] Would create tag: ${prefix}/${component_name}/v${new_version}"
     continue
   fi
 
-  bump-my-version bump "$bump" --config-file "$component/.bumpversion.toml" >/dev/null
-
-  new_version="$(tr -d '[:space:]' <"$version_file")"
-  echo "[INFO] Bumped ${component} -> ${new_version}"
+  echo "[INFO] Bumping $component -> $bump"
 done
 
-echo "[INFO] Release complete."
+echo "[INFO] Release preview complete."

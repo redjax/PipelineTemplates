@@ -19,6 +19,7 @@ BASE_DIR="${BASE_DIR:-.}"
 DRY_RUN="false"
 PUSH="${PUSH:-false}"
 BASE_REF="${BASE_REF:-}"
+COMPONENTS_FILE="${COMPONENTS_FILE:-}"
 
 source "$(dirname "$0")/../_util/git-tag-lib.sh"
 
@@ -33,6 +34,17 @@ function resolve_prefix() {
   esac
 }
 
+function usage() {
+  cat <<EOF
+Usage: ${0} [OPTIONS]
+
+Options:
+  --dry-run
+  --push
+  --components-file <path>
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --dry-run)
@@ -42,6 +54,14 @@ while [[ $# -gt 0 ]]; do
   --push)
     PUSH="true"
     shift
+    ;;
+  --components-file)
+    COMPONENTS_FILE="$2"
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    exit 0
     ;;
   *)
     echo "[ERROR] Unknown arg: $1" >&2
@@ -60,9 +80,13 @@ fi
 
 fetch_git_tags
 
-mapfile -t COMPONENTS < <(
-  find . -type f -name "VERSION" -exec dirname {} + | sort -u
-)
+if [[ -n "$COMPONENTS_FILE" ]]; then
+  mapfile -t COMPONENTS <"$COMPONENTS_FILE"
+else
+  mapfile -t COMPONENTS < <(
+    find . -type f -name "VERSION" -exec dirname {} + | sort -u
+  )
+fi
 
 CREATED_TAGS=()
 
@@ -101,5 +125,10 @@ for component in "${COMPONENTS[@]}"; do
 done
 
 if [[ "$PUSH" == "true" && "$DRY_RUN" != "true" ]]; then
+  if [[ ${#CREATED_TAGS[@]} -eq 0 ]]; then
+    echo "[INFO] No new tags to push."
+    exit 0
+  fi
+
   git push origin "${CREATED_TAGS[@]}"
 fi
