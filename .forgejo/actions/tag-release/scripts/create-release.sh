@@ -41,6 +41,11 @@ repo_status="$(
     -H "Authorization: token ${FJ_TOKEN}" \
     "${API_URL}/api/v1/repos/${FJ_REPO}"
 )"
+
+if [[ "$repo_status" != "200" ]]; then
+  fail "Repo probe failed with HTTP ${repo_status}"
+fi
+
 echo "[DEBUG] repo probe status=${repo_status}"
 cat /tmp/repo_probe.json
 
