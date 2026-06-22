@@ -1,10 +1,10 @@
 # Forgejo Action: Go Build
 
-This Action builds Go applications and optionally uploads cross‑compiled binaries as artifacts. It is designed to work for both flat layouts (`main.go` at the repo root) and monorepo layouts (apps in subdirs, i.e. `apps/go-service/cmd/service/main.go`).
+This Action builds Go applications for one or more target platforms and optionally uploads the resulting artifacts. It is designed to work for both flat layouts (`main.go` at the repo root) and monorepo layouts (apps in subdirs, such as `apps/go-service/cmd/service/main.go`).
 
 ## Inputs
 
-- `module-dir`: Path to the directory containing `go.mod` and the entrypoint package (default: `.`).
+- `module-dir`: Working directory for the pipeline. The build script uses this path, and the artifact path becomes `${module-dir}/${output-dir}`. Default: `.`, which is the repository root.
 - `build-package`: Go package path to build, for example `.` or `./cmd/example`. Required.
 - `binary-name`: Name to give the built binary file. Required.
 - `platforms`: Comma‑separated list of `GOOS/GOARCH` targets, such as `linux/amd64,linux/arm64`. Default: `linux/amd64`.
@@ -14,6 +14,7 @@ This Action builds Go applications and optionally uploads cross‑compiled binar
 - `go-version`: Go toolchain version to install with `actions/setup-go`. Default: `1.25.6`.
 - `artifact-name`: Optional name for the uploaded artifact. If not set, the name defaults to `<repo-name>-<binary-name>-dist`.
 - `upload-artifacts`: Whether to upload the contents of `<module-dir>/<output-dir>/` as an artifact. Default: `"true"` (string).
+- `enable-cache`: Use pipeline's cache for Go builds. Default: `true`
 
 ## Usage
 
@@ -44,6 +45,7 @@ This Action builds Go applications and optionally uploads cross‑compiled binar
             upload-artifacts: "true"
             artifact-name: example-dist
             ldflags: -X main.version=${{ forgejo.sha }}
+            enable-cache: true
   ```
 
 - Monorepo, module under `apps/go-example` with entrypoint in `cmd/example/main.go`:
@@ -71,6 +73,6 @@ This Action builds Go applications and optionally uploads cross‑compiled binar
             binary-name: ex
             platforms: linux/amd64,linux/arm64
             upload-artifacts: "true"
-            artifact-name: example-dist
             ldflags: -X main.version=${{ forgejo.sha }}
+            enable-cache: true
   ```
