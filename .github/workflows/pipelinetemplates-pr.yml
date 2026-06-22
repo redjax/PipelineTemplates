@@ -55,7 +55,7 @@ jobs:
             exit 0
           fi
 
-          git add "**/VERSION"
+          git add "**/VERSION" "**/.bumpversion.toml"
           git commit -m "chore(release): bump component versions"
           git push origin HEAD:${{ github.head_ref }}
 
