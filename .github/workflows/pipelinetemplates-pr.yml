@@ -22,9 +22,8 @@ permissions:
   contents: read
 
 jobs:
-  bump-components:
+  preview-components:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
