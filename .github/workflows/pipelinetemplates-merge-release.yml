@@ -55,9 +55,3 @@ jobs:
       - name: Create component tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
         run: ./shared/scripts/bash/versioning/git-tag-components.sh --push
-
-      # - name: Create GitHub releases
-      #   if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   run: ./shared/scripts/bash/release/create-github-release.sh

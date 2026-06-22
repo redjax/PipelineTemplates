@@ -1,7 +1,6 @@
 ---
 ######################################################
-# PR pipeline: detect changed components and bump    #
-# versions, then commit back to the PR branch.       #
+# PR pipeline: preview changed components only.     #
 ######################################################
 
 name: Pull Request steps
@@ -20,7 +19,7 @@ on:
       - "**/.bumpversion.toml"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   bump-components:
@@ -38,26 +37,10 @@ jobs:
       - name: Install bump-my-version
         run: ./shared/scripts/bash/installers/install-bump-my-version.sh
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Bump changed components
+      - name: Preview changed components
         env:
-          COMMIT: "false"
+          DRY_RUN: "true"
         run: ./shared/scripts/bash/versioning/release-components.sh
-
-      - name: Commit VERSION updates
-        run: |
-          if git diff --quiet; then
-            echo "[INFO] No VERSION updates"
-            exit 0
-          fi
-
-          git add "**/VERSION" "**/.bumpversion.toml"
-          git commit -m "chore(release): bump component versions"
-          git push origin HEAD:${{ github.head_ref }}
 
       - name: Preview tags
         run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run
