@@ -16,43 +16,54 @@ require_env FJ_REPO
 require_env FJ_TOKEN
 require_env TAG_NAME
 
+command -v jq >/dev/null 2>&1 || fail "jq is required"
+
 API_URL="${FJ_URL%/}"
 RELEASES_URL="${API_URL}/api/v1/repos/${FJ_REPO}/releases"
 TAG_URL="${RELEASES_URL}/tags/${TAG_NAME}"
 
-export RELEASE_NAME="${RELEASE_NAME:-$TAG_NAME}"
-export DRAFT="${DRAFT:-false}"
-export PRERELEASE="${PRERELEASE:-false}"
-export TARGET_COMMITISH="${TARGET_COMMITISH:-}"
+release_name="${RELEASE_NAME:-$TAG_NAME}"
+draft="${DRAFT:-false}"
+prerelease="${PRERELEASE:-false}"
+target_commitish="${TARGET_COMMITISH:-}"
 
-BODY_FILE="/tmp/release-notes.txt"
-: >"$BODY_FILE"
+body_file="$(mktemp)"
+trap 'rm -f "$body_file" "$payload"' EXIT
+
+: >"$body_file"
 if [[ -n "${RELEASE_NOTES_PATH:-}" ]]; then
   [[ -f "${RELEASE_NOTES_PATH}" ]] || fail "release notes file not found: ${RELEASE_NOTES_PATH}"
-  cat "${RELEASE_NOTES_PATH}" >"$BODY_FILE"
+  cat "${RELEASE_NOTES_PATH}" >"$body_file"
 elif [[ -n "${RELEASE_BODY:-}" ]]; then
-  printf '%s' "${RELEASE_BODY}" >"$BODY_FILE"
+  printf '%s' "${RELEASE_BODY}" >"$body_file"
 fi
 
+body_text="$(cat "$body_file")"
+
 payload="$(mktemp)"
-python3 - <<PY >"$payload"
-import json, os, pathlib
-data = {
-  "tag_name": os.environ["TAG_NAME"],
-  "name": os.environ["RELEASE_NAME"],
-  "body": pathlib.Path("/tmp/release-notes.txt").read_text(),
-  "draft": os.environ["DRAFT"].lower() == "true",
-  "prerelease": os.environ["PRERELEASE"].lower() == "true",
-}
-if os.environ.get("TARGET_COMMITISH"):
-  data["target_commitish"] = os.environ["TARGET_COMMITISH"]
-print(json.dumps(data))
-PY
+jq -n \
+  --arg tag_name "$TAG_NAME" \
+  --arg name "$release_name" \
+  --arg body "$body_text" \
+  --arg draft "$draft" \
+  --arg prerelease "$prerelease" \
+  --arg target_commitish "$target_commitish" \
+  '
+  {
+    tag_name: $tag_name,
+    name: $name,
+    body: $body,
+    draft: ($draft == "true"),
+    prerelease: ($prerelease == "true")
+  }
+  + (if $target_commitish != "" then {target_commitish: $target_commitish} else {} end)
+  ' >"$payload"
 
 existing_id="$(
   curl -fsS \
     -H "Authorization: token ${FJ_TOKEN}" \
-    "${TAG_URL}" | python3 -c 'import sys, json; print(json.load(sys.stdin).get("id",""))' || true
+    "${TAG_URL}" |
+    jq -r '.id // empty' || true
 )"
 
 if [[ -n "${existing_id}" ]]; then
@@ -69,8 +80,8 @@ else
     "${RELEASES_URL}" >/tmp/release.json
 fi
 
-release_id="$(python3 -c 'import json; print(json.load(open("/tmp/release.json")).get("id",""))')"
-release_url="$(python3 -c 'import json; print(json.load(open("/tmp/release.json")).get("html_url",""))')"
+release_id="$(jq -r '.id // empty' /tmp/release.json)"
+release_url="$(jq -r '.html_url // empty' /tmp/release.json)"
 
 [[ -n "${release_id}" ]] || fail "Release id missing from response"
 [[ -n "${release_url}" ]] || fail "Release url missing from response"
