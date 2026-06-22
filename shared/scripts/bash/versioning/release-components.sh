@@ -4,8 +4,7 @@ set -euo pipefail
 ######################################################################
 # Component release orchestrator script.                             #
 #                                                                    #
-# Detects changed components, bumps versions, and optionally commits #
-# the result.                                                        #
+# Detects changed components and performs version bumps.             #
 #                                                                    #
 # A component is any directory containing a .bumpversion.toml file.  #
 #                                                                    #
@@ -17,7 +16,7 @@ set -euo pipefail
 
 BASE_REF="${BASE_REF:-}"
 DRY_RUN="${DRY_RUN:-false}"
-COMMIT="${COMMIT:-true}"
+OUTPUT_FILE="${OUTPUT_FILE:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../../../..")"
@@ -28,7 +27,7 @@ Usage: ${0} [OPTIONS]
 
 Options:
   --dry-run
-  --no-commit
+  --output-file <path>
   -h, --help
 EOF
 }
@@ -39,9 +38,9 @@ while [[ $# -gt 0 ]]; do
     DRY_RUN="true"
     shift
     ;;
-  --no-commit)
-    COMMIT="false"
-    shift
+  --output-file)
+    OUTPUT_FILE="$2"
+    shift 2
     ;;
   -h | --help)
     usage
@@ -87,11 +86,16 @@ done
 
 if [[ ${#CHANGED_COMPONENTS[@]} -eq 0 ]]; then
   echo "[INFO] No changed components."
+  [[ -n "$OUTPUT_FILE" ]] && : >"$OUTPUT_FILE"
   exit 0
 fi
 
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
+
+if [[ -n "$OUTPUT_FILE" ]]; then
+  printf '%s\n' "${CHANGED_COMPONENTS[@]}" >"$OUTPUT_FILE"
+fi
 
 for component in "${CHANGED_COMPONENTS[@]}"; do
   version_file="$component/VERSION"
@@ -115,23 +119,11 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
     bump="patch"
   fi
 
-  prefix="unknown"
-  case "$component" in
-  .github/*) prefix="gh" ;;
-  .forgejo/*) prefix="fj" ;;
-  gitlab/*) prefix="gl" ;;
-  woodpecker/*) prefix="woodpecker" ;;
-  concourse/*) prefix="concourse" ;;
-  esac
-
-  component_name="${component##*/}"
-
   echo "[INFO] Bumping $component -> $bump"
 
   if [[ "$DRY_RUN" == "true" ]]; then
     new_version="$(bump-my-version show new_version --increment "$bump" --config-file "$component/.bumpversion.toml")"
     echo "[DRY RUN] Would bump: ${component} -> ${new_version}"
-    echo "[DRY RUN] Would create tag: ${prefix}/${component_name}/v${new_version}"
     continue
   fi
 
@@ -140,3 +132,5 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
   new_version="$(tr -d '[:space:]' <"$version_file")"
   echo "[INFO] Bumped ${component} -> ${new_version}"
 done
+
+echo "[INFO] Release complete."

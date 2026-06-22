@@ -3,3 +3,4 @@ tmp/
 *.tmp
 *.out
 changed-files.txt
+.changed-components.txt

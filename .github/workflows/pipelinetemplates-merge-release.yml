@@ -52,7 +52,7 @@ jobs:
         run: git checkout -b chore/bump-components
 
       - name: Apply version bumps
-        run: ./shared/scripts/bash/versioning/preview-components-release.sh
+        run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
 
       - name: Commit bumps
         run: |
@@ -60,6 +60,7 @@ jobs:
             echo "[INFO] No component bumps"
             exit 0
           fi
+
           git add "**/VERSION" "**/.bumpversion.toml"
           git commit -m "chore(release): bump component versions"
 
@@ -71,4 +72,4 @@ jobs:
 
       - name: Create component tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
-        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push
+        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push --components-file .changed-components.txt
