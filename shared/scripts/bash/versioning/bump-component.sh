@@ -13,7 +13,7 @@ if ! command -v bump-my-version >/dev/null 2>&1; then
 fi
 
 _BUMP_COMPONENT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT=$(realpath -m "${_BUMP_COMPONENT_DIR}/../../../..")
+REPO_ROOT="${REPO_ROOT:-$(realpath -m "${_BUMP_COMPONENT_DIR}/../../../..")}"
 
 COMPONENT_PATH=""
 BUMPVERSION_FILE=".bumpversion.toml"
@@ -132,6 +132,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+cd "${REPO_ROOT}"
+
 ## Validate inputs
 if [[ -n "${COMPONENT_PATH}" ]]; then
   if [[ ! -d "${COMPONENT_PATH}" ]]; then
@@ -150,7 +152,5 @@ fi
 
 ## Compose file paths
 COMPONENT_BUMPVERSION_FILE="${COMPONENT_PATH}/${BUMPVERSION_FILE}"
-
-cd "${REPO_ROOT}"
 
 bump_version "${BUMP_TYPE}" "${COMPONENT_BUMPVERSION_FILE}"
