@@ -39,7 +39,7 @@ jobs:
       - name: Preview changed components
         env:
           DRY_RUN: "true"
-        run: ./shared/scripts/bash/versioning/release-components.sh
+        run: ./shared/scripts/bash/versioning/preview-components-release.sh
 
       - name: Preview tags
         run: ./shared/scripts/bash/versioning/git-tag-components.sh --dry-run

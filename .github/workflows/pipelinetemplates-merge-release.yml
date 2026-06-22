@@ -52,7 +52,7 @@ jobs:
         run: git checkout -b chore/bump-components
 
       - name: Apply version bumps
-        run: ./shared/scripts/bash/versioning/release-components.sh
+        run: ./shared/scripts/bash/versioning/preview-components-release.sh
 
       - name: Commit bumps
         run: |
