@@ -45,7 +45,7 @@ Create a git tag, Forgejo release, or both, with optional release assets and rel
       runs-on: docker
       steps:
         - name: Create tag and release
-          uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/tag-release@<branch-tag-or-ref>
+          uses: redjax/PipelineTemplates/.forgejo/actions/tag-release@branch-tag-or-ref
           with:
             tag-name: ${{ github.ref_name }}
             tag-message: "Release ${{ github.ref_name }}"
@@ -74,7 +74,7 @@ Create a git tag, Forgejo release, or both, with optional release assets and rel
       runs-on: docker
       steps:
         - name: Publish release assets
-          uses: ./.forgejo/actions/tag-release
+          uses: redjax/PipelineTemplates/.forgejo/actions/tag-release@branch-tag-or-ref
           with:
             tag-name: v1.2.3
             create-tag: "false"
