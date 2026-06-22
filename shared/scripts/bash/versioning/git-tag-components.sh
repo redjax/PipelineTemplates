@@ -9,6 +9,7 @@ set -euo pipefail
 #                                             #
 # Prefix derived from directory:              #
 #   .github/      --> gh                      #
+#   .forgejo/     --> fj                      #
 #   gitlab/       --> gl                      #
 #   woodpecker/   --> woodpecker              #
 #   concourse/    --> concourse               #
@@ -24,6 +25,7 @@ source "$(dirname "$0")/../_util/git-tag-lib.sh"
 function resolve_prefix() {
   case "$1" in
   .github/*) echo "gh" ;;
+  .forgejo/*) echo "fj" ;;
   gitlab/*) echo "gl" ;;
   woodpecker/*) echo "woodpecker" ;;
   concourse/*) echo "concourse" ;;
