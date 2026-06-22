@@ -68,7 +68,7 @@ cd "$REPO_ROOT"
 
 mapfile -t TAGS < <(
   git tag --merged "$BASE_REF" |
-    grep -E '^(gh|gl|woodpecker|concourse)/.+/v[0-9]+\.[0-9]+\.[0-9]+$' || true
+    grep -E '^(gh|fj|gl|woodpecker|concourse)/.+/v[0-9]+\.[0-9]+\.[0-9]+$' || true
 )
 
 if [[ ${#TAGS[@]} -eq 0 ]]; then
