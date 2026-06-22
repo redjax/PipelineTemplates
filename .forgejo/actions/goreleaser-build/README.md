@@ -55,7 +55,7 @@ This action wraps GoReleaser to build Go applications and optionally publish rel
       runs-on: docker
       steps:
         - name: Run GoReleaser snapshot build
-          uses: ./.forgejo/actions/goreleaser-build@<branch-tag-or-ref>
+          uses: redjax/PipelineTemplates/.forgejo/actions/goreleaser-build@branch-tag-or-ref
           with:
             goreleaser-config: .goreleaser.yml
             snapshot: "true"
@@ -90,7 +90,7 @@ This action wraps GoReleaser to build Go applications and optionally publish rel
       runs-on: docker
       steps:
         - name: Run GoReleaser release
-          uses: ./.forgejo/actions/goreleaser-build@<branch-tag-or-ref>
+          uses: redjax/PipelineTemplates/.forgejo/actions/goreleaser-build@branch-tag-or-ref
           with:
             goreleaser-config: .goreleaser.yml
             snapshot: "false"
