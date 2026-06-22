@@ -73,6 +73,11 @@ inputs:
     required: false
     default: ""
 
+  enable-cache:
+    description: "Enable Go module/build caching"
+    required: false
+    default: "true"
+
 runs:
   using: "composite"
   steps:
