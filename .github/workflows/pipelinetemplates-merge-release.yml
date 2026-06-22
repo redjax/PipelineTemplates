@@ -12,6 +12,7 @@ on:
       - main
     paths:
       - ".github/actions/**"
+      - ".forgejo/actions/**"
       - "gitlab/components/**"
       - "concourse/components/**"
       - "woodpecker/components/**"
