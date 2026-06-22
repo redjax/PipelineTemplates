@@ -22,7 +22,7 @@ COMMIT="${COMMIT:-true}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(realpath -m "$SCRIPT_DIR/../../../..")"
 
-usage() {
+function usage() {
   cat <<EOF
 Usage: ${0} [OPTIONS]
 
@@ -53,16 +53,6 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
-
-WORKTREE_DIRS=()
-
-function cleanup() {
-  for worktree_dir in "${WORKTREE_DIRS[@]:-}"; do
-    git -C "$REPO_ROOT" worktree remove --force "$worktree_dir" >/dev/null 2>&1 || true
-    rm -rf "$worktree_dir" >/dev/null 2>&1 || true
-  done
-}
-trap cleanup EXIT INT TERM HUP
 
 cd "$REPO_ROOT"
 
@@ -105,37 +95,6 @@ fi
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-## Perform version bumps in a worktree to prevent dirty git history
-function bump_component_in_worktree() {
-  local component="$1"
-  local bump="$2"
-  local worktree_dir
-  local version_file
-  local component_bumpversion_file
-
-  worktree_dir="$(mktemp -d)"
-  WORKTREE_DIRS+=("$worktree_dir")
-
-  git worktree add --detach "$worktree_dir" "$BASE_REF" >/dev/null
-
-  (
-    cd "$worktree_dir"
-    REPO_ROOT="$worktree_dir" \
-      "$SCRIPT_DIR/bump-component.sh" \
-      --component-path "$component" \
-      --bump-type "$bump"
-  )
-
-  version_file="$component/VERSION"
-  component_bumpversion_file="$component/.bumpversion.toml"
-
-  cp "$worktree_dir/$version_file" "$REPO_ROOT/$version_file"
-  cp "$worktree_dir/$component_bumpversion_file" "$REPO_ROOT/$component_bumpversion_file"
-
-  git -C "$REPO_ROOT" worktree remove --force "$worktree_dir" >/dev/null 2>&1 || true
-  rm -rf "$worktree_dir" >/dev/null 2>&1 || true
-}
-
 VERSION_FILES=()
 
 for component in "${CHANGED_COMPONENTS[@]}"; do
@@ -167,7 +126,9 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY RUN] $SCRIPT_DIR/bump-component.sh --component-path $component --bump-type $bump"
   else
-    bump_component_in_worktree "$component" "$bump"
+    "$SCRIPT_DIR/bump-component.sh" \
+      --component-path "$component" \
+      --bump-type "$bump"
   fi
 
   VERSION_FILES+=("$version_file")
