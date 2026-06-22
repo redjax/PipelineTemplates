@@ -1,13 +1,14 @@
 # Forgejo Action: Goreleaser build
 
-This Action wraps GoReleaser to build and optionally publish Go application releases. It supports snapshot builds, full releases, Docker images (if configured), and artifact upload for CI use.
+This action wraps GoReleaser to build Go applications and optionally publish releases. It supports snapshot builds, release publishing, Docker image workflows, and artifact upload for CI use.
 
 ## Inputs
 
 - `goreleaser-config`: Path to the `.goreleaser.yml` config file. Default: `.goreleaser.yml`.
-  - `.goreleaser.yml` (root config)
-  - `.goreleaser.docker.yml` (alternate config for Docker‑only builds)
-  - `deploy/.goreleaser.yml` (monorepo: config under `deploy/`)
+  - Examples:
+    - `.goreleaser.yml` (root config)
+    - `.goreleaser.docker.yml` (alternate config for Docker‑only builds)
+    - `deploy/.goreleaser.yml` (monorepo: config under `deploy/`)
 - `snapshot`: `"true"` to build a snapshot (no release/publish). Typical for non‑release branches. Default: `"false"`.
 - `clean`: `"true"` to remove the dist directory before building. Default: `"true"`.
 - `skip-validate`: `"true"` to skip GoReleaser validation checks. Default: `"false"`.
@@ -35,7 +36,8 @@ This Action wraps GoReleaser to build and optionally publish Go application rele
   - `api-dist` for a single API service
   - `myapp-snapshot-dist` for snapshot builds
   - `cli-artifacts` when the repo contains a CLI and you want a more explicit artifact name
-- `forgejo-token`: Token used by GoReleaser for Forgejo operations. If not set, falls back to `forgejo.token` provided by Actions.
+- `github-token`: Token used by GoReleaser for Forgejo operations. If not set, falls back to `forgejo.token` provided by Actions.
+- `enable-cache`: Use pipeline's cache for Go builds. Default: `true`
 
 ## Usage
 
@@ -53,7 +55,7 @@ This Action wraps GoReleaser to build and optionally publish Go application rele
       runs-on: docker
       steps:
         - name: Run GoReleaser snapshot build
-          uses: ./.forgejo/actions/goreleaser-build
+          uses: ./.forgejo/actions/goreleaser-build@<branch-tag-or-ref>
           with:
             goreleaser-config: .goreleaser.yml
             snapshot: "true"
@@ -68,11 +70,12 @@ This Action wraps GoReleaser to build and optionally publish Go application rele
             dry-run: "false"
             release-notes: ""
             artifact-name: ""
-            forgejo-token: ${{ secrets.FORGEJO_TOKEN }}
+            github-token: ${{ secrets.FORGEJO_TOKEN }}
+            enable-cache: "true"
   ```
 
 - Full release on tag, publishing to Forgejo Releases:
-  
+
   ```yaml
   ---
   name: GoReleaser Release
@@ -87,7 +90,7 @@ This Action wraps GoReleaser to build and optionally publish Go application rele
       runs-on: docker
       steps:
         - name: Run GoReleaser release
-          uses: ./.forgejo/actions/goreleaser-build
+          uses: ./.forgejo/actions/goreleaser-build@<branch-tag-or-ref>
           with:
             goreleaser-config: .goreleaser.yml
             snapshot: "false"
@@ -102,5 +105,6 @@ This Action wraps GoReleaser to build and optionally publish Go application rele
             dry-run: "false"
             release-notes: ""
             artifact-name: ""
-            forgejo-token: ${{ secrets.FORGEJO_TOKEN }}
+            github-token: ${{ secrets.FORGEJO_TOKEN }}
+            enable-cache: "true"
   ```
