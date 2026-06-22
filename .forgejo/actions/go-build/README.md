@@ -34,7 +34,7 @@ This Action builds Go applications and optionally uploads cross‑compiled binar
           uses: https://data.forgejo.org/actions/checkout@v6
 
         - name: Build Go app
-          uses: ./.forgejo/actions/go-build
+          uses: redjax/PipelineTemplates/.forgejo/actions/go-build@branch-tag-or-ref
           with:
             module-dir: .
             build-package: .
@@ -63,7 +63,7 @@ This Action builds Go applications and optionally uploads cross‑compiled binar
           uses: https://data.forgejo.org/actions/checkout@v6
 
         - name: Build Go app from apps/go-example
-          uses: ./.forgejo/actions/go-build
+          uses: redjax/PipelineTemplates/.forgejo/actions/go-build@branch-tag-or-ref
           with:
             module-dir: apps/go-example
             build-package: ./cmd/example
