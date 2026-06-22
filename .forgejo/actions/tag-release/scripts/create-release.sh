@@ -28,6 +28,13 @@ echo "[DEBUG] TAG_NAME=${TAG_NAME}"
 echo "[DEBUG] RELEASES_URL=${RELEASES_URL}"
 echo "[DEBUG] TAG_URL=${TAG_URL}"
 
+repo_probe="$(
+  curl -sS \
+    -H "Authorization: token ${FJ_TOKEN}" \
+    "${API_URL}/api/v1/repos/${FJ_REPO}"
+)"
+echo "[DEBUG] repo probe: ${repo_probe}"
+
 release_name="${RELEASE_NAME:-$TAG_NAME}"
 draft="${DRAFT:-false}"
 prerelease="${PRERELEASE:-false}"
