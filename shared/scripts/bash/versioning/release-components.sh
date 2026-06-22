@@ -16,7 +16,7 @@ set -euo pipefail
 ######################################################################
 
 BASE_REF="${BASE_REF:-}"
-DRY_RUN="false"
+DRY_RUN="${DRY_RUN:-false}"
 COMMIT="${COMMIT:-true}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -95,8 +95,6 @@ fi
 echo "[INFO] Changed components:"
 printf ' - %s\n' "${CHANGED_COMPONENTS[@]}"
 
-VERSION_FILES=()
-
 for component in "${CHANGED_COMPONENTS[@]}"; do
   version_file="$component/VERSION"
 
@@ -121,26 +119,11 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
     bump="patch"
   fi
 
-  echo "[INFO] Bumping $component -> $bump"
+  echo "[INFO] Would bump $component -> $bump"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY RUN] $SCRIPT_DIR/bump-component.sh --component-path $component --bump-type $bump"
-  else
-    "$SCRIPT_DIR/bump-component.sh" \
-      --component-path "$component" \
-      --bump-type "$bump"
+  if [[ "$DRY_RUN" != "true" && "$COMMIT" == "true" ]]; then
+    echo "[INFO] COMMIT mode is disabled for PR preview; no files will be changed."
   fi
-
-  VERSION_FILES+=("$version_file")
 done
 
-if [[ "$COMMIT" == "true" && "$DRY_RUN" != "true" ]]; then
-  if ! git diff --quiet; then
-    git add "${VERSION_FILES[@]}"
-    git commit -m "chore(release): bump component versions"
-  else
-    echo "[INFO] No version changes to commit."
-  fi
-fi
-
-echo "[INFO] Release complete."
+echo "[INFO] Release preview complete."
