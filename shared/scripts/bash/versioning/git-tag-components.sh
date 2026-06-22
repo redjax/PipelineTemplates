@@ -101,5 +101,10 @@ for component in "${COMPONENTS[@]}"; do
 done
 
 if [[ "$PUSH" == "true" && "$DRY_RUN" != "true" ]]; then
+  if [[ ${#CREATED_TAGS[@]} -eq 0 ]]; then
+    echo "[INFO] No new tags to push."
+    exit 0
+  fi
+
   git push origin "${CREATED_TAGS[@]}"
 fi
