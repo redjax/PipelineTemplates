@@ -1,11 +1,4 @@
 ---
-############################################################
-# Build 1 or more Go applications using native Go tooling. #
-#                                                          #
-# Builds "flat" repositories, where the go.mod is at the   #
-# repo's root, and can also build apps in nested dirs.     #
-############################################################
-
 resources:
   - name: pipelinetemplates
     type: git
@@ -19,6 +12,12 @@ resources:
       uri: ((git_uri))
       branch: ((git_branch))
 
+  - name: go-image
+    type: registry-image
+    source:
+      repository: golang
+      tag: ((go_version))
+
 jobs:
   - name: build
     public: true
@@ -27,14 +26,16 @@ jobs:
         trigger: true
       - get: pipelinetemplates
         trigger: false
+      - get: go-image
+        trigger: false
       - task: build
+        image: go-image
         file: pipelinetemplates/.concourse/go/go-build/tasks/build.yml
-        params:
-          MODULE_DIR: ((module_dir))
-          BUILD_PACKAGE: ((build_package))
-          BINARY_NAME: ((binary_name))
-          PLATFORMS: ((platforms))
-          BUILD_TAGS: ((build_tags))
-          LDFLAGS: ((ldflags))
-          OUTPUT_DIR: ((output_dir))
-          GO_VERSION: ((go_version))
+        vars:
+          module_dir: ((module_dir))
+          build_package: ((build_package))
+          binary_name: ((binary_name))
+          platforms: ((platforms))
+          build_tags: ((build_tags))
+          ldflags: ((ldflags))
+          output_dir: ((output_dir))
