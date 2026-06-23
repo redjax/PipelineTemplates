@@ -8,9 +8,10 @@ platforms="${PLATFORMS:-linux/amd64}"
 build_tags="${BUILD_TAGS:-}"
 ldflags="${LDFLAGS:-}"
 output_dir="${OUTPUT_DIR:-dist}"
+cgo_enabled="${CGO_ENABLED:-0}"
 
 root="$PWD/app/$module_dir"
-artifact_root="$PWD/$output_dir"
+artifact_root="$PWD/output/$output_dir"
 
 [[ -d "$root" ]] || {
   echo "Module dir not found: $root" >&2
@@ -24,9 +25,7 @@ read -r -a platform_list <<<"${platforms//,/ }"
 for platform in "${platform_list[@]}"; do
   IFS=/ read -r goos goarch <<<"$platform"
   ext=""
-  if [[ "$goos" == "windows" ]]; then
-    ext=".exe"
-  fi
+  [[ "$goos" == "windows" ]] && ext=".exe"
 
   out_path="$artifact_root/${binary_name}-${goos}-${goarch}${ext}"
 
@@ -37,7 +36,7 @@ for platform in "${platform_list[@]}"; do
 
   (
     cd "$root"
-    GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="${CGO_ENABLED:-0}" go "${args[@]}"
+    GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="$cgo_enabled" go "${args[@]}"
   )
 
   echo "Built $out_path"

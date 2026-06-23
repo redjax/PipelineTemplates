@@ -1,17 +1,4 @@
----
 resources:
-  - name: pipelinetemplates
-    type: git
-    source:
-      uri: ((templates_git_uri))
-      branch: ((templates_git_branch))
-
-  - name: app
-    type: git
-    source:
-      uri: ((git_uri))
-      branch: ((git_branch))
-
   - name: go-image
     type: registry-image
     source:
@@ -19,18 +6,18 @@ resources:
       tag: ((go_version))
 
 jobs:
-  - name: build
+  - name: build-go-app
     public: true
     plan:
-      - get: app
-        trigger: true
       - get: pipelinetemplates
-        trigger: false
+        trigger: true
+
+      - get: app
+
       - get: go-image
-        trigger: false
+
       - task: build
-        image: go-image
-        file: pipelinetemplates/.concourse/go/go-build/tasks/build.yml
+        file: pipelinetemplates/.concourse/go/go-build/build.yml
         vars:
           module_dir: ((module_dir))
           build_package: ((build_package))
@@ -39,3 +26,4 @@ jobs:
           build_tags: ((build_tags))
           ldflags: ((ldflags))
           output_dir: ((output_dir))
+          cgo_enabled: ((cgo_enabled))

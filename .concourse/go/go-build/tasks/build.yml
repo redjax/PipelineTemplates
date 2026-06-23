@@ -1,25 +1,33 @@
 ---
 platform: linux
 
+image_resource:
+  type: registry-image
+  source:
+    repository: golang
+    tag: ((go_version))
+
 inputs:
   - name: app
   - name: pipelinetemplates
 
 outputs:
-  - name: dist
-
-run:
-  path: /bin/bash
-  args:
-    - -euo
-    - pipefail
-    - pipelinetemplates/.concourse/go/go-build/scripts/build.sh
+  - name: output
 
 params:
-  MODULE_DIR: ((module_dir))
-  BUILD_PACKAGE: ((build_package))
-  BINARY_NAME: ((binary_name))
-  PLATFORMS: ((platforms))
-  BUILD_TAGS: ((build_tags))
-  LDFLAGS: ((ldflags))
-  OUTPUT_DIR: ((output_dir))
+  MODULE_DIR:
+  BUILD_PACKAGE:
+  BINARY_NAME:
+  PLATFORMS:
+  BUILD_TAGS:
+  LDFLAGS:
+  OUTPUT_DIR:
+  CGO_ENABLED:
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      chmod +x pipelinetemplates/.concourse/go/go-build/build.sh
+      pipelinetemplates/.concourse/go/go-build/build.sh
