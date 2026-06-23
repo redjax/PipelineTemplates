@@ -1,0 +1,69 @@
+---
+############################################################
+# Build 1 or more Go applications using native Go tooling. #
+#                                                          #
+# Builds "flat" repositories, where the go.mod is at the   #
+# repo's root, and can also build apps in nested dirs.     #
+############################################################
+
+resources:
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: ((templates_git_uri))
+      branch: ((templates_git_branch))
+
+  - name: app
+    type: git
+    source:
+      uri: ((git_uri))
+      branch: ((git_branch))
+
+jobs:
+  - name: test
+    public: true
+    plan:
+      - get: app
+        trigger: true
+      - get: pipelinetemplates
+        trigger: false
+      - task: test
+        file: pipelinetemplates/.concourse/go/go-build/tasks/test.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          GO_VERSION: ((go_version))
+
+  - name: build
+    public: true
+    plan:
+      - get: app
+        passed: [test]
+        trigger: true
+      - get: pipelinetemplates
+        trigger: false
+      - task: build
+        file: pipelinetemplates/.concourse/go/go-build/tasks/build.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          BUILD_PACKAGE: ((build_package))
+          BINARY_NAME: ((binary_name))
+          PLATFORMS: ((platforms))
+          BUILD_TAGS: ((build_tags))
+          LDFLAGS: ((ldflags))
+          OUTPUT_DIR: ((output_dir))
+          GO_VERSION: ((go_version))
+
+  - name: publish
+    public: true
+    plan:
+      - get: app
+        passed: [build]
+        trigger: false
+      - get: pipelinetemplates
+        trigger: false
+      - task: publish
+        file: pipelinetemplates/.concourse/go/go-build/tasks/publish.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          BINARY_NAME: ((binary_name))
+          OUTPUT_DIR: ((output_dir))

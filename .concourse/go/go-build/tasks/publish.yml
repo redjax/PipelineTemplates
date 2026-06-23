@@ -1,0 +1,23 @@
+---
+platform: linux
+
+image_resource:
+  type: registry-image
+  source:
+    repository: alpine
+    tag: "3.20"
+
+inputs:
+  - name: app
+  - name: pipelinetemplates
+  - name: dist
+
+run:
+  path: /bin/sh
+  args:
+    - -euc
+    - pipelinetemplates/.concourse/go/go-build/scripts/publish.sh
+
+params:
+  BINARY_NAME: ((binary_name))
+  OUTPUT_DIR: ((output_dir))

@@ -1,0 +1,18 @@
+---
+git_uri: ""
+git_branch: main
+
+repo_name: ""
+module_dir: "."
+build_package: "."
+binary_name: ""
+
+platforms: linux/amd64
+build_tags: ""
+ldflags: ""
+output_dir: dist
+
+go_version: 1.26.4
+
+upload_artifacts: true
+publish_enabled: false
