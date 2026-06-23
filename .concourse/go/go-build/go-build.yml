@@ -1,4 +1,17 @@
+---
 resources:
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: ((templates_git_uri))
+      branch: ((templates_git_branch))
+
+  - name: app
+    type: git
+    source:
+      uri: ((git_uri))
+      branch: ((git_branch))
+
   - name: go-image
     type: registry-image
     source:
@@ -11,9 +24,8 @@ jobs:
     plan:
       - get: pipelinetemplates
         trigger: true
-
       - get: app
-
+        trigger: true
       - get: go-image
 
       - task: build
