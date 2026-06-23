@@ -2,5 +2,10 @@
 tmp/
 *.tmp
 *.out
+
+## Misc
+.ansible/
+
 changed-files.txt
 .changed-components.txt
+
