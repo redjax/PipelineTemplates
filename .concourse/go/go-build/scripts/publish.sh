@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-dist_dir="${DIST_DIR:-$PWD/dist}"
+module_dir="${MODULE_DIR:-.}"
+binary_name="${BINARY_NAME:-}"
+output_dir="${OUTPUT_DIR:-dist}"
 
-[[ -d "$dist_dir" ]] || {
-  echo "Artifacts dir not found: $dist_dir" >&2
-  exit 1
-}
-
-echo "Publish step is currently a placeholder."
-echo "Found artifacts:"
-find "$dist_dir" -maxdepth 1 -type f -print | sort
+echo "!! Publish step is currently a placeholder !!"
+echo
+echo "module_dir=$module_dir"
+echo "binary_name=${binary_name:-<unset>}"
+echo "output_dir=$output_dir"
+echo "Artifacts would be published here once a real artifact source is added."
