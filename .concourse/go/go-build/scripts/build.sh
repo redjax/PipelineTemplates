@@ -24,7 +24,10 @@ read -r -a platform_list <<<"${platforms//,/ }"
 for platform in "${platform_list[@]}"; do
   IFS=/ read -r goos goarch <<<"$platform"
   ext=""
-  [[ "$goos" == "windows" ]] && ext=".exe"
+  if [[ "$goos" == "windows" ]]; then
+    ext=".exe"
+  fi
+
   out_path="$artifact_root/${binary_name}-${goos}-${goarch}${ext}"
 
   args=(build -o "$out_path")
@@ -36,4 +39,6 @@ for platform in "${platform_list[@]}"; do
     cd "$root"
     GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="${CGO_ENABLED:-0}" go "${args[@]}"
   )
+
+  echo "Built $out_path"
 done
