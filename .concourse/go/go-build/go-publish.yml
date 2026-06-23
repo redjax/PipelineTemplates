@@ -1,0 +1,34 @@
+---
+#############################################################
+# Placeholder publish pipeline for Go applications.         #
+#                                                           #
+# This currently prints artifact details only.              #
+#############################################################
+
+resources:
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: ((templates_git_uri))
+      branch: ((templates_git_branch))
+
+  - name: app
+    type: git
+    source:
+      uri: ((git_uri))
+      branch: ((git_branch))
+
+jobs:
+  - name: publish
+    public: true
+    plan:
+      - get: app
+        trigger: true
+      - get: pipelinetemplates
+        trigger: false
+      - task: publish
+        file: pipelinetemplates/.concourse/go/go-build/tasks/publish.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          BINARY_NAME: ((binary_name))
+          OUTPUT_DIR: ((output_dir))

@@ -5,12 +5,12 @@ image_resource:
   type: registry-image
   source:
     repository: alpine
-    tag: "3.20"
+    ## https://hub.docker.com/_/alpine
+    tag: "3.24"
 
 inputs:
   - name: app
   - name: pipelinetemplates
-  - name: dist
 
 run:
   path: /bin/sh

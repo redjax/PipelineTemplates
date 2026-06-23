@@ -1,0 +1,31 @@
+---
+###########################################################
+# Test 1 or more Go applications using native Go tooling. #
+###########################################################
+
+resources:
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: ((templates_git_uri))
+      branch: ((templates_git_branch))
+
+  - name: app
+    type: git
+    source:
+      uri: ((git_uri))
+      branch: ((git_branch))
+
+jobs:
+  - name: test
+    public: true
+    plan:
+      - get: app
+        trigger: true
+      - get: pipelinetemplates
+        trigger: false
+      - task: test
+        file: pipelinetemplates/.concourse/go/go-build/tasks/test.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          GO_VERSION: ((go_version))

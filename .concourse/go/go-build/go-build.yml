@@ -20,24 +20,10 @@ resources:
       branch: ((git_branch))
 
 jobs:
-  - name: test
-    public: true
-    plan:
-      - get: app
-        trigger: true
-      - get: pipelinetemplates
-        trigger: false
-      - task: test
-        file: pipelinetemplates/.concourse/go/go-build/tasks/test.yml
-        params:
-          MODULE_DIR: ((module_dir))
-          GO_VERSION: ((go_version))
-
   - name: build
     public: true
     plan:
       - get: app
-        passed: [test]
         trigger: true
       - get: pipelinetemplates
         trigger: false
@@ -52,18 +38,3 @@ jobs:
           LDFLAGS: ((ldflags))
           OUTPUT_DIR: ((output_dir))
           GO_VERSION: ((go_version))
-
-  - name: publish
-    public: true
-    plan:
-      - get: app
-        passed: [build]
-        trigger: false
-      - get: pipelinetemplates
-        trigger: false
-      - task: publish
-        file: pipelinetemplates/.concourse/go/go-build/tasks/publish.yml
-        params:
-          MODULE_DIR: ((module_dir))
-          BINARY_NAME: ((binary_name))
-          OUTPUT_DIR: ((output_dir))
