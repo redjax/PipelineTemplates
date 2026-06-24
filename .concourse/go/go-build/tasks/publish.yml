@@ -1,6 +1,5 @@
 ---
 platform: linux
-image: go-image
 
 inputs:
   - name: app
