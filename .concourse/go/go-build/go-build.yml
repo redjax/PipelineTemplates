@@ -30,12 +30,12 @@ jobs:
 
       - task: build
         file: pipelinetemplates/.concourse/go/go-build/tasks/build.yml
-        vars:
-          module_dir: ((module_dir))
-          build_package: ((build_package))
-          binary_name: ((binary_name))
-          platforms: ((platforms))
-          build_tags: ((build_tags))
-          ldflags: ((ldflags))
-          output_dir: ((output_dir))
-          cgo_enabled: ((cgo_enabled))
+        params:
+          MODULE_DIR: ((module_dir))
+          BUILD_PACKAGE: ((build_package))
+          BINARY_NAME: ((binary_name))
+          PLATFORMS: ((platforms))
+          BUILD_TAGS: ((build_tags))
+          LDFLAGS: ((ldflags))
+          OUTPUT_DIR: ((output_dir))
+          CGO_ENABLED: ((cgo_enabled))

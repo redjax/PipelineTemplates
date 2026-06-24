@@ -1,23 +1,16 @@
 ---
 platform: linux
-
-image_resource:
-  type: registry-image
-  source:
-    repository: alpine
-    ## https://hub.docker.com/_/alpine
-    tag: "3.24"
+image: go-image
 
 inputs:
   - name: app
   - name: pipelinetemplates
+  - name: output
 
 run:
-  path: /bin/sh
+  path: sh
   args:
-    - -euc
-    - pipelinetemplates/.concourse/go/go-build/scripts/publish.sh
-
-params:
-  BINARY_NAME: ((binary_name))
-  OUTPUT_DIR: ((output_dir))
+    - -ec
+    - |
+      chmod +x pipelinetemplates/.concourse/go/go-build/scripts/publish.sh
+      pipelinetemplates/.concourse/go/go-build/scripts/publish.sh

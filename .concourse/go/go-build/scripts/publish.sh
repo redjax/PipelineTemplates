@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-module_dir="${MODULE_DIR:-.}"
-binary_name="${BINARY_NAME:-}"
+# module_dir="${MODULE_DIR:-.}"
+binary_name="${BINARY_NAME:?BINARY_NAME is required}"
 output_dir="${OUTPUT_DIR:-dist}"
 
-echo "!! Publish step is currently a placeholder !!"
-echo
-echo "module_dir=$module_dir"
-echo "binary_name=${binary_name:-<unset>}"
-echo "output_dir=$output_dir"
-echo "Artifacts would be published here once a real artifact source is added."
+artifact_root="$PWD/output/$output_dir"
+
+find "$artifact_root" -maxdepth 1 -type f -name "${binary_name}-*" -print

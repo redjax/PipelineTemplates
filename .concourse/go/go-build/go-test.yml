@@ -16,16 +16,26 @@ resources:
       uri: ((git_uri))
       branch: ((git_branch))
 
+  - name: go-image
+    type: registry-image
+    source:
+      repository: golang
+      tag: ((go_version))
+
 jobs:
-  - name: test
+  - name: test-go-app
     public: true
     plan:
+      - get: pipelinetemplates
+        trigger: true
       - get: app
         trigger: true
-      - get: pipelinetemplates
-        trigger: false
+      - get: go-image
+
       - task: test
         file: pipelinetemplates/.concourse/go/go-build/tasks/test.yml
         params:
           MODULE_DIR: ((module_dir))
-          GO_VERSION: ((go_version))
+          TEST_PACKAGE: ((test_package))
+          TEST_FLAGS: ((test_flags))
+          CGO_ENABLED: ((cgo_enabled))

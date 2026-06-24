@@ -38,6 +38,4 @@ for platform in "${platform_list[@]}"; do
     cd "$root"
     GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="$cgo_enabled" go "${args[@]}"
   )
-
-  echo "Built $out_path"
 done

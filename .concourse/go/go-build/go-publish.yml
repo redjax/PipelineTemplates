@@ -18,14 +18,23 @@ resources:
       uri: ((git_uri))
       branch: ((git_branch))
 
+  - name: go-image
+    type: registry-image
+    source:
+      repository: golang
+      tag: ((go_version))
+
 jobs:
-  - name: publish
+  - name: publish-go-app
     public: true
     plan:
-      - get: app
-        trigger: true
       - get: pipelinetemplates
-        trigger: false
+        trigger: true
+      - get: app
+        passed: [build-go-app]
+        trigger: true
+      - get: go-image
+
       - task: publish
         file: pipelinetemplates/.concourse/go/go-build/tasks/publish.yml
         params:

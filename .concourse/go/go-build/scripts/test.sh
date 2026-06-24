@@ -2,12 +2,13 @@
 set -euo pipefail
 
 module_dir="${MODULE_DIR:-.}"
+test_package="${TEST_PACKAGE:-./...}"
+test_flags="${TEST_FLAGS:-}"
+cgo_enabled="${CGO_ENABLED:-0}"
+
 root="$PWD/app/$module_dir"
 
-[[ -d "$root" ]] || {
-  echo "Module dir not found: $root" >&2
-  exit 1
-}
-
-cd "$root"
-go test ./...
+(
+  cd "$root"
+  CGO_ENABLED="$cgo_enabled" go test $test_flags "$test_package"
+)
