@@ -1,10 +1,10 @@
 ---
 platform: linux
-image: go-image
 
 inputs:
   - name: app
   - name: pipelinetemplates
+
 outputs:
   - name: output
 

@@ -29,6 +29,7 @@ jobs:
       - get: go-image
 
       - task: build
+        image: go-image
         file: pipelinetemplates/.concourse/go/go-build/tasks/build.yml
         params:
           MODULE_DIR: ((module_dir))
