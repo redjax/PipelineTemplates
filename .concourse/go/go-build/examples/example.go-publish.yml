@@ -1,9 +1,10 @@
 ---
-#############################################################
-# Placeholder publish pipeline for Go applications.         #
-#                                                           #
-# This currently prints artifact details only.              #
-#############################################################
+##############################################################
+# Example pipeline                                           #
+#                                                            #
+# Create a pipeline like this in a repository with a Go app. #
+# The pipeline calls tasks from this shared repository.      #
+##############################################################
 
 resources:
   - name: pipelinetemplates

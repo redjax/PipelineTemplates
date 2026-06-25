@@ -1,4 +1,11 @@
 ---
+##############################################################
+# Example pipeline                                           #
+#                                                            #
+# Create a pipeline like this in a repository with a Go app. #
+# The pipeline calls tasks from this shared repository.      #
+##############################################################
+
 resources:
   - name: pipelinetemplates
     type: git
