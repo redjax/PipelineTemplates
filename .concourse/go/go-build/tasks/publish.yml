@@ -11,4 +11,4 @@ run:
   args:
     - -ec
     - |
-      sh pipelinetemplates/.concourse/go/go-build/scripts/publish.sh
+      bash pipelinetemplates/.concourse/go/go-build/scripts/publish.sh

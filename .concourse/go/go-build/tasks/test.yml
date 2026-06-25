@@ -10,4 +10,4 @@ run:
   args:
     - -ec
     - |
-      sh pipelinetemplates/.concourse/go/go-build/scripts/test.sh
+      bash pipelinetemplates/.concourse/go/go-build/scripts/test.sh
