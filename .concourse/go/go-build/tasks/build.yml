@@ -13,5 +13,4 @@ run:
   args:
     - -ec
     - |
-      chmod +x pipelinetemplates/.concourse/go/go-build/scripts/build.sh
-      pipelinetemplates/.concourse/go/go-build/scripts/build.sh
+      sh pipelinetemplates/.concourse/go/go-build/scripts/build.sh

@@ -10,5 +10,4 @@ run:
   args:
     - -ec
     - |
-      chmod +x pipelinetemplates/.concourse/go/go-build/scripts/test.sh
-      pipelinetemplates/.concourse/go/go-build/scripts/test.sh
+      sh pipelinetemplates/.concourse/go/go-build/scripts/test.sh
