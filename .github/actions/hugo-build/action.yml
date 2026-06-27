@@ -115,7 +115,7 @@ runs:
 
     - name: Save Hugo cache state
       if: ${{ always() && inputs.use-cache == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cache/hugo
