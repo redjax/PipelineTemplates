@@ -1,0 +1,167 @@
+---
+name: Hugo Publish Site
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: "Publish target: branch, github-pages, or cloudflare-pages."
+        required: true
+        type: string
+
+      source-dir:
+        description: "Path to the Hugo project root."
+        required: false
+        type: string
+        default: "."
+
+      public-dir:
+        description: "Built site output directory relative to source-dir."
+        required: false
+        type: string
+        default: "public"
+
+      artifact-name:
+        description: "Name of the build artifact to download."
+        required: false
+        type: string
+        default: "hugo-site"
+
+      branch-name:
+        description: "Target branch for branch deploys."
+        required: false
+        type: string
+        default: "gh-pages"
+
+      commit-message:
+        description: "Commit message for branch deploys."
+        required: false
+        type: string
+        default: "Deploy Hugo site"
+
+      cloudflare-pages-project:
+        description: "Cloudflare Pages project name."
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        description: "Branch name reported to Cloudflare Pages."
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-directory:
+        description: "Directory to deploy to Cloudflare Pages."
+        required: false
+        type: string
+        default: "public"
+
+      dry-run:
+        description: "If true, do not push/deploy."
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      cloudflare-api-token:
+        required: false
+
+      cloudflare-account-id:
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  branch:
+    if: ${{ inputs.target == 'branch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+
+      - name: Publish to branch
+        shell: bash
+        working-directory: ${{ inputs.source-dir }}
+        env:
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          DRY_RUN: ${{ inputs.dry-run }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[INFO] Dry run enabled; skipping branch publish."
+            exit 0
+          fi
+
+          git fetch origin "${BRANCH_NAME}" || true
+          git checkout -B "${BRANCH_NAME}"
+
+          git add "${{ inputs.public-dir }}"
+          if git diff --cached --quiet; then
+            echo "[INFO] No changes to publish."
+            exit 0
+          fi
+
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git commit -m "${COMMIT_MESSAGE}"
+          git push origin "${BRANCH_NAME}" --force
+
+  github-pages:
+    if: ${{ inputs.target == 'github-pages' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  cloudflare-pages:
+    if: ${{ inputs.target == 'cloudflare-pages' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.cloudflare-api-token }}
+          accountId: ${{ secrets.cloudflare-account-id }}
+          projectName: ${{ inputs.cloudflare-pages-project }}
+          directory: ${{ inputs.source-dir }}/${{ inputs.cloudflare-pages-directory }}
+          branch: ${{ inputs.cloudflare-pages-branch }}
+          wranglerVersion: "3"
