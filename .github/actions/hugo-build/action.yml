@@ -73,15 +73,10 @@ inputs:
     required: false
     default: "hugo-site"
 
-  artifact-path:
-    description: "Path to upload as the artifact."
-    required: false
-    default: ""
-
   artifact-retention-days:
     description: "Number of days to retain artifact."
     required: false
-    default: "30"
+    default: "7"
 
   artifact-if-no-files-found:
     description: "What to do if no files are found."
@@ -114,7 +109,7 @@ runs:
 
     - name: Restore Hugo cache
       if: ${{ inputs.use-cache == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/.cache/hugo
@@ -138,9 +133,18 @@ runs:
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
 
+    - name: Upload build artifact
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ format('{0}/{1}/{2}', github.workspace, inputs.source-dir, inputs.public-dir) }}
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
     - name: Save Hugo cache state
       if: ${{ always() && inputs.use-cache == 'true' }}
-      uses: actions/cache@v4
+      uses: actions/cache@v7
       with:
         path: |
           ~/.cache/hugo
@@ -149,13 +153,3 @@ runs:
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-${{ hashFiles(format('{0}/go.mod', inputs.source-dir), format('{0}/go.sum', inputs.source-dir), format('{0}/package-lock.json', inputs.source-dir), format('{0}/pnpm-lock.yaml', inputs.source-dir), format('{0}/yarn.lock', inputs.source-dir), format('{0}/hugo.toml', inputs.source-dir), format('{0}/hugo.yaml', inputs.source-dir), format('{0}/hugo.yml', inputs.source-dir), format('{0}/config.toml', inputs.source-dir), format('{0}/config.yaml', inputs.source-dir), format('{0}/config.yml', inputs.source-dir)) }}
-
-    - name: Upload build artifact
-      if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ inputs.artifact-name }}
-        ## Use artifact path if provided, otherwise compute path to public/ dir
-        path: ${{ inputs.artifact-path != '' && inputs.artifact-path || format('{0}/{1}/{2}', github.workspace, inputs.source-dir, inputs.public-dir) }}
-        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
-        retention-days: ${{ inputs.artifact-retention-days }}
