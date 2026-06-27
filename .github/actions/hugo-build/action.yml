@@ -155,6 +155,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
-        path: ${{ inputs.artifact-path != '' && inputs.artifact-path || inputs.public-dir }}
+        ## Use artifact path if provided, otherwise compute path to public/ dir
+        path: ${{ inputs.artifact-path != '' && inputs.artifact-path || format('{0}/{1}/{2}', github.workspace, inputs.source-dir, inputs.public-dir) }}
         if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
         retention-days: ${{ inputs.artifact-retention-days }}
