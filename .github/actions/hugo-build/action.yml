@@ -31,12 +31,12 @@ inputs:
   environment:
     description: "Hugo environment (production, staging, etc.)."
     required: false
-    default: ""
+    default: "production"
 
   build-flags:
     description: "Extra flags passed to hugo."
     required: false
-    default: "--gc --minify --enableGitInfo"
+    default: "--gc --minify"
 
   use-cache:
     description: "Enable cache restore/save for Hugo-related build inputs."
