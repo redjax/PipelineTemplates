@@ -156,12 +156,24 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+      - name: Setup Node
+        uses: actions/setup-node@v6
         with:
-          apiToken: ${{ secrets.cloudflare-api-token }}
-          accountId: ${{ secrets.cloudflare-account-id }}
-          projectName: ${{ inputs.cloudflare-pages-project }}
-          directory: ${{ inputs.source-dir }}/${{ inputs.cloudflare-pages-directory }}
-          branch: ${{ inputs.cloudflare-pages-branch }}
-          wranglerVersion: "3"
+          node-version: "24"
+
+      - name: Install Wrangler
+        shell: bash
+        run: npm install --global wrangler
+
+      - name: Deploy to Cloudflare Pages
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
+          CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
+          CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
+        run: |
+          set -Eeuo pipefail
+          wrangler pages deploy "${{ inputs.source-dir }}/${{ inputs.cloudflare-pages-directory }}" \
+            --project-name "${CF_PAGES_PROJECT}" \
+            --branch "${CF_PAGES_BRANCH}"
