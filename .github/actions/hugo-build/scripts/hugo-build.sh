@@ -14,13 +14,16 @@ set -Eeuo pipefail
 
 SOURCE_DIR="${HUGO_SOURCE_DIR:-.}"
 PUBLIC_DIR="${HUGO_PUBLIC_DIR:-public}"
-BUILD_FLAGS="${HUGO_BUILD_FLAGS:---gc --minify --enableGitInfo}"
+BUILD_FLAGS="${HUGO_BUILD_FLAGS:---gc --minify}"
 BASE_URL="${HUGO_BASEURL:-}"
 ENVIRONMENT="${HUGO_ENVIRONMENT:-production}"
 
 cd "$SOURCE_DIR"
 
 mkdir -p "$PUBLIC_DIR"
+
+export HUGO_ENVIRONMENT="$ENVIRONMENT"
+export HUGO_ENV="$ENVIRONMENT"
 
 args=(--destination "$PUBLIC_DIR" --environment "$ENVIRONMENT")
 
