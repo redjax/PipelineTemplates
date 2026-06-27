@@ -1,4 +1,33 @@
 ---
+################################################################################
+# Reusable workflow to publish a Hugo site.                                    #
+#                                                                              #
+# This workflow does not build a site, only publishes.                         #
+# It accepts multiple targets:                                                 #
+#   - A branch in the git repository                                           #
+#   - GitHub Pages                                                             #
+#   - Cloudflare Pages                                                         #
+#                                                                              #
+# Usage:                                                                       #
+#   jobs:                                                                      #
+#     publish:                                                                 #
+#       uses: redjax/pipelinetemplates/.github/workflows/hugo-publish.yml@main #
+#       with:                                                                  #
+#         target: github-pages                                                 #
+#         artifact-name: hugo-site                                             #
+#                                                                              #
+# Notes:                                                                       #
+#   - This workflow expects the Hugo build output to                           #
+#     have already been uploaded as a workflow artifact                        #
+#     by a previous job or workflow step.                                      #
+#   - For branch publishing, the target branch will be                         #
+#     force-updated with the contents of the artifact.                         #
+#   - For GitHub Pages, this workflow uses the official                        #
+#     Pages artifact & deploy flow.                                            #
+#   - For Cloudflare Pages, this workflow deploys via                          #
+#     Wrangler direct upload.                                                  #
+################################################################################
+
 name: Hugo Publish Site
 
 on:
@@ -8,18 +37,6 @@ on:
         description: "Publish target: branch, github-pages, or cloudflare-pages."
         required: true
         type: string
-
-      source-dir:
-        description: "Path to the Hugo project root."
-        required: false
-        type: string
-        default: "."
-
-      public-dir:
-        description: "Built site output directory relative to source-dir."
-        required: false
-        type: string
-        default: "public"
 
       artifact-name:
         description: "Name of the build artifact to download."
@@ -89,11 +106,11 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
-          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+          path: ./_published
 
       - name: Publish to branch
         shell: bash
-        working-directory: ${{ inputs.source-dir }}
+        working-directory: ./_published
         env:
           BRANCH_NAME: ${{ inputs.branch-name }}
           COMMIT_MESSAGE: ${{ inputs.commit-message }}
@@ -106,10 +123,12 @@ jobs:
             exit 0
           fi
 
+          git init
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
           git fetch origin "${BRANCH_NAME}" || true
           git checkout -B "${BRANCH_NAME}"
 
-          git add "${{ inputs.public-dir }}"
+          git add .
           if git diff --cached --quiet; then
             echo "[INFO] No changes to publish."
             exit 0
@@ -131,7 +150,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
-          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+          path: ./_published
 
       - name: Configure Pages
         id: pages
@@ -140,7 +159,7 @@ jobs:
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+          path: ./_published
 
       - name: Deploy to GitHub Pages
         id: deployment
@@ -154,7 +173,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
-          path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+          path: ./_published
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -174,6 +193,6 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
-          wrangler pages deploy "${{ inputs.source-dir }}/${{ inputs.cloudflare-pages-directory }}" \
+          wrangler pages deploy "./_published/${{ inputs.cloudflare-pages-directory }}" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
