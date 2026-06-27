@@ -1,6 +1,6 @@
 ---
 name: "Hugo Build Site"
-description: "Build a Hugo site and optionally deploy the public/ directory to a branch."
+description: "Build a Hugo site with optional caching and change detection."
 
 inputs:
   hugo-version:
@@ -9,116 +9,118 @@ inputs:
     default: "0.161.1"
 
   extended:
-    description: "Use the extended Hugo binary (required for SCSS/SASS, etc.). true/false."
+    description: "Use the extended Hugo binary (required for SCSS/SASS, etc.)."
     required: false
     default: "true"
 
-  base-url:
-    description: "Value for HUGO_BASEURL (e.g. https://example.com/). Leave empty to use the site's config."
-    required: false
-    default: ""
-
-  environment:
-    description: "Hugo environment (sets HUGO_ENVIRONMENT and HUGO_ENV, e.g. production, staging)."
-    required: false
-    default: ""
-
   source-dir:
-    description: "Path to the Hugo project root (directory containing config and content)."
+    description: "Path to the Hugo project root."
     required: false
     default: "."
 
   public-dir:
-    description: "Output directory for the built site (Hugo's publishDir)."
+    description: "Output directory for the built site."
     required: false
     default: "public"
 
+  base-url:
+    description: "Optional base URL override. Leave empty to use site config."
+    required: false
+    default: ""
+
+  environment:
+    description: "Hugo environment (production, staging, etc.)."
+    required: false
+    default: ""
+
   build-flags:
-    description: "Extra flags passed to the hugo command (e.g. --gc --minify --enableGitInfo)."
+    description: "Extra flags passed to hugo."
     required: false
-    default: "--gc --minify"
+    default: "--gc --minify --enableGitInfo"
 
-  check-hugo-changed:
-    description: "If true, use git diff to detect Hugo-related changes and skip build when nothing changed."
+  use-cache:
+    description: "Enable cache restore/save for Hugo-related build inputs."
+    required: false
+    default: "true"
+
+  cache-key-suffix:
+    description: "Optional suffix to differentiate caches."
+    required: false
+    default: ""
+
+  check-changed:
+    description: "If true, detect changed files and skip build when nothing relevant changed."
     required: false
     default: "false"
 
-  deploy:
-    description: "If true, rebuild and commit the public/ directory to a branch after building."
+  changed-paths-mode:
+    description: "default, replace, or append."
     required: false
-    default: "false"
+    default: "default"
 
-  deploy-branch:
-    description: "Name of the branch that receives the built site (e.g. deploy, gh-pages)."
+  changed-paths:
+    description: "Newline-delimited glob patterns. Used when mode=replace or mode=append."
     required: false
-    default: "deploy"
+    default: ""
 
-  deploy-commit-message:
-    description: "Commit message used when updating the deploy branch."
-    required: false
-    default: "Deploy from GitHub Actions"
-
-  git-user-name:
-    description: "Git user.name used when committing to the deploy branch."
-    required: false
-    default: "GitHub Action"
-
-  git-user-email:
-    description: "Git user.email used when committing to the deploy branch."
-    required: false
-    default: "action@github.com"
+outputs:
+  hugo-changed:
+    description: "Whether relevant Hugo files changed."
+    value: ${{ steps.changed.outputs.hugo-changed }}
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
     - name: Setup Hugo
       uses: peaceiris/actions-hugo@v3
       with:
         hugo-version: ${{ inputs.hugo-version }}
         extended: ${{ inputs.extended }}
 
-    - name: Check if Hugo files changed
-      id: hugo_changed
-      if: ${{ inputs.check-hugo-changed == 'true' }}
+    - name: Determine changed paths
+      id: changed
+      if: ${{ inputs.check-changed == 'true' }}
       shell: bash
       env:
         HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
-      run: |
-        bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
+        CHANGED_PATHS_MODE: ${{ inputs.changed-paths-mode }}
+        CHANGED_PATHS: ${{ inputs.changed-paths }}
+      run: bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
+
+    - name: Restore Hugo cache
+      if: ${{ inputs.use-cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/hugo
+          ${{ inputs.source-dir }}/resources/_gen
+          ${{ inputs.source-dir }}/node_modules
+          ${{ inputs.source-dir }}/.hugo_build_cache
+        key: >-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-${{ hashFiles(format('{0}/go.mod', inputs.source-dir), format('{0}/go.sum', inputs.source-dir), format('{0}/package-lock.json', inputs.source-dir), format('{0}/pnpm-lock.yaml', inputs.source-dir), format('{0}/yarn.lock', inputs.source-dir), format('{0}/hugo.toml', inputs.source-dir), format('{0}/hugo.yaml', inputs.source-dir), format('{0}/hugo.yml', inputs.source-dir), format('{0}/config.toml', inputs.source-dir), format('{0}/config.yaml', inputs.source-dir), format('{0}/config.yml', inputs.source-dir)) }}
+        restore-keys: |
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-
 
     - name: Build Hugo site
+      if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true' }}
       shell: bash
       env:
         HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
-        HUGO_BASEURL: ${{ inputs.base-url }}
-        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
-        HUGO_ENVIRONMENT: ${{ inputs.environment }}
-        HUGO_ENV: ${{ inputs.environment }}
-        CHECK_HUGO_CHANGED: ${{ inputs.check-hugo-changed }}
-        HUGO_CHANGED: ${{ steps.hugo_changed.outputs.hugo-changed }}
-      run: |
-        if [[ "${CHECK_HUGO_CHANGED}" == "true" && "${HUGO_CHANGED}" != "true" ]]; then
-          echo "[INFO] No Hugo changes; skipping build."
-          exit 0
-        fi
-
-        bash "${{ github.action_path }}/scripts/hugo-build.sh"
-
-    - name: Deploy to branch
-      if: ${{ inputs.deploy == 'true' }}
-      shell: bash
-      env:
-        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
-        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
         HUGO_PUBLIC_DIR: ${{ inputs.public-dir }}
-        HUGO_DEPLOY_BRANCH: ${{ inputs.deploy-branch }}
-        HUGO_COMMIT_MESSAGE: ${{ inputs.deploy-commit-message }}
-        GIT_USER_NAME: ${{ inputs.git-user-name }}
-        GIT_USER_EMAIL: ${{ inputs.git-user-email }}
-      run: |
-        bash "${{ github.action_path }}/scripts/hugo-deploy-branch.sh"
+        HUGO_BASEURL: ${{ inputs.base-url }}
+        HUGO_ENVIRONMENT: ${{ inputs.environment }}
+        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+      run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
+
+    - name: Save Hugo cache state
+      if: ${{ always() && inputs.use-cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/hugo
+          ${{ inputs.source-dir }}/resources/_gen
+          ${{ inputs.source-dir }}/node_modules
+          ${{ inputs.source-dir }}/.hugo_build_cache
+        key: >-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-${{ hashFiles(format('{0}/go.mod', inputs.source-dir), format('{0}/go.sum', inputs.source-dir), format('{0}/package-lock.json', inputs.source-dir), format('{0}/pnpm-lock.yaml', inputs.source-dir), format('{0}/yarn.lock', inputs.source-dir), format('{0}/hugo.toml', inputs.source-dir), format('{0}/hugo.yaml', inputs.source-dir), format('{0}/hugo.yml', inputs.source-dir), format('{0}/config.toml', inputs.source-dir), format('{0}/config.yaml', inputs.source-dir), format('{0}/config.yml', inputs.source-dir)) }}
