@@ -122,6 +122,7 @@ jobs:
           BRANCH_NAME: ${{ inputs.branch-name }}
           COMMIT_MESSAGE: ${{ inputs.commit-message }}
           DRY_RUN: ${{ inputs.dry-run }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -Eeuo pipefail
 
@@ -131,7 +132,9 @@ jobs:
           fi
 
           git init
-          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git remote add origin "https://${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git fetch origin "${BRANCH_NAME}" || true
           git checkout -B "${BRANCH_NAME}"
 
@@ -141,8 +144,6 @@ jobs:
             exit 0
           fi
 
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
           git commit -m "${COMMIT_MESSAGE}"
           git push origin "${BRANCH_NAME}" --force
 
