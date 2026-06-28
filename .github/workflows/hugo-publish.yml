@@ -197,6 +197,25 @@ jobs:
         shell: bash
         run: npm install --global wrangler
 
+      - name: Ensure Cloudflare Pages project exists
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
+          CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
+          CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${CF_PAGES_PROJECT}" ]]; then
+            echo "CF_PAGES_PROJECT is required"
+            exit 1
+          fi
+
+          if ! wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" ; then
+            echo "[INFO] Project may already exist; continuing to deploy."
+          fi
+
       - name: Deploy to Cloudflare Pages
         shell: bash
         env:
