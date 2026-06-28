@@ -180,7 +180,12 @@ jobs:
     if: ${{ inputs.target == 'cloudflare-pages' }}
     runs-on: ubuntu-latest
     steps:
+      - name: Cloudflare Pages dry-run notice
+        if: ${{ inputs.dry-run }}
+        run: echo "[DRY RUN] Would run Cloudflare Pages deploy jobs."
+
       - name: Download build artifact
+        if: ${{ !inputs.dry-run }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
@@ -189,17 +194,18 @@ jobs:
           path: ./_published
 
       - name: Setup Node
+        if: ${{ !inputs.dry-run }}
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
       - name: Install Wrangler
-        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
+        if: ${{ !inputs.dry-run }}
         shell: bash
         run: npm install --save-dev wrangler@latest
 
       - name: Ensure Cloudflare Pages project exists
-        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
+        if: ${{ !inputs.dry-run }}
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
@@ -214,7 +220,7 @@ jobs:
           npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
 
       - name: Deploy to Cloudflare Pages
-        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
+        if: ${{ !inputs.dry-run }}
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
