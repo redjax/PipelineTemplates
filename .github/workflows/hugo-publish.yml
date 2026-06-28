@@ -44,6 +44,11 @@ on:
         type: string
         default: "hugo-site"
 
+      run-id:
+        description: "Build workflow run ID to download the artifact from."
+        required: true
+        type: string
+
       branch-name:
         description: "Target branch for branch deploys."
         required: false
@@ -106,6 +111,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
           path: ./_published
 
       - name: Publish to branch
@@ -150,6 +156,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
           path: ./_published
 
       - name: Configure Pages
@@ -173,6 +180,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
           path: ./_published
 
       - name: Setup Node
