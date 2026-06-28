@@ -194,12 +194,12 @@ jobs:
           node-version: "24"
 
       - name: Install Wrangler
-        if: ${{ !inputs.dry-run }}
+        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
         shell: bash
         run: npm install --save-dev wrangler@latest
 
       - name: Ensure Cloudflare Pages project exists
-        if: ${{ !inputs.dry-run }}
+        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
@@ -214,7 +214,7 @@ jobs:
           npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
 
       - name: Deploy to Cloudflare Pages
-        if: ${{ !inputs.dry-run }}
+        if: inputs.target == 'cloudflare-pages' && !inputs.dry-run
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
