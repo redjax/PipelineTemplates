@@ -206,6 +206,12 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[INFO] Dry run enabled; skipping Cloudflare Pages creation."
+            exit 0
+          fi
+
           npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
 
       - name: Deploy to Cloudflare Pages
@@ -217,6 +223,12 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[INFO] Dry run enabled; skipping Cloudflare Pages deploy."
+            exit 0
+          fi
+
           npx wrangler pages deploy "./_published/${{ inputs.cloudflare-pages-directory }}" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
