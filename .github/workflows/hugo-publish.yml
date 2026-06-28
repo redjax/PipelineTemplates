@@ -195,7 +195,7 @@ jobs:
 
       - name: Install Wrangler
         shell: bash
-        run: npm install --global wrangler
+        run: npm install --save-dev wrangler@latest
 
       - name: Ensure Cloudflare Pages project exists
         shell: bash
@@ -206,15 +206,7 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
-
-          if [[ -z "${CF_PAGES_PROJECT}" ]]; then
-            echo "CF_PAGES_PROJECT is required"
-            exit 1
-          fi
-
-          if ! wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" ; then
-            echo "[INFO] Project may already exist; continuing to deploy."
-          fi
+          npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
 
       - name: Deploy to Cloudflare Pages
         shell: bash
@@ -225,6 +217,6 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
-          wrangler pages deploy "./_published/${{ inputs.cloudflare-pages-directory }}" \
+          npx wrangler pages deploy "./_published/${{ inputs.cloudflare-pages-directory }}" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
