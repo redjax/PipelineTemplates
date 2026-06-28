@@ -71,7 +71,7 @@ on:
         description: "Branch name reported to Cloudflare Pages."
         required: false
         type: string
-        default: ""
+        default: "main"
 
       cloudflare-pages-directory:
         description: "Directory to deploy to Cloudflare Pages."
