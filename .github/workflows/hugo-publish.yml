@@ -46,8 +46,9 @@ on:
 
       run-id:
         description: "Build workflow run ID to download the artifact from."
-        required: true
+        required: false
         type: string
+        default: ""
 
       branch-name:
         description: "Target branch for branch deploys."
@@ -108,11 +109,24 @@ jobs:
           persist-credentials: true
 
       - name: Download build artifact
+        if: ${{ inputs.run-id != '' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
           run-id: ${{ inputs.run-id }}
           path: ./_published
+
+      - name: Download latest successful build artifact
+        if: ${{ inputs.run-id == '' }}
+        uses: dawidd6/action-download-artifact@v8
+        with:
+          workflow: test-hugo-build.yml
+          workflow_search: true
+          workflow_conclusion: success
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          repo: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to branch
         shell: bash
@@ -153,11 +167,24 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Download build artifact
+        if: ${{ inputs.run-id != '' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
           run-id: ${{ inputs.run-id }}
           path: ./_published
+
+      - name: Download latest successful build artifact
+        if: ${{ inputs.run-id == '' }}
+        uses: dawidd6/action-download-artifact@v8
+        with:
+          workflow: test-hugo-build.yml
+          workflow_search: true
+          workflow_conclusion: success
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          repo: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Pages
         id: pages
