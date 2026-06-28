@@ -232,6 +232,6 @@ jobs:
           : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
           : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
-          npx wrangler pages deploy "./_published/${{ inputs.cloudflare-pages-directory }}" \
+          npx wrangler pages deploy "./_published" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
