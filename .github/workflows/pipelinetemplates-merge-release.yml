@@ -1,8 +1,19 @@
 ---
-################################################
-# Publish tags/releases for newly bumped       #
-# component versions on merge to main.         #
-################################################
+########################################################
+# Publish tags/releases for newly bumped               #
+# component versions on merge to main.                 #
+#                                                      #
+# This action requires a personal access token (PAT)   #
+# with the following permissions:                      #
+#   - Contents: Read and write                         #
+#   - Pull requests: Read and write                    #
+#                                                      #
+# Create a token here:                                 #
+#   https://github.com/settings/personal-access-tokens #
+#                                                      #
+# After creating a token, add it to the repository's   #
+# Secrets and variables, under "Actions," in Settings. #
+########################################################
 
 name: Publish components
 
@@ -29,6 +40,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   publish:
@@ -39,6 +51,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          persist-credentials: false
 
       - name: Configure git
         run: |
@@ -48,28 +61,44 @@ jobs:
       - name: Fetch refs
         run: git fetch origin main --tags --force
 
-      - name: Create bump branch
-        run: git checkout -b chore/bump-components
+      - name: Install bump-my-version
+        run: |
+          python -m pip install --upgrade bump-my-version
+
+      - name: Verify bump tool
+        run: |
+          which bump-my-version || true
+          bump-my-version --version || true
+          echo "$PATH"
 
       - name: Apply version bumps
         run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Commit bumps
-        run: |
-          if git diff --quiet; then
-            echo "[INFO] No component bumps"
-            exit 0
-          fi
-
-          git add "**/VERSION" "**/.bumpversion.toml"
-          git commit -m "chore(release): bump component versions"
-
-      - name: Merge bump branch
-        run: |
-          git checkout main
-          git merge --no-ff chore/bump-components
-          git push origin main
-
-      - name: Create component tags
+      - name: Create or update bump PR
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
-        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push --components-file .changed-components.txt
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.PAT_REPO_WRITE }}
+          branch: chore/bump-ci-components
+          base: main
+          delete-branch: true
+          title: "chore(release): bump component versions"
+          commit-message: "chore(release): bump component versions"
+          body: |
+            Automated version bumps for changed components.
+          add-paths: |
+            **/VERSION
+            **/.bumpversion.toml
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT_REPO_WRITE }}
+        run: |
+          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --auto --merge
+
+      - name: Dry run summary
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        run: |
+          echo "[DRY RUN] Dry run enabled; no PR created."
