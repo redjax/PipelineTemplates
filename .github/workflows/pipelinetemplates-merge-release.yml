@@ -74,8 +74,9 @@ jobs:
       - name: Apply version bumps
         run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Commit bumps and create PR
+      - name: Create or update bump PR
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.PAT_REPO_WRITE }}
@@ -89,6 +90,13 @@ jobs:
           add-paths: |
             **/VERSION
             **/.bumpversion.toml
+
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.PAT_REPO_WRITE }}
+        run: |
+          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --auto --merge
 
       - name: Dry run summary
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
