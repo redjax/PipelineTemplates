@@ -1,8 +1,19 @@
 ---
-################################################
-# Publish tags/releases for newly bumped       #
-# component versions on merge to main.         #
-################################################
+########################################################
+# Publish tags/releases for newly bumped               #
+# component versions on merge to main.                 #
+#                                                      #
+# This action requires a personal access token (PAT)   #
+# with the following permissions:                      #
+#   - Contents: Read and write                         #
+#   - Pull requests: Read and write                    #
+#                                                      #
+# Create a token here:                                 #
+#   https://github.com/settings/personal-access-tokens #
+#                                                      #
+# After creating a token, add it to the repository's   #
+# Secrets and variables, under "Actions," in Settings. #
+########################################################
 
 name: Publish components
 
@@ -39,6 +50,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          persist-credentials: false
 
       - name: Configure git
         run: |
@@ -75,10 +87,12 @@ jobs:
           git commit -m "chore(release): bump component versions"
 
       - name: Merge bump branch
+        env:
+          PAT_REPO_WRITE: ${{ secrets.PAT_REPO_WRITE }}
         run: |
           git checkout main
           git merge --no-ff chore/bump-components
-          git push origin main
+          git push "https://x-access-token:${PAT_REPO_WRITE}@github.com/${GITHUB_REPOSITORY}.git" main
 
       - name: Create component tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
