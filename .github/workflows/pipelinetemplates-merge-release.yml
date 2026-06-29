@@ -51,6 +51,16 @@ jobs:
       - name: Create bump branch
         run: git checkout -b chore/bump-components
 
+      - name: Install bump-my-version
+        run: |
+          python -m pip install --upgrade bump-my-version
+
+      - name: Verify bump tool
+        run: |
+          which bump-my-version || true
+          bump-my-version --version || true
+          echo "$PATH"
+
       - name: Apply version bumps
         run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
 
