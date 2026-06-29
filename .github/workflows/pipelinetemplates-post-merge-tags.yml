@@ -22,6 +22,7 @@ jobs:
   reconcile:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,4 +40,8 @@ jobs:
         run: git fetch origin main --tags --force
 
       - name: Reconcile tags
-        run: ./shared/scripts/bash/versioning/git-tag-components.sh --push
+        env:
+          GH_TOKEN: ${{ secrets.PAT_REPO_WRITE }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          ./shared/scripts/bash/versioning/git-tag-components.sh --push
