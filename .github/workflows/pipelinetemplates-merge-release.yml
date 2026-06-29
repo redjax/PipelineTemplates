@@ -72,7 +72,16 @@ jobs:
           echo "$PATH"
 
       - name: Apply version bumps
-        run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
+        env:
+          BASE_REF: ${{ github.event.before }}
+          OUTPUT_FILE: .changed-components.txt
+        run: |
+          if [[ -z "${BASE_REF}" || "${BASE_REF}" == "0000000000000000000000000000000000000000" ]]; then
+            echo "[ERROR] Missing valid BASE_REF for push event"
+            exit 1
+          fi
+
+          ./shared/scripts/bash/versioning/release-components.sh
 
       - name: Create or update bump PR
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
