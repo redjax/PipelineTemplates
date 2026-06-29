@@ -138,7 +138,7 @@ runs:
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-name }}
-        path: ${{ format('{0}/{1}/{2}', github.workspace, inputs.source-dir, inputs.public-dir) }}
+        path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
         if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
         retention-days: ${{ inputs.artifact-retention-days }}
 
