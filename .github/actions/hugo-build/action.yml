@@ -1,0 +1,155 @@
+---
+name: "Hugo Build Site"
+description: "Build a Hugo site with optional caching and change detection."
+
+inputs:
+  hugo-version:
+    description: "Hugo version to install (e.g. 0.161.1)."
+    required: false
+    default: "0.161.1"
+
+  extended:
+    description: "Use the extended Hugo binary (required for SCSS/SASS, etc.)."
+    required: false
+    default: "true"
+
+  source-dir:
+    description: "Path to the Hugo project root."
+    required: false
+    default: "."
+
+  public-dir:
+    description: "Output directory for the built site."
+    required: false
+    default: "public"
+
+  base-url:
+    description: "Optional base URL override. Leave empty to use site config."
+    required: false
+    default: ""
+
+  environment:
+    description: "Hugo environment (production, staging, etc.)."
+    required: false
+    default: "production"
+
+  build-flags:
+    description: "Extra flags passed to hugo."
+    required: false
+    default: "--gc --minify"
+
+  use-cache:
+    description: "Enable cache restore/save for Hugo-related build inputs."
+    required: false
+    default: "true"
+
+  cache-key-suffix:
+    description: "Optional suffix to differentiate caches."
+    required: false
+    default: ""
+
+  check-changed:
+    description: "If true, detect changed files and skip build when nothing relevant changed."
+    required: false
+    default: "false"
+
+  changed-paths-mode:
+    description: "default, replace, or append."
+    required: false
+    default: "default"
+
+  changed-paths:
+    description: "Newline-delimited glob patterns. Used when mode=replace or mode=append."
+    required: false
+    default: ""
+
+  publish-artifact:
+    description: "Publish site artifact to pipeline"
+    required: false
+    default: "false"
+
+  artifact-name:
+    description: "Artifact name for the built site."
+    required: false
+    default: "hugo-site"
+
+  artifact-retention-days:
+    description: "Number of days to retain artifact."
+    required: false
+    default: "7"
+
+  artifact-if-no-files-found:
+    description: "What to do if no files are found."
+    required: false
+    default: "error"
+
+outputs:
+  hugo-changed:
+    description: "Whether relevant Hugo files changed."
+    value: ${{ steps.changed.outputs.hugo-changed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Hugo
+      uses: peaceiris/actions-hugo@v3
+      with:
+        hugo-version: ${{ inputs.hugo-version }}
+        extended: ${{ inputs.extended }}
+
+    - name: Determine changed paths
+      id: changed
+      if: ${{ inputs.check-changed == 'true' }}
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+        CHANGED_PATHS_MODE: ${{ inputs.changed-paths-mode }}
+        CHANGED_PATHS: ${{ inputs.changed-paths }}
+      run: bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
+
+    - name: Restore Hugo cache
+      if: ${{ inputs.use-cache == 'true' }}
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cache/hugo
+          ${{ inputs.source-dir }}/resources/_gen
+          ${{ inputs.source-dir }}/node_modules
+          ${{ inputs.source-dir }}/.hugo_build_cache
+        key: >-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-${{ hashFiles(format('{0}/go.mod', inputs.source-dir), format('{0}/go.sum', inputs.source-dir), format('{0}/package-lock.json', inputs.source-dir), format('{0}/pnpm-lock.yaml', inputs.source-dir), format('{0}/yarn.lock', inputs.source-dir), format('{0}/hugo.toml', inputs.source-dir), format('{0}/hugo.yaml', inputs.source-dir), format('{0}/hugo.yml', inputs.source-dir), format('{0}/config.toml', inputs.source-dir), format('{0}/config.yaml', inputs.source-dir), format('{0}/config.yml', inputs.source-dir)) }}
+        restore-keys: |
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-
+
+    - name: Build Hugo site
+      if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true' }}
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+        HUGO_PUBLIC_DIR: ${{ inputs.public-dir }}
+        HUGO_BASEURL: ${{ inputs.base-url }}
+        HUGO_ENVIRONMENT: ${{ inputs.environment }}
+        HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+      run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
+
+    - name: Upload build artifact
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ format('{0}/{1}/{2}', github.workspace, inputs.source-dir, inputs.public-dir) }}
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
+    - name: Save Hugo cache state
+      if: ${{ always() && inputs.use-cache == 'true' }}
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cache/hugo
+          ${{ inputs.source-dir }}/resources/_gen
+          ${{ inputs.source-dir }}/node_modules
+          ${{ inputs.source-dir }}/.hugo_build_cache
+        key: >-
+          hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-${{ hashFiles(format('{0}/go.mod', inputs.source-dir), format('{0}/go.sum', inputs.source-dir), format('{0}/package-lock.json', inputs.source-dir), format('{0}/pnpm-lock.yaml', inputs.source-dir), format('{0}/yarn.lock', inputs.source-dir), format('{0}/hugo.toml', inputs.source-dir), format('{0}/hugo.yaml', inputs.source-dir), format('{0}/hugo.yml', inputs.source-dir), format('{0}/config.toml', inputs.source-dir), format('{0}/config.yaml', inputs.source-dir), format('{0}/config.yml', inputs.source-dir)) }}
