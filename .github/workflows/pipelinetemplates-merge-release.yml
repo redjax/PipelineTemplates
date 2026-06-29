@@ -40,6 +40,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   publish:
@@ -60,9 +61,6 @@ jobs:
       - name: Fetch refs
         run: git fetch origin main --tags --force
 
-      - name: Create bump branch
-        run: git checkout -b chore/bump-components
-
       - name: Install bump-my-version
         run: |
           python -m pip install --upgrade bump-my-version
@@ -76,23 +74,26 @@ jobs:
       - name: Apply version bumps
         run: OUTPUT_FILE=.changed-components.txt ./shared/scripts/bash/versioning/release-components.sh
 
-      - name: Commit bumps
-        run: |
-          if git diff --quiet; then
-            echo "[INFO] No component bumps"
-            exit 0
-          fi
+      - name: Commit bumps and create PR
+        if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.PAT_REPO_WRITE }}
+          branch: chore/bump-ci-components
+          base: main
+          delete-branch: true
+          title: "chore(release): bump component versions"
+          commit-message: "chore(release): bump component versions"
+          body: |
+            Automated version bumps for changed components.
+          add-paths: |
+            **/VERSION
+            **/.bumpversion.toml
 
-          git add "**/VERSION" "**/.bumpversion.toml"
-          git commit -m "chore(release): bump component versions"
-
-      - name: Merge bump branch
-        env:
-          PAT_REPO_WRITE: ${{ secrets.PAT_REPO_WRITE }}
+      - name: Dry run summary
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
         run: |
-          git checkout main
-          git merge --no-ff chore/bump-components
-          git push "https://x-access-token:${PAT_REPO_WRITE}@github.com/${GITHUB_REPOSITORY}.git" main
+          echo "[DRY RUN] Dry run enabled; no PR created."
 
       - name: Create component tags
         if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
