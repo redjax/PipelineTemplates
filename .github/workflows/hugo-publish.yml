@@ -327,8 +327,9 @@ jobs:
 
           else
             echo "[INFO] No archives found; creating fallback tar.gz from raw published contents."
-            (cd ./_published && tar -czf "site.tar.gz" .)
-            echo "./_published/site.tar.gz" > /tmp/release-assets.txt
+            mkdir -p ./_release
+            tar -C ./_published -czf ./_release/site.tar.gz .
+            echo "./_release/site.tar.gz" > /tmp/release-assets.txt
           fi
 
           {
