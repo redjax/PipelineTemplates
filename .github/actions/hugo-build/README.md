@@ -26,7 +26,7 @@ This Action builds a Hugo site with optional cache restore/save, change detectio
   - `production`
   - `staging`
   - `preview`
-- `build-flags`: Extra flags passed to hugo. Default: `--gc --minify`.
+- `build-flags`: Extra flags passed to Hugo. Default: `--gc --minify`.
   - `--gc --minify`
   - `--gc --minify --enableGitInfo`
   - `--gc --minify --buildFuture`
@@ -36,7 +36,7 @@ This Action builds a Hugo site with optional cache restore/save, change detectio
 - `cache-key-suffix`: Optional suffix to differentiate caches. Default: `""`.
   - `docs`
   - `staging`
-- `check-changed`: If true, detect changed files and skip build when nothing relevant changed. Default: `"false"`.
+- `check-changed`: If true, detect changed files and skip the build when nothing relevant changed. Default: `"false"`.
   - `"true"`
   - `"false"`
 - `changed-paths-mode`: How custom changed paths are applied. Default: `default`.
@@ -80,10 +80,8 @@ Flat repo, Hugo site at the repository root:
 ---
 name: Build Hugo (flat)
 
-
 on:
   workflow_dispatch:
-
 
 jobs:
   build:
@@ -91,7 +89,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
 
       - name: Build Hugo site
         uses: redjax/PipelineTemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.1
@@ -115,10 +112,8 @@ jobs:
 ---
 name: Build Hugo (monorepo)
 
-
 on:
   workflow_dispatch:
-
 
 jobs:
   build:
@@ -126,7 +121,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
 
       - name: Build Hugo site from apps/site
         uses: redjax/PipelineTemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.1
