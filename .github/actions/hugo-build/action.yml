@@ -73,6 +73,21 @@ inputs:
     required: false
     default: "hugo-site"
 
+  archive-name:
+    description: "Base name for the archive file without extension."
+    required: false
+    default: "site"
+
+  archive-output-dir:
+    description: "Directory where archive files are written."
+    required: false
+    default: "dist"
+
+  archive-format:
+    description: "Archive format to create: 'none', 'zip', 'tar.gz', 'both'"
+    required: false
+    default: "none"
+
   artifact-retention-days:
     description: "Number of days to retain artifact."
     required: false
@@ -133,12 +148,43 @@ runs:
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
 
-    - name: Upload build artifact
+    - name: Upload raw build artifact
       if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
       uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-name }}
         path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
+    - name: Prepare archive output
+      if: ${{ inputs.publish-artifact == 'true' && inputs.archive-format != 'none' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      shell: bash
+      env:
+        HUGO_SOURCE_DIR: ${{ inputs.source-dir }}
+        HUGO_PUBLIC_DIR: ${{ inputs.public-dir }}
+        ARCHIVE_NAME: ${{ inputs.archive-name }}
+        ARCHIVE_FORMAT: ${{ inputs.archive-format }}
+        ARCHIVE_OUTPUT_DIR: ${{ inputs.archive-output-dir }}
+      run: bash "${{ github.action_path }}/scripts/hugo-archive.sh"
+
+    - name: Upload ZIP archive
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.archive-format == 'zip' || inputs.archive-format == 'both') && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}-zip
+        path: ${{ inputs.source-dir }}/${{ inputs.archive-output-dir }}/${{ inputs.archive-name }}.zip
+        archive: false
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
+    - name: Upload TAR.GZ archive
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.archive-format == 'tar.gz' || inputs.archive-format == 'both') && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}-tar-gz
+        path: ${{ inputs.source-dir }}/${{ inputs.archive-output-dir }}/${{ inputs.archive-name }}.tar.gz
+        archive: false
         if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
         retention-days: ${{ inputs.artifact-retention-days }}
 
