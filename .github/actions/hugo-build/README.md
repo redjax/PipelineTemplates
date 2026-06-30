@@ -88,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Hugo site
         uses: redjax/PipelineTemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.1
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Build Hugo site from apps/site
         uses: redjax/PipelineTemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.1
