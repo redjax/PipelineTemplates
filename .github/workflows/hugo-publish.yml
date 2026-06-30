@@ -39,9 +39,10 @@ on:
         type: string
 
       run-id:
-        description: "Build workflow run ID to download the artifact from."
-        required: true
+        description: "Build workflow run ID to download the artifact from. Leave blank for later release-based flows."
+        required: false
         type: string
+        default: ""
 
       artifact-name:
         description: "Name of the build artifact to download."

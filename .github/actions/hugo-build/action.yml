@@ -148,6 +148,15 @@ runs:
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
 
+    - name: Upload raw build artifact
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
     - name: Prepare archive output
       if: ${{ inputs.publish-artifact == 'true' && inputs.archive-format != 'none' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
       shell: bash
@@ -158,15 +167,6 @@ runs:
         ARCHIVE_FORMAT: ${{ inputs.archive-format }}
         ARCHIVE_OUTPUT_DIR: ${{ inputs.archive-output-dir }}
       run: bash "${{ github.action_path }}/scripts/hugo-archive.sh"
-
-    - name: Upload build artifact
-      if: ${{ inputs.publish-artifact == 'true' && inputs.archive-format == 'none' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
-      uses: actions/upload-artifact@v7
-      with:
-        name: ${{ inputs.artifact-name }}
-        path: ${{ inputs.source-dir }}/${{ inputs.public-dir }}
-        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
-        retention-days: ${{ inputs.artifact-retention-days }}
 
     - name: Upload ZIP archive
       if: ${{ inputs.publish-artifact == 'true' && (inputs.archive-format == 'zip' || inputs.archive-format == 'both') && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
