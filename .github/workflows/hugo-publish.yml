@@ -304,24 +304,31 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-
           shopt -s nullglob
-          zip_files=(./_published/*.zip)
-          tar_files=(./_published/*.tar.gz)
 
-          if (( ${#zip_files[@]} > 0 || ${#tar_files[@]} > 0 )); then
-            echo "[INFO] Archive(s) found; releasing archives only."
+          tar_files=(./_published/*.tar.gz)
+          zip_files=(./_published/*.zip)
+
+          if (( ${#tar_files[@]} > 0 )); then
+            echo "[INFO] tar.gz archive(s) found; releasing tar.gz only."
             {
-              for f in "${zip_files[@]}"; do
-                echo "$f"
-              done
               for f in "${tar_files[@]}"; do
                 echo "$f"
               done
             } > /tmp/release-assets.txt
+
+          elif (( ${#zip_files[@]} > 0 )); then
+            echo "[INFO] zip archive(s) found; releasing zip only."
+            {
+              for f in "${zip_files[@]}"; do
+                echo "$f"
+              done
+            } > /tmp/release-assets.txt
+
           else
-            echo "[INFO] No archives found; releasing raw published contents only."
-            echo "./_published/**" > /tmp/release-assets.txt
+            echo "[INFO] No archives found; creating fallback tar.gz from raw published contents."
+            (cd ./_published && tar -czf "site.tar.gz" .)
+            echo "./_published/site.tar.gz" > /tmp/release-assets.txt
           fi
 
           {
