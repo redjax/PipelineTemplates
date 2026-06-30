@@ -299,13 +299,42 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
 
+      - name: Select release assets
+        id: assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          shopt -s nullglob
+          zip_files=(./_published/*.zip)
+          tar_files=(./_published/*.tar.gz)
+
+          if (( ${#zip_files[@]} > 0 || ${#tar_files[@]} > 0 )); then
+            echo "[INFO] Archive(s) found; releasing archives only."
+            {
+              for f in "${zip_files[@]}"; do
+                echo "$f"
+              done
+              for f in "${tar_files[@]}"; do
+                echo "$f"
+              done
+            } > /tmp/release-assets.txt
+          else
+            echo "[INFO] No archives found; releasing raw published contents only."
+            echo "./_published/**" > /tmp/release-assets.txt
+          fi
+
+          {
+            echo 'files<<EOF'
+            cat /tmp/release-assets.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           name: ${{ steps.rel.outputs.name }}
-          files: |
-            ./_published/site.zip
-            ./_published/site.tar.gz
+          files: ${{ steps.assets.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
