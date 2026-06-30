@@ -7,6 +7,7 @@
 #   - A branch in the git repository                                           #
 #   - GitHub Pages                                                             #
 #   - Cloudflare Pages                                                         #
+#   - GitHub Release                                                           #
 #                                                                              #
 # Usage:                                                                       #
 #   jobs:                                                                      #
@@ -34,14 +35,15 @@ on:
   workflow_call:
     inputs:
       target:
-        description: "Publish target: branch, github-pages, or cloudflare-pages."
+        description: "Publish target: branch, github-pages, cloudflare-pages, or github-release."
         required: true
         type: string
 
       run-id:
-        description: "Build workflow run ID to download the artifact from."
-        required: true
+        description: "Build workflow run ID to download the artifact from. Leave blank for later release-based flows."
+        required: false
         type: string
+        default: ""
 
       artifact-name:
         description: "Name of the build artifact to download."
@@ -78,6 +80,24 @@ on:
         required: false
         type: string
         default: "public"
+
+      release-name:
+        description: "GitHub release name."
+        required: false
+        type: string
+        default: ""
+
+      release-version:
+        description: "Optional version string used to build a tag and archive names."
+        required: false
+        type: string
+        default: ""
+
+      release-tag:
+        description: "Optional explicit Git tag to use for the GitHub release."
+        required: false
+        type: string
+        default: ""
 
       dry-run:
         description: "If true, do not push/deploy."
@@ -235,3 +255,86 @@ jobs:
           npx wrangler pages deploy "./_published" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
+
+  github-release:
+    if: ${{ inputs.target == 'github-release' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Prepare release metadata
+        id: rel
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+          RELEASE_NAME: ${{ inputs.release-name }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -n "${RELEASE_TAG}" ]]; then
+            TAG="${RELEASE_TAG}"
+          elif [[ -n "${RELEASE_VERSION}" ]]; then
+            TAG="site-v${RELEASE_VERSION}"
+          else
+            TAG="site"
+          fi
+
+          if [[ -n "${RELEASE_NAME}" ]]; then
+            NAME="${RELEASE_NAME}"
+          elif [[ -n "${RELEASE_VERSION}" ]]; then
+            NAME="Site v${RELEASE_VERSION}"
+          else
+            NAME="site"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Select release assets
+        id: assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+
+          tar_files=(./_published/*.tar.gz)
+          zip_files=(./_published/*.zip)
+
+          if (( ${#tar_files[@]} > 0 )); then
+            echo "[INFO] tar.gz archive(s) found; releasing tar.gz only."
+            printf '%s\n' "${tar_files[@]}" > /tmp/release-assets.txt
+
+          elif (( ${#zip_files[@]} > 0 )); then
+            echo "[INFO] zip archive(s) found; releasing zip only."
+            printf '%s\n' "${zip_files[@]}" > /tmp/release-assets.txt
+
+          else
+            echo "[INFO] No archives found; creating fallback tar.gz from raw published contents."
+            mkdir -p ./_release
+            tar -C ./_published -czf ./_release/site.tar.gz .
+            echo "./_release/site.tar.gz" > /tmp/release-assets.txt
+          fi
+
+          {
+            echo 'files<<EOF'
+            cat /tmp/release-assets.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          files: ${{ steps.assets.outputs.files }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
