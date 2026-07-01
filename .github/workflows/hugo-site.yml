@@ -213,57 +213,52 @@ jobs:
           set -Eeuo pipefail
 
           version=""
+          release_name=""
+          release_tag=""
           should_release="false"
           should_pages="false"
           publish_target="${DEPLOY_TARGET}"
 
-          if [[ "${VERSIONING_MODE}" == "none" ]]; then
-            should_release="false"
-            should_pages="true"
-            release_name=""
-            release_tag=""
-          elif [[ "${VERSIONING_MODE}" == "manual" ]]; then
-            if [[ -n "${MANUAL_VERSION}" ]]; then
-              version="${MANUAL_VERSION#v}"
-              version="${version#hugo/}"
-              should_release="${CREATE_RELEASE}"
-              should_pages="${DEPLOY_PAGES}"
-              release_tag="${RELEASE_PREFIX}-v${version}"
-              release_name="${RELEASE_PREFIX}-v${version}"
-            else
+          case "${VERSIONING_MODE}" in
+            none)
               should_release="false"
-              should_pages="${DEPLOY_PAGES}"
-              release_tag=""
-              release_name=""
-            fi
-          else
-            if [[ -f "${VERSION_FILE}" ]]; then
-              version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
-              version="${version#v}"
-              version="${version#hugo/}"
-              should_release="${CREATE_RELEASE}"
-              should_pages="${DEPLOY_PAGES}"
-              release_tag="${RELEASE_PREFIX}-v${version}"
-              release_name="${RELEASE_PREFIX}-v${version}"
-            else
-              should_release="false"
-              should_pages="true"
-              version=""
-              release_tag=""
-              release_name=""
-            fi
-          fi
+              should_pages="false"
+              ;;
 
-          if [[ -n "${MANUAL_VERSION}" && "${VERSIONING_MODE}" == "manual" ]]; then
-            :
-          fi
+            manual)
+              if [[ -n "${MANUAL_VERSION}" ]]; then
+                version="${MANUAL_VERSION#v}"
+                version="${version#hugo/}"
+                release_tag="${RELEASE_PREFIX}-v${version}"
+                release_name="${RELEASE_PREFIX}-v${version}"
+                should_release="${CREATE_RELEASE}"
+                should_pages="${DEPLOY_PAGES}"
+              else
+                should_release="false"
+                should_pages="false"
+              fi
+              ;;
 
-          if [[ -z "${release_tag:-}" ]]; then
-            release_tag=""
-          fi
-          if [[ -z "${release_name:-}" ]]; then
-            release_name=""
-          fi
+            auto)
+              if [[ -f "${VERSION_FILE}" ]]; then
+                version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+                version="${version#v}"
+                version="${version#hugo/}"
+                release_tag="${RELEASE_PREFIX}-v${version}"
+                release_name="${RELEASE_PREFIX}-v${version}"
+                should_release="${CREATE_RELEASE}"
+                should_pages="${DEPLOY_PAGES}"
+              else
+                should_release="false"
+                should_pages="true"
+              fi
+              ;;
+
+            *)
+              echo "::error::Invalid versioning-mode: ${VERSIONING_MODE}"
+              exit 1
+              ;;
+          esac
 
           {
             echo "release-version=${version}"
@@ -310,7 +305,7 @@ jobs:
 
   publish:
     needs: [meta, build]
-    if: ${{ always() && needs.build.result == 'success' && (needs.meta.outputs.should-release == 'true' || needs.meta.outputs.should-deploy-pages == 'true' || inputs.deploy-target == 'branch') }}
+    if: ${{ needs.build.result == 'success' && (inputs.deploy-target == 'branch' || needs.meta.outputs.should-release == 'true' || needs.meta.outputs.should-deploy-pages == 'true') }}
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: ${{ inputs.deploy-target }}
