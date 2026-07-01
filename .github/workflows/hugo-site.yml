@@ -1,0 +1,327 @@
+---
+#######################################################################
+# Hugo site consolidated pipeline.                                    #
+#                                                                     #
+# This pipeline handles building and releasing/deploying a website    #
+# built with Hugo.                                                    #
+#                                                                     #
+# The calling repository defines the tasks this pipeline should       #
+# run using inputs.                                                   #
+#                                                                     #
+# It can detect a versioned repository and handle bumping the version #
+# and creating a git tag/release, as well as publishing the site to   #
+# Github Pages and Cloudflare Pages.                                  #
+#######################################################################
+
+name: Hugo site
+
+on:
+  workflow_call:
+    inputs:
+      source-dir:
+        description: "Path to the Hugo project root."
+        required: false
+        type: string
+        default: "."
+
+      public-dir:
+        description: "Hugo output directory."
+        required: false
+        type: string
+        default: "public"
+
+      build-flags:
+        description: "Extra flags passed to hugo."
+        required: false
+        type: string
+        default: "--gc --minify --enableGitInfo"
+
+      hugo-version:
+        description: "Hugo version to install."
+        required: false
+        type: string
+        default: "0.161.1"
+
+      extended:
+        description: "Use extended Hugo build."
+        required: false
+        type: boolean
+        default: true
+
+      use-cache:
+        description: "Enable Hugo-related cache."
+        required: false
+        type: boolean
+        default: true
+
+      artifact-name:
+        description: "Name of the raw build artifact."
+        required: false
+        type: string
+        default: "hugo-site"
+
+      archive-name:
+        description: "Base archive name."
+        required: false
+        type: string
+        default: "site"
+
+      archive-output-dir:
+        description: "Directory for archive files."
+        required: false
+        type: string
+        default: "dist"
+
+      archive-format:
+        description: "none, zip, tar.gz, or both."
+        required: false
+        type: string
+        default: "both"
+
+      check-changed:
+        description: "Skip build if nothing relevant changed."
+        required: false
+        type: boolean
+        default: false
+
+      changed-paths-mode:
+        description: "default, replace, or append."
+        required: false
+        type: string
+        default: "default"
+
+      changed-paths:
+        description: "Optional newline-delimited paths."
+        required: false
+        type: string
+        default: ""
+
+      deploy-target:
+        description: "branch, github-pages, cloudflare-pages, or github-release."
+        required: true
+        type: string
+
+      versioning-mode:
+        description: "none, auto, or manual."
+        required: false
+        type: string
+        default: "none"
+
+      version-file:
+        description: "Path to version file."
+        required: false
+        type: string
+        default: ".version"
+
+      bumpversion-file:
+        description: "Path to bumpversion file."
+        required: false
+        type: string
+        default: ".bumpversion.toml"
+
+      manual-version:
+        description: "Explicit version passed for manual release runs."
+        required: false
+        type: string
+        default: ""
+
+      create-release:
+        description: "Create a GitHub release when versioning is enabled."
+        required: false
+        type: boolean
+        default: true
+
+      deploy-pages:
+        description: "Deploy to Pages when applicable."
+        required: false
+        type: boolean
+        default: true
+
+      branch-name:
+        description: "Target branch for branch deploys."
+        required: false
+        type: string
+        default: "gh-pages"
+
+      commit-message:
+        description: "Commit message for branch deploys."
+        required: false
+        type: string
+        default: "Deploy Hugo site"
+
+      cloudflare-pages-project:
+        description: "Cloudflare Pages project name."
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        description: "Cloudflare production branch."
+        required: false
+        type: string
+        default: "main"
+
+      base-url:
+        description: "Optional Hugo base URL override."
+        required: false
+        type: string
+        default: ""
+
+      release-prefix:
+        description: "Prefix for release names and tags."
+        required: false
+        type: string
+        default: "site"
+
+    secrets:
+      cloudflare-api-token:
+        required: false
+      cloudflare-account-id:
+        required: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  actions: read
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      release-version: ${{ steps.out.outputs.release-version }}
+      release-name: ${{ steps.out.outputs.release-name }}
+      release-tag: ${{ steps.out.outputs.release-tag }}
+      should-release: ${{ steps.out.outputs.should-release }}
+      should-deploy-pages: ${{ steps.out.outputs.should-deploy-pages }}
+      publish-target: ${{ steps.out.outputs.publish-target }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve release metadata
+        id: out
+        shell: bash
+        env:
+          VERSIONING_MODE: ${{ inputs.versioning-mode }}
+          VERSION_FILE: ${{ inputs.version-file }}
+          MANUAL_VERSION: ${{ inputs.manual-version }}
+          RELEASE_PREFIX: ${{ inputs.release-prefix }}
+          DEPLOY_TARGET: ${{ inputs.deploy-target }}
+          CREATE_RELEASE: ${{ inputs.create-release }}
+          DEPLOY_PAGES: ${{ inputs.deploy-pages }}
+        run: |
+          set -Eeuo pipefail
+
+          version=""
+          should_release="false"
+          should_pages="false"
+          publish_target="${DEPLOY_TARGET}"
+
+          if [[ "${VERSIONING_MODE}" == "none" ]]; then
+            should_release="false"
+            should_pages="true"
+            release_name=""
+            release_tag=""
+          elif [[ "${VERSIONING_MODE}" == "manual" ]]; then
+            if [[ -n "${MANUAL_VERSION}" ]]; then
+              version="${MANUAL_VERSION#v}"
+              version="${version#hugo/}"
+              should_release="${CREATE_RELEASE}"
+              should_pages="${DEPLOY_PAGES}"
+              release_tag="${RELEASE_PREFIX}-v${version}"
+              release_name="${RELEASE_PREFIX}-v${version}"
+            else
+              should_release="false"
+              should_pages="${DEPLOY_PAGES}"
+              release_tag=""
+              release_name=""
+            fi
+          else
+            if [[ -f "${VERSION_FILE}" ]]; then
+              version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+              version="${version#v}"
+              version="${version#hugo/}"
+              should_release="${CREATE_RELEASE}"
+              should_pages="${DEPLOY_PAGES}"
+              release_tag="${RELEASE_PREFIX}-v${version}"
+              release_name="${RELEASE_PREFIX}-v${version}"
+            else
+              should_release="false"
+              should_pages="true"
+              version=""
+              release_tag=""
+              release_name=""
+            fi
+          fi
+
+          if [[ -n "${MANUAL_VERSION}" && "${VERSIONING_MODE}" == "manual" ]]; then
+            :
+          fi
+
+          if [[ -z "${release_tag:-}" ]]; then
+            release_tag=""
+          fi
+          if [[ -z "${release_name:-}" ]]; then
+            release_name=""
+          fi
+
+          {
+            echo "release-version=${version}"
+            echo "release-name=${release_name}"
+            echo "release-tag=${release_tag}"
+            echo "should-release=${should_release}"
+            echo "should-deploy-pages=${should_pages}"
+            echo "publish-target=${publish_target}"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: meta
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build site
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@main
+        with:
+          hugo-version: ${{ inputs.hugo-version }}
+          extended: ${{ inputs.extended }}
+          source-dir: ${{ inputs.source-dir }}
+          public-dir: ${{ inputs.public-dir }}
+          base-url: ${{ inputs.base-url }}
+          build-flags: ${{ inputs.build-flags }}
+          use-cache: ${{ inputs.use-cache }}
+          cache-key-suffix: ${{ github.repository }}
+          check-changed: ${{ inputs.check-changed }}
+          changed-paths-mode: ${{ inputs.changed-paths-mode }}
+          changed-paths: ${{ inputs.changed-paths }}
+          publish-artifact: "true"
+          artifact-name: ${{ inputs.artifact-name }}
+          archive-name: ${{ inputs.archive-name }}
+          archive-output-dir: ${{ inputs.archive-output-dir }}
+          archive-format: ${{ inputs.archive-format }}
+
+      - name: Export artifact name
+        id: meta
+        shell: bash
+        run: |
+          echo "artifact-name=${{ inputs.artifact-name }}" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: [meta, build]
+    if: ${{ always() && needs.build.result == 'success' && (needs.meta.outputs.should-release == 'true' || needs.meta.outputs.should-deploy-pages == 'true' || inputs.deploy-target == 'branch') }}
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: ${{ inputs.deploy-target }}
+      run-id: ${{ github.run_id }}
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      branch-name: ${{ inputs.branch-name }}
+      commit-message: ${{ inputs.commit-message }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      release-name: ${{ needs.meta.outputs.release-name }}
+      release-version: ${{ needs.meta.outputs.release-version }}
+      release-tag: ${{ needs.meta.outputs.release-tag }}
+      dry-run: false
+    secrets: inherit
