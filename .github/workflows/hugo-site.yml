@@ -161,18 +161,6 @@ on:
         type: string
         default: "public"
 
-      cloudflare-api-token-secret-name:
-        description: "Name of the secret containing the Cloudflare API token."
-        required: false
-        type: string
-        default: ""
-
-      cloudflare-account-id-secret-name:
-        description: "Name of the secret containing the Cloudflare account ID."
-        required: false
-        type: string
-        default: ""
-
       base-url:
         description: "Optional Hugo base URL override."
         required: false
@@ -324,8 +312,6 @@ jobs:
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       cloudflare-pages-directory: ${{ inputs.cloudflare-pages-directory }}
-      cloudflare-api-token-secret-name: ${{ inputs.cloudflare-api-token-secret-name }}
-      cloudflare-account-id-secret-name: ${{ inputs.cloudflare-account-id-secret-name }}
       release-name: ${{ needs.meta.outputs.release-name }}
       release-version: ${{ needs.meta.outputs.release-version }}
       release-tag: ${{ needs.meta.outputs.release-tag }}
