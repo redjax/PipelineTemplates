@@ -8,25 +8,6 @@
 #   - GitHub Pages                                                             #
 #   - Cloudflare Pages                                                         #
 #   - GitHub Release                                                           #
-#                                                                              #
-# Usage:                                                                       #
-#   jobs:                                                                      #
-#     publish:                                                                 #
-#       uses: redjax/pipelinetemplates/.github/workflows/hugo-publish.yml@main #
-#       with:                                                                  #
-#         target: github-pages                                                 #
-#         artifact-name: hugo-site                                             #
-#                                                                              #
-# Notes:                                                                       #
-#   - This workflow expects the Hugo build output to                           #
-#     have already been uploaded as a workflow artifact                        #
-#     by a previous job or workflow step.                                      #
-#   - For branch publishing, the target branch will be                         #
-#     force-updated with the contents of the artifact.                         #
-#   - For GitHub Pages, this workflow uses the official                        #
-#     Pages artifact & deploy flow.                                            #
-#   - For Cloudflare Pages, this workflow deploys via                          #
-#     Wrangler direct upload.                                                  #
 ################################################################################
 
 name: Hugo Publish Site
