@@ -232,6 +232,21 @@ jobs:
         shell: bash
         run: npm install --save-dev wrangler@latest
 
+      - name: Detect deploy directory
+        if: ${{ !inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
+        id: detect
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -d "./_published/${{ inputs.cloudflare-pages-directory }}" ]]; then
+            echo "deploy-dir=./_published/${{ inputs.cloudflare-pages-directory }}" >> "$GITHUB_OUTPUT"
+          elif [[ -d "./_published" ]]; then
+            echo "deploy-dir=./_published" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No deploy directory found in artifact"
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Pages
         if: ${{ !inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
         shell: bash
@@ -240,19 +255,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
-          CF_PAGES_DIRECTORY: ${{ inputs.cloudflare-pages-directory }}
+          DEPLOY_DIR: ${{ steps.detect.outputs.deploy-dir }}
         run: |
           set -Eeuo pipefail
           : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
           : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
 
-          if ! npx wrangler pages deploy "./_published/${CF_PAGES_DIRECTORY}" \
+          if ! npx wrangler pages deploy "${DEPLOY_DIR}" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"; then
             echo "[INFO] Initial deploy failed; attempting one-time project creation."
             npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
-            npx wrangler pages deploy "./_published/${CF_PAGES_DIRECTORY}" \
+            npx wrangler pages deploy "${DEPLOY_DIR}" \
               --project-name "${CF_PAGES_PROJECT}" \
               --branch "${CF_PAGES_BRANCH}"
           fi
