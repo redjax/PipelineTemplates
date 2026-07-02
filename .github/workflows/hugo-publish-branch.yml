@@ -1,0 +1,95 @@
+---
+########################################################
+# Publish a Hugo site to a branch in a git repository. #
+#                                                      #
+# This is useful for external systems that can watch   #
+# a branch to redeploy the site, i.e. Github Pages.    #
+########################################################
+
+name: Hugo Publish Branch
+
+on:
+  workflow_call:
+    inputs:
+      run-id:
+        description: "Build workflow run ID to download the artifact from."
+        required: true
+        type: string
+
+      artifact-name:
+        description: "Name of the build artifact to download."
+        required: false
+        type: string
+        default: "hugo-site"
+
+      branch-name:
+        description: "Target branch for branch deploys."
+        required: false
+        type: string
+        default: "gh-pages"
+
+      commit-message:
+        description: "Commit message for branch deploys."
+        required: false
+        type: string
+        default: "Deploy Hugo site"
+
+      dry-run:
+        description: "If true, do not push."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Publish to branch
+        shell: bash
+        working-directory: ./_published
+        env:
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          DRY_RUN: ${{ inputs.dry-run }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${DRY_RUN}" == "true" ]]; then
+            echo "[INFO] Dry run enabled; skipping branch publish."
+            exit 0
+          fi
+
+          git init
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch origin "${BRANCH_NAME}" || true
+          git checkout -B "${BRANCH_NAME}"
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "[INFO] No changes to publish."
+            exit 0
+          fi
+
+          git commit -m "${COMMIT_MESSAGE}"
+          git push origin "${BRANCH_NAME}" --force

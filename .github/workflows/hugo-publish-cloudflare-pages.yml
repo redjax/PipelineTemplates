@@ -13,28 +13,40 @@ on:
   workflow_call:
     inputs:
       run-id:
+        description: "Build workflow run ID to download the artifact from."
         required: true
         type: string
+
       artifact-name:
+        description: "Name of the build artifact to download."
         required: false
         type: string
-        default: hugo-site
+        default: "hugo-site"
+
       cloudflare-pages-project:
+        description: "Cloudflare Pages project name."
         required: false
         type: string
         default: ""
+
       cloudflare-pages-branch:
+        description: "Branch name reported to Cloudflare Pages."
         required: false
         type: string
-        default: main
+        default: "main"
+
       cloudflare-pages-directory:
+        description: "Directory to deploy to Cloudflare Pages."
         required: false
         type: string
-        default: public
+        default: "public"
+
       dry-run:
+        description: "If true, do not deploy."
         required: false
         type: boolean
         default: false
+
     secrets:
       CLOUDFLARE_API_TOKEN:
         required: false

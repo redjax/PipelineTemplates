@@ -9,13 +9,18 @@ on:
   workflow_call:
     inputs:
       run-id:
+        description: "Build workflow run ID to download the artifact from."
         required: true
         type: string
+
       artifact-name:
+        description: "Name of the build artifact to download."
         required: false
         type: string
-        default: hugo-site
+        default: "hugo-site"
+
       dry-run:
+        description: "If true, do not deploy."
         required: false
         type: boolean
         default: false
@@ -46,10 +51,12 @@ jobs:
         uses: actions/configure-pages@v6
 
       - name: Upload GitHub Pages artifact
+        if: ${{ !inputs.dry-run }}
         uses: actions/upload-pages-artifact@v5
         with:
           path: ./_published
 
       - name: Deploy to GitHub Pages
+        if: ${{ !inputs.dry-run }}
         id: deployment
         uses: actions/deploy-pages@v5

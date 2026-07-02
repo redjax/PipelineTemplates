@@ -9,25 +9,36 @@ on:
   workflow_call:
     inputs:
       run-id:
+        description: "Build workflow run ID to download the artifact from."
         required: true
         type: string
+
       artifact-name:
+        description: "Name of the build artifact to download."
         required: false
         type: string
-        default: hugo-site
+        default: "hugo-site"
+
       release-name:
+        description: "GitHub release name."
         required: false
         type: string
         default: ""
+
       release-version:
+        description: "Optional version string used to build a tag and archive names."
         required: false
         type: string
         default: ""
+
       release-tag:
+        description: "Optional explicit Git tag to use for the GitHub release."
         required: false
         type: string
         default: ""
+
       dry-run:
+        description: "If true, do not create release."
         required: false
         type: boolean
         default: false
@@ -84,6 +95,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
+
           tar_files=(./_published/*.tar.gz)
           zip_files=(./_published/*.zip)
 
@@ -104,6 +116,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
+        if: ${{ !inputs.dry-run }}
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
