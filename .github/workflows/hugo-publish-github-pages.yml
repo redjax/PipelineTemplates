@@ -29,7 +29,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
-  actions: read
+  actions: write
 
 jobs:
   publish:
@@ -49,6 +49,20 @@ jobs:
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v6
+
+      - name: Remove stale Pages artifacts
+        if: ${{ !inputs.dry-run }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          ids="$(gh api \
+            repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts \
+            --jq '.artifacts[] | select(.name=="github-pages") | .id' || true)"
+          for id in ${ids:-}; do
+            gh api -X DELETE repos/${GITHUB_REPOSITORY}/actions/artifacts/"$id" || true
+          done
 
       - name: Upload GitHub Pages artifact
         if: ${{ !inputs.dry-run }}
