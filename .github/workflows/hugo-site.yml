@@ -113,12 +113,6 @@ on:
         type: string
         default: ".version"
 
-      bumpversion-file:
-        description: "Path to bumpversion file."
-        required: false
-        type: string
-        default: ".bumpversion.toml"
-
       manual-version:
         description: "Explicit version passed for manual release runs."
         required: false
@@ -161,6 +155,12 @@ on:
         type: string
         default: "main"
 
+      cloudflare-pages-directory:
+        description: "Directory to deploy to Cloudflare Pages."
+        required: false
+        type: string
+        default: "public"
+
       base-url:
         description: "Optional Hugo base URL override."
         required: false
@@ -194,7 +194,6 @@ jobs:
       release-tag: ${{ steps.out.outputs.release-tag }}
       should-release: ${{ steps.out.outputs.should-release }}
       should-deploy-pages: ${{ steps.out.outputs.should-deploy-pages }}
-      publish-target: ${{ steps.out.outputs.publish-target }}
     steps:
       - uses: actions/checkout@v7
 
@@ -206,9 +205,9 @@ jobs:
           VERSION_FILE: ${{ inputs.version-file }}
           MANUAL_VERSION: ${{ inputs.manual-version }}
           RELEASE_PREFIX: ${{ inputs.release-prefix }}
-          DEPLOY_TARGET: ${{ inputs.deploy-target }}
           CREATE_RELEASE: ${{ inputs.create-release }}
           DEPLOY_PAGES: ${{ inputs.deploy-pages }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
 
@@ -217,12 +216,11 @@ jobs:
           release_tag=""
           should_release="false"
           should_pages="false"
-          publish_target="${DEPLOY_TARGET}"
 
           case "${VERSIONING_MODE}" in
             none)
               should_release="false"
-              should_pages="false"
+              should_pages="true"
               ;;
 
             manual)
@@ -234,7 +232,10 @@ jobs:
                 should_release="${CREATE_RELEASE}"
                 should_pages="${DEPLOY_PAGES}"
               else
-                should_release="false"
+                version="${GITHUB_SHA::7}"
+                release_tag="${RELEASE_PREFIX}-${version}"
+                release_name="${RELEASE_PREFIX}-${version}"
+                should_release="${CREATE_RELEASE}"
                 should_pages="false"
               fi
               ;;
@@ -266,7 +267,6 @@ jobs:
             echo "release-tag=${release_tag}"
             echo "should-release=${should_release}"
             echo "should-deploy-pages=${should_pages}"
-            echo "publish-target=${publish_target}"
           } >> "$GITHUB_OUTPUT"
 
   build:
@@ -315,6 +315,7 @@ jobs:
       commit-message: ${{ inputs.commit-message }}
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      cloudflare-pages-directory: ${{ inputs.cloudflare-pages-directory }}
       release-name: ${{ needs.meta.outputs.release-name }}
       release-version: ${{ needs.meta.outputs.release-version }}
       release-tag: ${{ needs.meta.outputs.release-tag }}
