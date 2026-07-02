@@ -290,23 +290,50 @@ jobs:
           archive-output-dir: ${{ inputs.archive-output-dir }}
           archive-format: ${{ inputs.archive-format }}
 
-  publish:
+  publish-branch:
     needs: [meta, build]
-    if: ${{ needs.build.result == 'success' }}
-    uses: ./.github/workflows/hugo-publish.yml
+    if: ${{ needs.build.result == 'success' && inputs.deploy-target == 'branch' }}
+    uses: ./.github/workflows/hugo-publish-branch.yml
     with:
-      target: ${{ inputs.deploy-target }}
       run-id: ${{ github.run_id }}
       artifact-name: ${{ needs.build.outputs.artifact-name }}
       branch-name: ${{ inputs.branch-name }}
       commit-message: ${{ inputs.commit-message }}
+      dry-run: false
+    secrets: inherit
+
+  publish-github-pages:
+    needs: [meta, build]
+    if: ${{ needs.build.result == 'success' && inputs.deploy-target == 'github-pages' }}
+    uses: ./.github/workflows/hugo-publish-github-pages.yml
+    with:
+      run-id: ${{ github.run_id }}
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      dry-run: false
+    secrets: inherit
+
+  publish-cloudflare-pages:
+    needs: [meta, build]
+    if: ${{ needs.build.result == 'success' && inputs.deploy-target == 'cloudflare-pages' }}
+    uses: ./.github/workflows/hugo-publish-cloudflare-pages.yml
+    with:
+      run-id: ${{ github.run_id }}
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       cloudflare-pages-directory: ${{ inputs.cloudflare-pages-directory }}
+      dry-run: false
+    secrets: inherit
+
+  publish-github-release:
+    needs: [meta, build]
+    if: ${{ needs.build.result == 'success' && inputs.deploy-target == 'github-release' }}
+    uses: ./.github/workflows/hugo-publish-github-release.yml
+    with:
+      run-id: ${{ github.run_id }}
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
       release-name: ${{ needs.meta.outputs.release-name }}
       release-version: ${{ needs.meta.outputs.release-version }}
       release-tag: ${{ needs.meta.outputs.release-tag }}
       dry-run: false
-    secrets:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    secrets: inherit

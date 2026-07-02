@@ -1,0 +1,113 @@
+---
+##########################################################
+# Publish a Hugo site's static files to a Github release #
+##########################################################
+
+name: Hugo Publish GitHub Release
+
+on:
+  workflow_call:
+    inputs:
+      run-id:
+        required: true
+        type: string
+      artifact-name:
+        required: false
+        type: string
+        default: hugo-site
+      release-name:
+        required: false
+        type: string
+        default: ""
+      release-version:
+        required: false
+        type: string
+        default: ""
+      release-tag:
+        required: false
+        type: string
+        default: ""
+      dry-run:
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Prepare release metadata
+        id: rel
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+          RELEASE_NAME: ${{ inputs.release-name }}
+          RELEASE_TAG: ${{ inputs.release-tag }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -n "${RELEASE_TAG}" ]]; then
+            TAG="${RELEASE_TAG}"
+          elif [[ -n "${RELEASE_VERSION}" ]]; then
+            TAG="site-v${RELEASE_VERSION}"
+          else
+            TAG="site-${GITHUB_SHA::7}"
+          fi
+
+          if [[ -n "${RELEASE_NAME}" ]]; then
+            NAME="${RELEASE_NAME}"
+          elif [[ -n "${RELEASE_VERSION}" ]]; then
+            NAME="Site v${RELEASE_VERSION}"
+          else
+            NAME="site-${GITHUB_SHA::7}"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Select release assets
+        id: assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          tar_files=(./_published/*.tar.gz)
+          zip_files=(./_published/*.zip)
+
+          if (( ${#tar_files[@]} > 0 )); then
+            printf '%s\n' "${tar_files[@]}" > /tmp/release-assets.txt
+          elif (( ${#zip_files[@]} > 0 )); then
+            printf '%s\n' "${zip_files[@]}" > /tmp/release-assets.txt
+          else
+            mkdir -p ./_release
+            tar -C ./_published -czf ./_release/site.tar.gz .
+            echo "./_release/site.tar.gz" > /tmp/release-assets.txt
+          fi
+
+          {
+            echo 'files<<EOF'
+            cat /tmp/release-assets.txt
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.name }}
+          files: ${{ steps.assets.outputs.files }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
