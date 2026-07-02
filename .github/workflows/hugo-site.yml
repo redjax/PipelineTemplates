@@ -161,6 +161,18 @@ on:
         type: string
         default: "public"
 
+      cloudflare-api-token-secret-name:
+        description: "Name of the secret containing the Cloudflare API token."
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-account-id-secret-name:
+        description: "Name of the secret containing the Cloudflare account ID."
+        required: false
+        type: string
+        default: ""
+
       base-url:
         description: "Optional Hugo base URL override."
         required: false
@@ -174,9 +186,9 @@ on:
         default: "site"
 
     secrets:
-      cloudflare-api-token:
+      CLOUDFLARE_API_TOKEN:
         required: false
-      cloudflare-account-id:
+      CLOUDFLARE_ACCOUNT_ID:
         required: false
 
 permissions:
@@ -210,7 +222,6 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
-
           version=""
           release_name=""
           release_tag=""
@@ -222,7 +233,6 @@ jobs:
               should_release="false"
               should_pages="true"
               ;;
-
             manual)
               if [[ -n "${MANUAL_VERSION}" ]]; then
                 version="${MANUAL_VERSION#v}"
@@ -239,7 +249,6 @@ jobs:
                 should_pages="false"
               fi
               ;;
-
             auto)
               if [[ -f "${VERSION_FILE}" ]]; then
                 version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
@@ -254,7 +263,6 @@ jobs:
                 should_pages="true"
               fi
               ;;
-
             *)
               echo "::error::Invalid versioning-mode: ${VERSIONING_MODE}"
               exit 1
@@ -316,6 +324,8 @@ jobs:
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       cloudflare-pages-directory: ${{ inputs.cloudflare-pages-directory }}
+      cloudflare-api-token-secret-name: ${{ inputs.cloudflare-api-token-secret-name }}
+      cloudflare-account-id-secret-name: ${{ inputs.cloudflare-account-id-secret-name }}
       release-name: ${{ needs.meta.outputs.release-name }}
       release-version: ${{ needs.meta.outputs.release-version }}
       release-tag: ${{ needs.meta.outputs.release-tag }}
