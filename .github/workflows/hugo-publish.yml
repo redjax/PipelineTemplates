@@ -1,4 +1,7 @@
 ---
+# !!! This file is deprecated, but still in use in some repositories. !!!
+# !!! It will be removed eventually.                                  !!!
+
 ################################################################################
 # Reusable workflow to publish a Hugo site.                                    #
 #                                                                              #
