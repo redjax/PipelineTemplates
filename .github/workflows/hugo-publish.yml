@@ -196,8 +196,6 @@ jobs:
   cloudflare-pages:
     if: ${{ inputs.target == 'cloudflare-pages' }}
     runs-on: ubuntu-latest
-    outputs:
-      enabled: ${{ steps.preflight.outputs.enabled }}
     steps:
       - name: Preflight Cloudflare secrets
         id: preflight
@@ -213,10 +211,6 @@ jobs:
             echo "[INFO] Cloudflare secrets missing; skipping Cloudflare Pages publish."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Cloudflare Pages dry-run notice
-        if: ${{ inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
-        run: echo "[DRY RUN] Would run Cloudflare Pages deploy jobs."
 
       - name: Download build artifact
         if: ${{ !inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
@@ -238,21 +232,6 @@ jobs:
         shell: bash
         run: npm install --save-dev wrangler@latest
 
-      - name: Ensure Cloudflare Pages project exists
-        if: ${{ !inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
-          CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
-        run: |
-          set -Eeuo pipefail
-          : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
-          : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
-          : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
-          npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
-
       - name: Deploy to Cloudflare Pages
         if: ${{ !inputs.dry-run && steps.preflight.outputs.enabled == 'true' }}
         shell: bash
@@ -267,9 +246,16 @@ jobs:
           : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
           : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
-          npx wrangler pages deploy "./_published/${CF_PAGES_DIRECTORY}" \
+
+          if ! npx wrangler pages deploy "./_published/${CF_PAGES_DIRECTORY}" \
             --project-name "${CF_PAGES_PROJECT}" \
-            --branch "${CF_PAGES_BRANCH}"
+            --branch "${CF_PAGES_BRANCH}"; then
+            echo "[INFO] Initial deploy failed; attempting one-time project creation."
+            npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
+            npx wrangler pages deploy "./_published/${CF_PAGES_DIRECTORY}" \
+              --project-name "${CF_PAGES_PROJECT}" \
+              --branch "${CF_PAGES_BRANCH}"
+          fi
 
   github-release:
     if: ${{ inputs.target == 'github-release' }}
