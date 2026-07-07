@@ -1,6 +1,6 @@
 ---
 ######################################################################################
-# Create Hugo Site Release                                                           #
+# Create Hugo Site Github Release                                                    #
 #                                                                                    #
 # Creates a tag and release with the static site files archived in .tar.gz & .zip.   #
 #                                                                                    #
