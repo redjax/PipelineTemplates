@@ -64,6 +64,15 @@ on:
         type: string
         default: ""
 
+      ## Required to accurately find pipeline artifacts from a given run-id.
+      #  In the calling repository, pass like:
+      #    build-repo: ${{ github.repository }}
+      build-repo:
+        description: "Repository that produced the build artifact."
+        required: false
+        type: string
+        default: ""
+
       create-github-release:
         description: "Create a GitHub Release."
         required: false
@@ -131,29 +140,22 @@ jobs:
           fetch-depth: 0
 
       - name: Download build artifact from triggering run
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id != '' }}
+        if: ${{ inputs.build-run-id != '' && github.event_name == 'workflow_run' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
           path: ./_published
+          repository: ${{ inputs.build-repo || github.repository }}
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Download build artifact from explicit run id
-        if: ${{ github.event_name != 'workflow_run' && inputs.build-run-id != '' }}
+        if: ${{ inputs.build-run-id != '' && github.event_name != 'workflow_run' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
           path: ./_published
-          run-id: ${{ inputs.build-run-id }}
-          github-token: ${{ secrets.release-bot-pat || github.token }}
-
-      - name: Download build artifact from explicit run id
-        if: ${{ github.event_name != 'workflow_run' && inputs.build-run-id != 0 }}
-        uses: actions/download-artifact@v8
-        with:
-          name: ${{ inputs.artifact-name }}
-          path: ./_published
+          repository: ${{ inputs.build-repo || github.repository }}
           run-id: ${{ inputs.build-run-id }}
           github-token: ${{ secrets.release-bot-pat || github.token }}
 
