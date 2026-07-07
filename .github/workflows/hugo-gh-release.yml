@@ -61,8 +61,8 @@ on:
       build-run-id:
         description: "Optional workflow run id to download the build artifact from."
         required: false
-        type: number
-        default: 0
+        type: string
+        default: ""
 
       create-github-release:
         description: "Create a GitHub Release."
@@ -137,6 +137,15 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ./_published
           run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Download build artifact from explicit run id
+        if: ${{ github.event_name != 'workflow_run' && inputs.build-run-id != '' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.build-run-id }}
           github-token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Download build artifact from explicit run id
