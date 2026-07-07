@@ -140,7 +140,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download build artifact from triggering run
-        if: ${{ inputs.build-run-id != '' && github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id != '' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
@@ -150,7 +150,7 @@ jobs:
           github-token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Download build artifact from explicit run id
-        if: ${{ inputs.build-run-id != '' && github.event_name != 'workflow_run' }}
+        if: ${{ github.event_name != 'workflow_run' && inputs.build-run-id != '' }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
@@ -158,6 +158,13 @@ jobs:
           repository: ${{ inputs.build-repo || github.repository }}
           run-id: ${{ inputs.build-run-id }}
           github-token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Verify artifact directory
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -d ./_published
+          test -n "$(find ./_published -mindepth 1 -maxdepth 1 | head -n 1)"
 
       - name: Create tag
         shell: bash
