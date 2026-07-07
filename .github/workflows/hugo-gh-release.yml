@@ -130,27 +130,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download build artifact
-        if: ${{ inputs.build-run-id != 0 }}
+      - name: Download build artifact from triggering run
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id != '' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Download build artifact from explicit run id
+        if: ${{ github.event_name != 'workflow_run' && inputs.build-run-id != 0 }}
         uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact-name }}
           path: ./_published
           run-id: ${{ inputs.build-run-id }}
           github-token: ${{ secrets.release-bot-pat || github.token }}
-
-      - name: Download latest build artifact
-        if: ${{ inputs.build-run-id == 0 }}
-        uses: dawidd6/action-download-artifact@v21
-        with:
-          github_token: ${{ secrets.release-bot-pat || github.token }}
-          workflow: .github/workflows/hugo-build.yml
-          workflow_search: true
-          workflow_conclusion: success
-          name: ${{ inputs.artifact-name }}
-          path: ./_published
-          search_artifacts: true
-          if_no_artifact_found: fail
 
       - name: Create tag
         shell: bash
