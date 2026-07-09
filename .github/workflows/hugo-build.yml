@@ -65,13 +65,19 @@ on:
         type: string
         default: "error"
 
+      runner-image:
+        description: 'Agent image for pipeline. Pass labels for agent selection as a list, i.e. ''["label1", "label2"]''. Default: ubuntu-latest'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+
 permissions:
   contents: read
   actions: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner-image) }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
