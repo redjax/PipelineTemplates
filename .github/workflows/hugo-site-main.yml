@@ -56,6 +56,11 @@ on:
         type: string
         required: false
         default: ubuntu-latest
+      templates-ref:
+        description: "PipelineTemplates repository ref (branch, commit, tag, etc)."
+        type: string
+        required: false
+        default: main
     secrets:
       release-bot-pat:
         required: true
@@ -81,6 +86,7 @@ jobs:
       bump-config: ${{ inputs.bump-config }}
       version-file: ${{ inputs.version-file }}
       runner-image: ${{ inputs.runner-image }}
+      templates-ref: ${{ inputs.templates-ref }}
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
