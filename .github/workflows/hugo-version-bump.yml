@@ -100,7 +100,7 @@ concurrency:
 
 jobs:
   bump:
-    runs-on: ${{ fromJSON(inputs.runner-image) }}
+    runs-on: ${{ inputs.runner-image }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7

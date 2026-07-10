@@ -97,7 +97,7 @@ permissions:
 
 jobs:
   meta:
-    runs-on: ${{ fromJSON(inputs.runner-image) }}
+    runs-on: ${{ inputs.runner-image }}
     outputs:
       release-version: ${{ steps.out.outputs.release-version }}
       release-name: ${{ steps.out.outputs.release-name }}
@@ -143,7 +143,7 @@ jobs:
 
   release:
     needs: meta
-    runs-on: ${{ fromJSON(inputs.runner-image) }}
+    runs-on: ${{ inputs.runner-image }}
     steps:
       - uses: actions/checkout@v7
         with:
