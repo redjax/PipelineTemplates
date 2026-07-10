@@ -81,6 +81,12 @@ on:
         type: boolean
         default: true
 
+      runner-image:
+        description: 'Runner image or label list. Default: "ubuntu-latest"'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+
     secrets:
       release-bot-pat:
         required: false
@@ -91,7 +97,7 @@ permissions:
 
 jobs:
   meta:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner-image) }}
     outputs:
       release-version: ${{ steps.out.outputs.release-version }}
       release-name: ${{ steps.out.outputs.release-name }}
@@ -137,7 +143,7 @@ jobs:
 
   release:
     needs: meta
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner-image) }}
     steps:
       - uses: actions/checkout@v7
         with:
