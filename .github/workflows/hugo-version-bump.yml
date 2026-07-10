@@ -36,7 +36,7 @@ on:
         description: "Path to the bump script. Defaults to the shared pipelinetemplates script."
         required: false
         type: string
-        default: "shared/ci-scripts/bash/hugo/bump-hugo-version.sh"
+        default: "shared/scripts/ci-cd/hugo/bump-site-version.sh"
 
       bump-config:
         description: "Path to the bump-my-version config relative to the site root."
@@ -122,6 +122,13 @@ jobs:
           ref: ${{ inputs.templates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
+
+      # - name: Verify bump script exists
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     ls -la pipelinetemplates/shared/ci-scripts/bash/hugo
+      #     test -f "pipelinetemplates/${{ inputs.bump-script }}"
 
       - name: Configure git
         shell: bash
