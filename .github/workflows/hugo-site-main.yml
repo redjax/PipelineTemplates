@@ -31,7 +31,7 @@ on:
       bump-script:
         type: string
         required: false
-        default: "shared/ci-scripts/bash/hugo/bump-hugo-version.sh"
+        default: "shared/scripts/ci-cd/hugo/bump-site-version.sh"
       bump-config:
         type: string
         required: false
