@@ -105,11 +105,11 @@ on:
         type: boolean
         default: false
 
-      runner-image:
-        description: 'Runner image or label list. Default: "ubuntu-latest"'
-        required: false
-        type: string
-        default: '"ubuntu-latest"'
+      # runner-image:
+      #   description: 'Runner image or label list. Default: "ubuntu-latest"'
+      #   required: false
+      #   type: string
+      #   default: '"ubuntu-latest"'
 
     secrets:
       cloudflare-api-token:
@@ -126,7 +126,8 @@ permissions:
 jobs:
   branch:
     if: ${{ inputs.target == 'branch' }}
-    runs-on: ${{ inputs.runner-image }}
+    # runs-on: ${{ inputs.runner-image }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
@@ -176,7 +177,8 @@ jobs:
 
   github-pages:
     if: ${{ inputs.target == 'github-pages' }}
-    runs-on: ${{ inputs.runner-image }}
+    # runs-on: ${{ inputs.runner-image }}
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -204,7 +206,8 @@ jobs:
 
   cloudflare-pages:
     if: ${{ inputs.target == 'cloudflare-pages' }}
-    runs-on: ${{ inputs.runner-image }}
+    # runs-on: ${{ inputs.runner-image }}
+    runs-on: ubuntu-latest
     steps:
       - name: Cloudflare Pages dry-run notice
         if: ${{ inputs.dry-run }}
@@ -264,7 +267,8 @@ jobs:
 
   github-release:
     if: ${{ inputs.target == 'github-release' }}
-    runs-on: ${{ inputs.runner-image }}
+    # runs-on: ${{ inputs.runner-image }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:

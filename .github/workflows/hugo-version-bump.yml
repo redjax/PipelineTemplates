@@ -80,11 +80,11 @@ on:
         type: boolean
         default: false
 
-      runner-image:
-        description: 'Runner image or label list. Default: "ubuntu-latest"'
-        required: false
-        type: string
-        default: '"ubuntu-latest"'
+      # runner-image:
+      #   description: 'Runner image or label list. Default: "ubuntu-latest"'
+      #   required: false
+      #   type: string
+      #   default: '"ubuntu-latest"'
 
     secrets:
       release-bot-pat:
@@ -100,7 +100,8 @@ concurrency:
 
 jobs:
   bump:
-    runs-on: ${{ inputs.runner-image }}
+    # runs-on: ${{ inputs.runner-image }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
