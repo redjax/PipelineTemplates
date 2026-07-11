@@ -15,7 +15,7 @@ The workflow can be triggered manually, or automatically i.e. a PR merge to `mai
 - Check-out the consuming repository repository.
 - Build the Hugo site.
 - Produce the site `output/` directory.
-- Upload the build result as a pipeline artifact artifact.
+- Upload the build result as a pipeline artifact.
 
 ## Inputs
 
