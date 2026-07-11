@@ -124,10 +124,10 @@ permissions:
   id-token: write
 
 jobs:
+  ## Publish to a branch in the repository (i.e. gh-pages)
   branch:
     if: ${{ inputs.target == 'branch' }}
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7
@@ -175,10 +175,12 @@ jobs:
           git commit -m "${COMMIT_MESSAGE}"
           git push origin "${BRANCH_NAME}" --force
 
+  ## Publish to Github Pages from release artifact.
+  #  Assumes you have disabled automatic publishing
+  #  from a branch in the calling repository.
   github-pages:
     if: ${{ inputs.target == 'github-pages' }}
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -204,10 +206,15 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
+  ## Publish to Cloudflare Pages.
+  #  Assumes you have set up a bare Cloudflare Worker,
+  #  or have disabled publishin on changes to a specific branch.
+  #
+  #  Uses the Wrangler CLI to push changes:
+  #    https://developers.cloudflare.com/workers/wrangler/
   cloudflare-pages:
     if: ${{ inputs.target == 'cloudflare-pages' }}
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     steps:
       - name: Cloudflare Pages dry-run notice
         if: ${{ inputs.dry-run }}
@@ -243,11 +250,14 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
+
           : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
           : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
+
           npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
 
+      ## Deploy code from a specific branch to Cloudflare Pages (default: main).
       - name: Deploy to Cloudflare Pages
         if: ${{ !inputs.dry-run }}
         shell: bash
@@ -258,17 +268,26 @@ jobs:
           CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
         run: |
           set -Eeuo pipefail
+
           : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
           : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
           : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
+
           npx wrangler pages deploy "./_published" \
             --project-name "${CF_PAGES_PROJECT}" \
             --branch "${CF_PAGES_BRANCH}"
 
+  ## Publish to Github release.
+  #  For versioned repositories, the release name
+  #  will be site-v<version-number>, with release assets named
+  #  i.e. site-v1.2.3.tar.gz and .zip.
+  #
+  #  For un-versioned repositories, the release name
+  #  will be site-<commit-shorthash>, with release assets named
+  #  i.e. site-acf4b9a.tar.gz and .zip.
   github-release:
     if: ${{ inputs.target == 'github-release' }}
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
@@ -280,6 +299,7 @@ jobs:
           github-token: ${{ github.token }}
           path: ./_published
 
+      ## Set tag and release name as pipeline outputs
       - name: Prepare release metadata
         id: rel
         shell: bash
@@ -309,6 +329,7 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
 
+      ## Find archived site (.tar.gz and .zip)
       - name: Select release assets
         id: assets
         shell: bash
@@ -329,7 +350,9 @@ jobs:
 
           else
             echo "[INFO] No archives found; creating fallback tar.gz from raw published contents."
+
             mkdir -p ./_release
+            
             tar -C ./_published -czf ./_release/site.tar.gz .
             echo "./_release/site.tar.gz" > /tmp/release-assets.txt
           fi

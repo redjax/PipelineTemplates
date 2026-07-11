@@ -98,7 +98,6 @@ permissions:
 jobs:
   meta:
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     outputs:
       release-version: ${{ steps.out.outputs.release-version }}
       release-name: ${{ steps.out.outputs.release-name }}
@@ -108,6 +107,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      ## Set version, tag, and release name from metadata.
+      #  If site is versioned with bump-my-version, load
+      #  version string from file (version-file input).
+      #
+      #  Otherwise, use commit shorthash.
       - name: Resolve release metadata
         id: out
         shell: bash
@@ -145,7 +149,6 @@ jobs:
   release:
     needs: meta
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
@@ -172,6 +175,7 @@ jobs:
           TAG: ${{ needs.meta.outputs.release-tag }}
         run: |
           set -Eeuo pipefail
+
           if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
             echo "[INFO] Tag exists: ${TAG}"
           else
@@ -181,6 +185,7 @@ jobs:
             git push origin "${TAG}"
           fi
 
+      ## Create .tar.gz and .zip archives from pipeline build artifact
       - name: Package site
         shell: bash
         env:

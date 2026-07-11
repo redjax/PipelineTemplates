@@ -78,7 +78,6 @@ permissions:
 jobs:
   build:
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v7

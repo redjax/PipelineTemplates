@@ -107,7 +107,6 @@ concurrency:
 jobs:
   bump:
     runs-on: ${{ inputs.runner-image }}
-    # runs-on: ubuntu-latest
     steps:
       - name: Checkout caller repo
         uses: actions/checkout@v7
@@ -115,11 +114,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      ## Checkout the PipelineTemplates repository in
+      #  the pipeline so shared scripts are available.
       - name: Checkout pipelinetemplates repo
         uses: actions/checkout@v7
         with:
           repository: redjax/pipelinetemplates
           ref: ${{ inputs.templates-ref }}
+          ## Path in runner to PipelineTemplates repository
           path: pipelinetemplates
           fetch-depth: 0
 
@@ -134,6 +136,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -141,6 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           python -m pip install --upgrade bump-my-version
 
       - name: Bump version files
@@ -153,9 +157,13 @@ jobs:
           BUMP_SCRIPT: pipelinetemplates/${{ inputs.bump-script }}
         run: |
           set -euo pipefail
+
           chmod +x "${BUMP_SCRIPT}"
           "${BUMP_SCRIPT}"
 
+      ## Open new PR, or update a long-running PR with bumped version.
+      #  The automated bump branch is always named whatever the value of
+      #  inputs.pr-branch is (default: bump/site-version).
       - name: Create or update bump PR
         if: ${{ !inputs.dry-run }}
         id: cpr
@@ -173,6 +181,7 @@ jobs:
             ${{ inputs.site-root }}/${{ inputs.bump-config }}
           labels: ${{ inputs.pr-labels }}
 
+      ## Automatically merge the PR once any pipelinechecks or other conditions are met.
       - name: Enable auto-merge
         if: ${{ !inputs.dry-run && steps.cpr.outputs.pull-request-number != '' }}
         shell: bash
@@ -181,4 +190,5 @@ jobs:
           PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
         run: |
           set -euo pipefail
+
           gh pr merge "${PR_NUMBER}" --merge --auto --delete-branch

@@ -61,6 +61,11 @@ on:
         type: string
         required: false
         default: main
+      hugo-build-flags:
+        description: "Optional Hugo build command flags, i.e. --gc and --minify"
+        type: string
+        required: false
+        default: "--gc --minify --enableGitInfo"
     secrets:
       release-bot-pat:
         required: true
@@ -77,6 +82,7 @@ permissions:
   id-token: write
 
 jobs:
+  ## Trigger a bump if calling pipeline requests it and calling site is versioned.
   bump:
     if: ${{ github.event_name == 'push' && inputs.versioned }}
     uses: ./.github/workflows/hugo-version-bump.yml
@@ -90,6 +96,8 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
+  ## Steps that apply to logical branches in the script, i.e.
+  #  every step needs to checkout the code, so do it once here.
   prep:
     needs: [bump]
     runs-on: ${{ inputs.runner-image }}
@@ -111,10 +119,11 @@ jobs:
       site-root: ${{ inputs.site-root }}
       artifact-name: ${{ inputs.artifact-name }}
       public-dir: ${{ inputs.site-root }}/public
-      build-flags: "--gc --minify --enableGitInfo"
+      build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
     secrets: inherit
 
+  ## Create tagged release in calling repository.
   release:
     needs: [build, prep]
     uses: ./.github/workflows/hugo-gh-release.yml
@@ -130,6 +139,7 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
+  ## Optional publishing to Github Pages, Cloudflare Pages, etc.
   publish:
     if: ${{ inputs.publish-gh-pages || inputs.publish-target != '' }}
     needs: [release]
