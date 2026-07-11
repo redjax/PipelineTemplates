@@ -27,6 +27,7 @@ Publishing is optional and controlled by inputs. Currently support publish targe
 - [Release flows](#release-flows)
   - [Automatic on merge to main](#automatic-on-merge-to-main)
   - [Manual trigger](#manual-trigger)
+- [Example Consuming Repository Pipeline Stub](#example-consuming-repository-pipeline-stub)
 
 ## Responsibilities
 
@@ -142,4 +143,83 @@ flowchart TD
   K --> H
   L --> H
   M --> H
+```
+
+## Example Consuming Repository Pipeline Stub
+
+>[!NOTE]
+> You will need to change some of the values below depending on the type of repository calling the `hugo-site-main.yml` pipeline. At minimum you will likely need to update:
+>
+> - `site-root`: The path to the raw Hugo site files (default: `"."`, assumes Hugo was initialized at the repository root)
+>   - If a Hugo site is nested in a subdirectory in the consuming repository, i.e. in `apps/hugo-site/`, set `site-root` to the relative path from the repository root.
+> - versioned: Boolean value that determines if the [version bump step](../hugo-version-bump/) runs (default: `false`)
+>   - When `true`, the `version-file` and a `.bumpversion.toml` file must exist in the consuming repository.
+>   - The version bumping is handled by [`bump-my-version`](https://github.com/callowayproject/bump-my-version)
+> - `version-file`: ".version"
+>
+> The consuming repository must also set the `RELEASE_BOT_PAT`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_ACCOUNT_ID` [repository secrets](#secrets).
+
+```yaml
+---
+name: Hugo Site Main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/hugo-site/archetypes/**"
+      - "apps/hugo-site/content/**"
+      - "apps/hugo-site/data/**"
+      - "apps/hugo-site/i18n/**"
+      - "apps/hugo-site/static/**"
+      - "apps/hugo-site/hugo.yml"
+      - "apps/hugo-site/go.mod"
+      - "apps/hugo-site/go.sum"
+
+  workflow_dispatch:
+    inputs:
+      publish-gh-pages:
+        type: boolean
+        default: false
+      publish-target:
+        type: string
+        default: ""
+      runner-img-or-label:
+        type: string
+        default: ubuntu-latest
+
+jobs:
+  pipeline:
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: write
+      pages: write
+      id-token: write
+    uses: redjax/pipelinetemplates/.github/workflows/hugo-site-main.yml@main
+    with:
+      ## Relative path from root where Hugo site was initialized
+      site-root: "."
+      ## If the site is versioned with bump-my-version, set to true
+      versioned: false
+      ## File bump-my-version uses to track version. Must exist in the
+      #  consuming repository. Path should be relative to site-root value
+      version-file: ".version"
+      ## Name of the pipeline artifact
+      artifact-name: "hugo-site"
+      ## Prefix for tags/releases, i.e. <prefix>-v1.2.3(.tar.gz/.zip)
+      release-prefix: "site"
+      ## Publish to Github Pages, a branch, and/or Cloudflare Pages
+      publish-gh-pages: ${{ inputs.publish-gh-pages || false }}
+      ## github-pages, cloudflare-pages, branch
+      publish-target: ${{ inputs.publish-target || '' }}
+      ## A label or supported runner image, for example 'self-hosted' if your selfhosted runner uses that label
+      runner-image: ${{ inputs.runner-img-or-label || 'ubuntu-latest' }}
+      templates-ref: feat/release-publish-workflows
+    secrets:
+      release-bot-pat: ${{ secrets.RELEASE_BOT_PAT }}
+      cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      cloudflare-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
 ```
