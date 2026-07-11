@@ -126,8 +126,19 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          ## Set tag and release name based on inputs
-          if [[ "${VERSIONED}" == "true" ]]; then
+          if [[ -n "${INPUT_TAG}" ]]; then
+            tag="${INPUT_TAG}"
+            if [[ -n "${INPUT_NAME}" ]]; then
+              name="${INPUT_NAME}"
+            else
+              name="${INPUT_TAG}"
+            fi
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              version="${INPUT_VERSION#v}"
+            else
+              version="${INPUT_TAG#${RELEASE_PREFIX}-}"
+            fi
+          elif [[ "${VERSIONED}" == "true" ]]; then
             version="$(tr -d '[:space:]' < "${SITE_ROOT}/${VERSION_FILE}")"
             version="${version#v}"
             tag="site-v${version}"
@@ -138,7 +149,7 @@ jobs:
             else
               version="${GITHUB_SHA::7}"
             fi
-            tag="${INPUT_TAG:-${RELEASE_PREFIX}-${version}}"
+            tag="${RELEASE_PREFIX}-${version}"
             name="${INPUT_NAME:-${RELEASE_PREFIX}-${version}}"
           fi
 

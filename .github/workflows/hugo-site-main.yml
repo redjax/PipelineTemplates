@@ -198,7 +198,7 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       release-prefix: ${{ inputs.release-prefix }}
       build-run-id: ${{ github.run_id }}
-      release-tag: ${{ github.event_name == 'workflow_dispatch' && format('site-{0}', needs.prep-standard.outputs.short-sha) || '' }}
+      release-tag: site-${{ needs.prep-standard.outputs.short-sha }}
       runner-image: ${{ inputs.runner-image }}
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
