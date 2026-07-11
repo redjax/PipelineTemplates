@@ -161,6 +161,21 @@ jobs:
           chmod +x "${BUMP_SCRIPT}"
           "${BUMP_SCRIPT}"
 
+      ## Set path depending on if Hugo is at the root or in a subdirectory
+      - name: Resolve bump paths
+        id: paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.site-root }}" == "." ]]; then
+            echo "version-file=.version" >> "$GITHUB_OUTPUT"
+            echo "bump-config=.bumpversion.toml" >> "$GITHUB_OUTPUT"
+          else
+            echo "version-file=${{ inputs.site-root }}/.version" >> "$GITHUB_OUTPUT"
+            echo "bump-config=${{ inputs.site-root }}/.bumpversion.toml" >> "$GITHUB_OUTPUT"
+          fi
+
       ## Open new PR, or update a long-running PR with bumped version.
       #  The automated bump branch is always named whatever the value of
       #  inputs.pr-branch is (default: bump/site-version).
@@ -177,8 +192,8 @@ jobs:
           body: ${{ inputs.pr-body }}
           commit-message: ${{ inputs.pr-title }}
           add-paths: |
-            ${{ inputs.site-root }}/${{ inputs.version-file }}
-            ${{ inputs.site-root }}/${{ inputs.bump-config }}
+            ${{ steps.paths.outputs.version-file }}
+            ${{ steps.paths.outputs.bump-config }}
           labels: ${{ inputs.pr-labels }}
 
       ## Automatically merge the PR once any pipelinechecks or other conditions are met.

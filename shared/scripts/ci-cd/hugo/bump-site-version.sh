@@ -14,35 +14,46 @@ function collect_commits() {
   git log --format=%s%n%b "$@" -- "${paths[@]}" || true
 }
 
+function resolve_site_path() {
+  local child="$1"
+  if [[ "${site_root}" == "." || -z "${site_root}" ]]; then
+    printf '%s/%s\n' "${repo_root}" "${child}"
+  else
+    printf '%s/%s/%s\n' "${repo_root}" "${site_root}" "${child}"
+  fi
+}
+
 repo_root="$(git rev-parse --show-toplevel)"
 
 ## Read site root from env var if it's set & clean path
 site_root="${HUGO_SITE_ROOT:-.}"
-site_root="${site_root#./}"
 site_root="${site_root%/}"
 site_root="${site_root:-.}"
 
 config_file="${HUGO_BUMP_CONFIG:-.bumpversion.toml}"
 version_file="${HUGO_VERSION_FILE:-.version}"
 
-if [[ "${site_root}" = "." ]]; then
+if [[ "${site_root}" == "." || -z "${site_root}" ]]; then
   site_dir="${repo_root}"
 else
   site_dir="${repo_root}/${site_root}"
 fi
+
+config_path="$(resolve_site_path "${config_file}")"
+version_path="$(resolve_site_path "${version_file}")"
 
 if [[ ! -d "${site_dir}" ]]; then
   echo "[ERROR] site root not found: ${site_root}" >&2
   exit 1
 fi
 
-if [[ ! -f "${site_dir}/${config_file}" ]]; then
-  echo "[ERROR] config file not found: ${site_dir}/${config_file}" >&2
+if [[ ! -f "${config_path}" ]]; then
+  echo "[ERROR] config file not found: ${config_path}" >&2
   exit 1
 fi
 
-if [[ ! -f "${site_dir}/${version_file}" ]]; then
-  echo "[ERROR] version file not found: ${site_dir}/${version_file}" >&2
+if [[ ! -f "${version_path}" ]]; then
+  echo "[ERROR] version file not found: ${version_path}" >&2
   exit 1
 fi
 
@@ -62,7 +73,7 @@ paths=(
   "go.sum"
 )
 
-debug "repo-root=$(git rev-parse --short HEAD)"
+debug "repo-root=${repo_root}"
 debug "site-root=${site_root}"
 debug "site-dir=${site_dir}"
 debug "config-file=${config_file}"
@@ -106,4 +117,4 @@ fi
 debug "decision=bump:${bump}"
 debug "reason=${reason}"
 
-bump-my-version bump "${bump}" --config-file "${config_file}"
+bump-my-version bump "${bump}" --config-file "${config_path}"
