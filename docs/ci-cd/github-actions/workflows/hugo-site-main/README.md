@@ -17,7 +17,12 @@ Publishing is optional and controlled by inputs. Currently support publish targe
 
 - A branch in the repository (i.e. `gh-pages`, for repos configured to deploy from a branch)
 - Github Pages
-- Cloudflare Pages
+- Cloudflare Page
+
+>[!NOTE]
+> The publish job in this pipeline is a "fanout" job, which means it runs multiple workflows simultaneously. The result in the Github Actions webUI is a messy-looking graph towards the right of the flow.
+>
+> This is normal/expected. I opted for maintainability (separating the steps in the pipeline) over a pretty graph, which would require joining the publish steps and orchestrating with a script.
 
 ## Table of Contents <!-- omit in toc -->
 
@@ -47,9 +52,14 @@ Publishing is optional and controlled by inputs. Currently support publish targe
 - `artifact-name`: Name of the uploaded build artifact.
 - `release-prefix`: Prefix used for generated release tags.
 - `publish-gh-pages`: Enables publishing to GitHub Pages.
-- `publish-target`: Optional alternate publish target.
+- `publish-to-branch`: Enables publishing to a branch in the repository, i.e. `gh-pages`.
+- `branch-name`: The name of the branch to publish to when `publish-to-branch: true`.
+- `publish-cf-pages`: Enables publishing to Cloudflare Pages.
+- `cloudflare-pages-branch`: Repository branch to publish to Cloudflare Pages.
+- `cloudflare-pages-project`: Cloudflare Pages project name (where the site is deployed; find this in Cloudflare Pages's admin portal).
 - `runner-image`: Runner label or image to use.
 - `templates-ref`: Ref used to checkout the templates repository for shared scripts.
+- `hugo-build-flags`: Additional build flags for [`hugo-build` workflow](../hugo-build/), i.e. `--gc` or `--minify`.
 
 ## Secrets
 
@@ -179,12 +189,18 @@ on:
 
   workflow_dispatch:
     inputs:
-      publish-gh-pages:
-        type: boolean
+      publish-to-branch:
+        required: false
         default: false
-      publish-target:
+        type: boolean
+      branch-name:
         type: string
-        default: ""
+        required: false
+        default: "gh-pages"
+      publish-cf-pages:
+        required: false
+        default: false
+        type: boolean
       runner-img-or-label:
         type: string
         default: ubuntu-latest
@@ -212,11 +228,20 @@ jobs:
       release-prefix: "site"
       ## Publish to Github Pages, a branch, and/or Cloudflare Pages
       publish-gh-pages: ${{ inputs.publish-gh-pages || false }}
-      ## github-pages, cloudflare-pages, branch
-      publish-target: ${{ inputs.publish-target || '' }}
+      ## Publish to a branch in the repository
+      publish-to-branch: ${{ inputs.publish-to-branch || false }}
+      ## Branch name where site is published when publish-to-branch: true
+      branch-name: ${{ inputs.branch-name || 'gh-pages' }}
+      ## Publish to Cloudflare Pages
+      publish-cf-pages: ${{ inputs.publish-cf-pages || false }}
+      ## Cloudflare Pages project name
+      cloudflare-pages-project: "pipelinetemplates-test"
+      ## Branch to deploy to Cloudflare Pages
+      cloudflare-pages-branch: "feat/test-publish-matrix"
       ## A label or supported runner image, for example 'self-hosted' if your selfhosted runner uses that label
       runner-image: ${{ inputs.runner-img-or-label || 'ubuntu-latest' }}
-      templates-ref: feat/release-publish-workflows
+      ## PipelineTemplates repository ref for checkout step
+      templates-ref: main
     secrets:
       release-bot-pat: ${{ secrets.RELEASE_BOT_PAT }}
       cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
