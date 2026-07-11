@@ -157,9 +157,6 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
-    secrets:
-      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
-      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
 
   ## Publish release archive to Github Pages
   publish-gh-pages:
@@ -171,9 +168,6 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
-    secrets:
-      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
-      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
 
   ## Publish release archive to Cloudflare Pages using the Wrangler CLI
   publish-cf-pages:
