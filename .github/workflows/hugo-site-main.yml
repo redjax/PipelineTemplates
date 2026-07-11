@@ -52,6 +52,10 @@ on:
         required: false
         default: false
         type: boolean
+      branch-name:
+        required: false
+        type: string
+        default: gh-pages
       publish-cf-pages:
         required: false
         default: false
@@ -150,6 +154,7 @@ jobs:
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: branch
+      branch-name: ${{ inputs.branch-name }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
