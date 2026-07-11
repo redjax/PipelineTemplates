@@ -60,6 +60,11 @@ on:
         required: false
         default: false
         type: boolean
+      cloudflare-pages-branch:
+        description: "Branch name reported to Cloudflare Pages."
+        required: false
+        type: string
+        default: "main"
       cloudflare-pages-project:
         required: false
         default: ""
