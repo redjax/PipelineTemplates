@@ -1,0 +1,154 @@
+---
+############################################################
+# The main orchestration pipeline for Hugo sites.          #
+#                                                          #
+# This pipeline supports versioned and unversioned sites.  #
+# The calling repository passes repo-specific inputs that  #
+# control which shared jobs run: version bumping, build,   #
+# tag/release creation, and optional publishing.           #
+#                                                          #
+# The calling repository should use a thin workflow stub   #
+# that invokes this central pipeline with its own inputs.  #
+############################################################
+
+name: Hugo Site Main Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      site-root:
+        type: string
+        required: false
+        default: "."
+      versioned:
+        type: boolean
+        required: false
+        default: true
+      version-file:
+        type: string
+        required: false
+        default: ".version"
+      bump-script:
+        type: string
+        required: false
+        default: "shared/scripts/ci-cd/hugo/bump-site-version.sh"
+      bump-config:
+        type: string
+        required: false
+        default: ".bumpversion.toml"
+      artifact-name:
+        type: string
+        required: false
+        default: "hugo-site"
+      release-prefix:
+        type: string
+        required: false
+        default: "site"
+      publish-gh-pages:
+        type: boolean
+        required: false
+        default: false
+      publish-target:
+        type: string
+        required: false
+        default: ""
+      runner-image:
+        type: string
+        required: false
+        default: ubuntu-latest
+      templates-ref:
+        description: "PipelineTemplates repository ref (branch, commit, tag, etc)."
+        type: string
+        required: false
+        default: main
+      hugo-build-flags:
+        description: "Optional Hugo build command flags, i.e. --gc and --minify"
+        type: string
+        required: false
+        default: "--gc --minify --enableGitInfo"
+    secrets:
+      release-bot-pat:
+        required: true
+      cloudflare-api-token:
+        required: false
+      cloudflare-account-id:
+        required: false
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+  pages: write
+  id-token: write
+
+jobs:
+  ## Trigger a bump if calling pipeline requests it and calling site is versioned.
+  bump:
+    if: ${{ github.event_name == 'push' && inputs.versioned }}
+    uses: ./.github/workflows/hugo-version-bump.yml
+    with:
+      site-root: ${{ inputs.site-root }}
+      bump-script: ${{ inputs.bump-script }}
+      bump-config: ${{ inputs.bump-config }}
+      version-file: ${{ inputs.version-file }}
+      runner-image: ${{ inputs.runner-image }}
+      templates-ref: ${{ inputs.templates-ref }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  ## Steps that apply to logical branches in the script, i.e.
+  #  every step needs to checkout the code, so do it once here.
+  prep:
+    needs: [bump]
+    runs-on: ${{ inputs.runner-image }}
+    outputs:
+      short-sha: ${{ steps.vars.outputs.short-sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compute short sha
+        id: vars
+        shell: bash
+        run: echo "short-sha=$(git rev-parse --short=7 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [prep]
+    uses: ./.github/workflows/hugo-build.yml
+    with:
+      site-root: ${{ inputs.site-root }}
+      artifact-name: ${{ inputs.artifact-name }}
+      public-dir: ${{ inputs.site-root }}/public
+      build-flags: ${{ inputs.hugo-build-flags }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets: inherit
+
+  ## Create tagged release in calling repository.
+  release:
+    needs: [build, prep]
+    uses: ./.github/workflows/hugo-gh-release.yml
+    with:
+      site-root: ${{ inputs.site-root }}
+      versioned: ${{ inputs.versioned }}
+      version-file: ${{ inputs.version-file }}
+      artifact-name: ${{ inputs.artifact-name }}
+      release-prefix: ${{ inputs.release-prefix }}
+      build-run-id: ${{ github.run_id }}
+      release-tag: ${{ github.event_name == 'workflow_dispatch' && format('site-{0}', needs.prep.outputs.short-sha) || '' }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  ## Optional publishing to Github Pages, Cloudflare Pages, etc.
+  publish:
+    if: ${{ inputs.publish-gh-pages || inputs.publish-target != '' }}
+    needs: [release]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: ${{ inputs.publish-target != '' && inputs.publish-target || 'github-pages' }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}

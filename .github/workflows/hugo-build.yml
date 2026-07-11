@@ -1,0 +1,99 @@
+---
+###################################################################
+# Build a Hugo site and upload static files to pipeline artifacts #
+#                                                                 #
+# Supports building Hugo sites that exist at the repository root, #
+# or nested in a subdirectory.                                    #
+###################################################################
+
+name: Build Hugo Site
+
+on:
+  workflow_call:
+    inputs:
+      site-root:
+        description: "Path to the Hugo site root."
+        required: false
+        type: string
+        default: "."
+
+      artifact-name:
+        description: "Name of the build artifact to upload."
+        required: false
+        type: string
+        default: "hugo-site"
+
+      public-dir:
+        description: "Path to the Hugo public output directory relative to repo root."
+        required: false
+        type: string
+        default: "public"
+
+      check-changed:
+        description: "Whether to skip build when no relevant changes are detected."
+        required: false
+        type: string
+        default: "false"
+
+      use-cache:
+        description: "Enable Hugo build cache."
+        required: false
+        type: string
+        default: "true"
+
+      environment:
+        description: "Build environment."
+        required: false
+        type: string
+        default: "production"
+
+      build-flags:
+        description: "Extra Hugo build flags."
+        required: false
+        type: string
+        default: "--gc --minify --enableGitInfo"
+
+      artifact-retention-days:
+        description: "Artifact retention period."
+        required: false
+        type: number
+        default: 7
+
+      artifact-if-no-files-found:
+        description: "Behavior when artifact files are missing."
+        required: false
+        type: string
+        default: "error"
+
+      runner-image:
+        description: 'Agent image for pipeline. Pass labels for agent selection as a list, i.e. ''["label1", "label2"]''. Default: ubuntu-latest'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Build Hugo site
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
+        with:
+          source-dir: ${{ inputs.site-root }}
+          public-dir: ${{ inputs.public-dir }}
+          check-changed: ${{ inputs.check-changed }}
+          use-cache: ${{ inputs.use-cache }}
+          environment: ${{ inputs.environment }}
+          build-flags: ${{ inputs.build-flags }}
+          publish-artifact: "true"
+          artifact-name: ${{ inputs.artifact-name }}
+          artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+          artifact-retention-days: ${{ inputs.artifact-retention-days }}

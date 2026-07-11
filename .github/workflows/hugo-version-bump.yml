@@ -1,0 +1,194 @@
+---
+######################################################################################
+# Bump versioned Hugo sites                                                          #
+#                                                                                    #
+# Uses git history to determine major, minor, or patch bump.                         #
+# Supports root-level Hugo sites and sites nested in subdirs.                        #
+#                                                                                    #
+# On version bump, automatically creates a PR into main with                         #
+# the changed version files, and auto-merges it.                                     #
+#                                                                                    #
+# Requires an environment variable in the calling repository named RELEASE_BOT_PAT.  #
+# The value should be a Github PAT with the following permissions:                   #
+#   - Repository access (scoped, or a token with access to all of your repositories) #
+#   - Actions: Read and write (allow Actions to make changes and upload artifacts)   #
+#   - Contents: Read and write (allow pipelines to change repository contents)       #
+#   - (optional) Deployments: Read and write (to manage Github Pages deployments)    #
+#   - (optional) Pages: Read and write (if deploying to Github Pages)                #
+#   - Pull requests: Read and write (allow automated pull requests)                  #
+#   - Workflows: Read and write (allow updating workflow files, i.e. with Renovate)  #
+#                                                                                    #
+# You can create new tokens at: https://github.com/settings/personal-access-tokens   #
+######################################################################################
+
+name: Bump Hugo Site Version
+
+on:
+  workflow_call:
+    inputs:
+      site-root:
+        description: "Path to the Hugo site root."
+        required: false
+        type: string
+        default: "."
+
+      bump-script:
+        description: "Path to the bump script. Defaults to the shared pipelinetemplates script."
+        required: false
+        type: string
+        default: "shared/scripts/ci-cd/hugo/bump-site-version.sh"
+
+      bump-config:
+        description: "Path to the bump-my-version config relative to the site root."
+        required: false
+        type: string
+        default: ".bumpversion.toml"
+
+      version-file:
+        description: "Path to the version file relative to the site root."
+        required: false
+        type: string
+        default: ".version"
+
+      pr-branch:
+        description: "Branch used for the bump PR."
+        required: false
+        type: string
+        default: "bump/site-version"
+
+      pr-title:
+        description: "Title for the bump PR."
+        required: false
+        type: string
+        default: "chore(release): bump site version"
+
+      pr-body:
+        description: "Body text for the bump PR."
+        required: false
+        type: string
+        default: "Automated version bump for Hugo site changes."
+
+      pr-labels:
+        description: "Comma-separated labels for the bump PR."
+        required: false
+        type: string
+        default: "automated,release"
+
+      dry-run:
+        description: "Do not modify files or open/merge PRs."
+        required: false
+        type: boolean
+        default: false
+
+      runner-image:
+        description: 'Runner image or label list. Default: "ubuntu-latest"'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+
+      templates-ref:
+        description: "PipelineTemplates repository ref (branch, commit, tag, etc)."
+        type: string
+        required: false
+        default: main
+
+    secrets:
+      release-bot-pat:
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: hugo-version-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Checkout caller repo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      ## Checkout the PipelineTemplates repository in
+      #  the pipeline so shared scripts are available.
+      - name: Checkout pipelinetemplates repo
+        uses: actions/checkout@v7
+        with:
+          repository: redjax/pipelinetemplates
+          ref: ${{ inputs.templates-ref }}
+          ## Path in runner to PipelineTemplates repository
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      # - name: Verify bump script exists
+      #   shell: bash
+      #   run: |
+      #     set -euo pipefail
+      #     ls -la pipelinetemplates/shared/ci-scripts/bash/hugo
+      #     test -f "pipelinetemplates/${{ inputs.bump-script }}"
+
+      - name: Configure git
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install bump-my-version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --upgrade bump-my-version
+
+      - name: Bump version files
+        if: ${{ !inputs.dry-run }}
+        shell: bash
+        env:
+          HUGO_SITE_ROOT: ${{ inputs.site-root }}
+          HUGO_BUMP_CONFIG: ${{ inputs.bump-config }}
+          HUGO_VERSION_FILE: ${{ inputs.version-file }}
+          BUMP_SCRIPT: pipelinetemplates/${{ inputs.bump-script }}
+        run: |
+          set -euo pipefail
+
+          chmod +x "${BUMP_SCRIPT}"
+          "${BUMP_SCRIPT}"
+
+      ## Open new PR, or update a long-running PR with bumped version.
+      #  The automated bump branch is always named whatever the value of
+      #  inputs.pr-branch is (default: bump/site-version).
+      - name: Create or update bump PR
+        if: ${{ !inputs.dry-run }}
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.release-bot-pat }}
+          branch: ${{ inputs.pr-branch }}
+          base: main
+          delete-branch: true
+          title: ${{ inputs.pr-title }}
+          body: ${{ inputs.pr-body }}
+          commit-message: ${{ inputs.pr-title }}
+          add-paths: |
+            ${{ inputs.site-root }}/${{ inputs.version-file }}
+            ${{ inputs.site-root }}/${{ inputs.bump-config }}
+          labels: ${{ inputs.pr-labels }}
+
+      ## Automatically merge the PR once any pipelinechecks or other conditions are met.
+      - name: Enable auto-merge
+        if: ${{ !inputs.dry-run && steps.cpr.outputs.pull-request-number != '' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.release-bot-pat }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+        run: |
+          set -euo pipefail
+
+          gh pr merge "${PR_NUMBER}" --merge --auto --delete-branch
