@@ -60,6 +60,10 @@ on:
         required: false
         default: false
         type: boolean
+      cloudflare-pages-project:
+        required: false
+        default: ""
+        type: string
       runner-image:
         type: string
         required: false
@@ -176,6 +180,7 @@ jobs:
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: cloudflare-pages
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
