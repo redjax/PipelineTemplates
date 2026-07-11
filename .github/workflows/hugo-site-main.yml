@@ -48,10 +48,14 @@ on:
         type: boolean
         required: false
         default: false
-      publish-target:
-        type: string
+      publish-to-branch:
         required: false
-        default: ""
+        default: false
+        type: boolean
+      publish-cf-pages:
+        required: false
+        default: false
+        type: boolean
       runner-image:
         type: string
         required: false
@@ -139,13 +143,41 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
-  ## Optional publishing to Github Pages, Cloudflare Pages, etc.
-  publish:
-    if: ${{ inputs.publish-gh-pages || inputs.publish-target != '' }}
+  ## Publish to a branch in the consuming repository, i.e. gh-pages
+  publish-branch:
+    if: ${{ inputs.publish-to-branch }}
     needs: [release]
     uses: ./.github/workflows/hugo-publish.yml
     with:
-      target: ${{ inputs.publish-target != '' && inputs.publish-target || 'github-pages' }}
+      target: branch
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  ## Publish release archive to Github Pages
+  publish-gh-pages:
+    if: ${{ inputs.publish-gh-pages }}
+    needs: [release]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: github-pages
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  ## Publish release archive to Cloudflare Pages using the Wrangler CLI
+  publish-cf-pages:
+    if: ${{ inputs.publish-cf-pages }}
+    needs: [release]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: cloudflare-pages
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
