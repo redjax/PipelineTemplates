@@ -115,7 +115,9 @@ jobs:
 
   ## Steps that apply to logical branches in the script, i.e.
   #  every step needs to checkout the code, so do it once here.
-  prep:
+  prep-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned }}
+    needs: [bump]
     runs-on: ${{ inputs.runner-image }}
     outputs:
       short-sha: ${{ steps.vars.outputs.short-sha }}
@@ -128,8 +130,25 @@ jobs:
         shell: bash
         run: echo "short-sha=$(git rev-parse --short=7 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
-  build:
-    needs: [prep]
+  ## Run preparation step automatically on PR to main with changed hugo files
+  prep-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
+    runs-on: ${{ inputs.runner-image }}
+    outputs:
+      short-sha: ${{ steps.vars.outputs.short-sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Compute short sha
+        id: vars
+        shell: bash
+        run: echo "short-sha=$(git rev-parse --short=7 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+
+  ## Build step for the "versioned" lane
+  build-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned }}
+    needs: [prep-versioned]
     uses: ./.github/workflows/hugo-build.yml
     with:
       site-root: ${{ inputs.site-root }}
@@ -139,9 +158,23 @@ jobs:
       runner-image: ${{ inputs.runner-image }}
     secrets: inherit
 
-  ## Create tagged release in calling repository.
-  release:
-    needs: [build, prep]
+  ## Build step for the "standard"/automatic lane
+  build-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
+    needs: [prep-standard]
+    uses: ./.github/workflows/hugo-build.yml
+    with:
+      site-root: ${{ inputs.site-root }}
+      artifact-name: ${{ inputs.artifact-name }}
+      public-dir: ${{ inputs.site-root }}/public
+      build-flags: ${{ inputs.hugo-build-flags }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets: inherit
+
+  ## Create tagged release in calling repository (site-v1.2.3).
+  release-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned }}
+    needs: [build-versioned, prep-versioned]
     uses: ./.github/workflows/hugo-gh-release.yml
     with:
       site-root: ${{ inputs.site-root }}
@@ -150,15 +183,43 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       release-prefix: ${{ inputs.release-prefix }}
       build-run-id: ${{ github.run_id }}
-      release-tag: ${{ github.event_name == 'workflow_dispatch' && format('site-{0}', needs.prep.outputs.short-sha) || '' }}
+      release-tag: ""
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  ## Create tagged release in calling repository (site-<commit-hash>).
+  release-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
+    needs: [build-standard, prep-standard]
+    uses: ./.github/workflows/hugo-gh-release.yml
+    with:
+      site-root: ${{ inputs.site-root }}
+      versioned: ${{ inputs.versioned }}
+      version-file: ${{ inputs.version-file }}
+      artifact-name: ${{ inputs.artifact-name }}
+      release-prefix: ${{ inputs.release-prefix }}
+      build-run-id: ${{ github.run_id }}
+      release-tag: ${{ github.event_name == 'workflow_dispatch' && format('site-{0}', needs.prep-standard.outputs.short-sha) || '' }}
       runner-image: ${{ inputs.runner-image }}
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
   ## Publish to a branch in the consuming repository, i.e. gh-pages
-  publish-branch:
-    if: ${{ inputs.publish-to-branch }}
-    needs: [release]
+  publish-branch-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-to-branch }}
+    needs: [release-versioned]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: branch
+      branch-name: ${{ inputs.branch-name }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+
+  publish-branch-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-to-branch }}
+    needs: [release-standard]
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: branch
@@ -168,9 +229,19 @@ jobs:
       runner-image: ${{ inputs.runner-image }}
 
   ## Publish release archive to Github Pages
-  publish-gh-pages:
-    if: ${{ inputs.publish-gh-pages }}
-    needs: [release]
+  publish-gh-pages-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-gh-pages }}
+    needs: [release-versioned]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: github-pages
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+
+  publish-gh-pages-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-gh-pages }}
+    needs: [release-standard]
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: github-pages
@@ -179,13 +250,29 @@ jobs:
       runner-image: ${{ inputs.runner-image }}
 
   ## Publish release archive to Cloudflare Pages using the Wrangler CLI
-  publish-cf-pages:
-    if: ${{ inputs.publish-cf-pages }}
-    needs: [release]
+  publish-cf-pages-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-cf-pages }}
+    needs: [release-versioned]
     uses: ./.github/workflows/hugo-publish.yml
     with:
       target: cloudflare-pages
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  publish-cf-pages-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-cf-pages }}
+    needs: [release-standard]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: cloudflare-pages
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
