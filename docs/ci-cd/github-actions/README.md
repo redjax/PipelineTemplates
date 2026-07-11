@@ -20,9 +20,6 @@ The [`pipelinetemplates-bump-zero-version.yml`](../../.github/workflows/pipeline
 
 Each time the pipeline runs, it hard resets the `chore/reconcile-zero-versions` to the `main` branch, then runs the version bumps. This ensures that any component versioned `0.0.0` in the main branch will bump to `0.0.1`, even modules from previous runs. The PR will always have the latest changes, and can be merged at any point.
 
-> [!NOTE]
-> As of 2026-05-25, the PR this pipeline creates will stay open until it is manually merged. This is because some of the branch protection rules run for an unpredictable amount of time, causing the version reconciliation pipelines to fail, and I have not spent the time to figure that out.
-
 ### Pipeline: Github PR pipeline
 
 Each time a pull request (PR) to `main` is opened, the [`pipelinetemplates-pr.yml` pipeline](../../.github/workflows/pipelinetemplates-pr.yml) template runs. The pipeline installs `bump-my-version`, then runs through the follow steps:
