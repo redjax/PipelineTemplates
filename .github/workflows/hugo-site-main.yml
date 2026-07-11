@@ -48,10 +48,27 @@ on:
         type: boolean
         required: false
         default: false
-      publish-target:
+      publish-to-branch:
+        required: false
+        default: false
+        type: boolean
+      branch-name:
+        required: false
         type: string
+        default: gh-pages
+      publish-cf-pages:
+        required: false
+        default: false
+        type: boolean
+      cloudflare-pages-branch:
+        description: "Branch name reported to Cloudflare Pages."
+        required: false
+        type: string
+        default: "main"
+      cloudflare-pages-project:
         required: false
         default: ""
+        type: string
       runner-image:
         type: string
         required: false
@@ -99,7 +116,6 @@ jobs:
   ## Steps that apply to logical branches in the script, i.e.
   #  every step needs to checkout the code, so do it once here.
   prep:
-    needs: [bump]
     runs-on: ${{ inputs.runner-image }}
     outputs:
       short-sha: ${{ steps.vars.outputs.short-sha }}
@@ -139,13 +155,37 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
-  ## Optional publishing to Github Pages, Cloudflare Pages, etc.
-  publish:
-    if: ${{ inputs.publish-gh-pages || inputs.publish-target != '' }}
+  ## Publish to a branch in the consuming repository, i.e. gh-pages
+  publish-branch:
+    if: ${{ inputs.publish-to-branch }}
     needs: [release]
     uses: ./.github/workflows/hugo-publish.yml
     with:
-      target: ${{ inputs.publish-target != '' && inputs.publish-target || 'github-pages' }}
+      target: branch
+      branch-name: ${{ inputs.branch-name }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+
+  ## Publish release archive to Github Pages
+  publish-gh-pages:
+    if: ${{ inputs.publish-gh-pages }}
+    needs: [release]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: github-pages
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
+
+  ## Publish release archive to Cloudflare Pages using the Wrangler CLI
+  publish-cf-pages:
+    if: ${{ inputs.publish-cf-pages }}
+    needs: [release]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: cloudflare-pages
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
