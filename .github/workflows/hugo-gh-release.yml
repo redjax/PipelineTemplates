@@ -1,0 +1,222 @@
+---
+######################################################################################
+# Create Hugo Site Github Release                                                    #
+#                                                                                    #
+# Creates a tag and release with the static site files archived in .tar.gz & .zip.   #
+#                                                                                    #
+# Requires an environment variable in the calling repository named RELEASE_BOT_PAT.  #
+# The value should be a Github PAT with the following permissions:                   #
+#   - Repository access (scoped, or a token with access to all of your repositories) #
+#   - Actions: Read and write (allow Actions to make changes and upload artifacts)   #
+#   - Contents: Read and write (allow pipelines to change repository contents)       #
+#   - (optional) Deployments: Read and write (to manage Github Pages deployments)    #
+#   - (optional) Pages: Read and write (if deploying to Github Pages)                #
+#   - Pull requests: Read and write (allow automated pull requests)                  #
+#   - Workflows: Read and write (allow updating workflow files, i.e. with Renovate)  #
+#                                                                                    #
+# You can create new tokens at: https://github.com/settings/personal-access-tokens   #
+######################################################################################
+
+name: Create Hugo Site Release
+
+on:
+  workflow_call:
+    inputs:
+      site-root:
+        description: "Path to the Hugo site root."
+        required: false
+        type: string
+        default: "."
+
+      versioned:
+        description: "Whether this site uses .version."
+        required: false
+        type: boolean
+        default: true
+
+      version-file:
+        description: "Path to the version file relative to the site root."
+        required: false
+        type: string
+        default: ".version"
+
+      artifact-name:
+        description: "Name of the build artifact to download."
+        required: false
+        type: string
+        default: "hugo-site"
+
+      release-prefix:
+        description: "Prefix for non-versioned release tags and names."
+        required: false
+        type: string
+        default: "site"
+
+      release-version:
+        description: "Optional version string for manual releases."
+        required: false
+        type: string
+        default: ""
+
+      release-name:
+        description: "Optional explicit release name."
+        required: false
+        type: string
+        default: ""
+
+      release-tag:
+        description: "Optional explicit release tag."
+        required: false
+        type: string
+        default: ""
+
+      build-run-id:
+        description: "Build workflow run id to download the build artifact from."
+        required: true
+        type: string
+
+      create-github-release:
+        description: "Create a GitHub Release."
+        required: false
+        type: boolean
+        default: true
+
+      runner-image:
+        description: 'Runner image or label list. Default: "ubuntu-latest"'
+        required: false
+        type: string
+        default: '"ubuntu-latest"'
+
+    secrets:
+      release-bot-pat:
+        required: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  meta:
+    runs-on: ${{ inputs.runner-image }}
+    outputs:
+      release-version: ${{ steps.out.outputs.release-version }}
+      release-name: ${{ steps.out.outputs.release-name }}
+      release-tag: ${{ steps.out.outputs.release-tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      ## Set version, tag, and release name from metadata.
+      #  If site is versioned with bump-my-version, load
+      #  version string from file (version-file input).
+      #
+      #  Otherwise, use commit shorthash.
+      - name: Resolve release metadata
+        id: out
+        shell: bash
+        env:
+          VERSIONED: ${{ inputs.versioned }}
+          SITE_ROOT: ${{ inputs.site-root }}
+          VERSION_FILE: ${{ inputs.version-file }}
+          INPUT_VERSION: ${{ inputs.release-version }}
+          INPUT_NAME: ${{ inputs.release-name }}
+          INPUT_TAG: ${{ inputs.release-tag }}
+          RELEASE_PREFIX: ${{ inputs.release-prefix }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -n "${INPUT_TAG}" ]]; then
+            tag="${INPUT_TAG}"
+            if [[ -n "${INPUT_NAME}" ]]; then
+              name="${INPUT_NAME}"
+            else
+              name="${INPUT_TAG}"
+            fi
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              version="${INPUT_VERSION#v}"
+            else
+              version="${INPUT_TAG#${RELEASE_PREFIX}-}"
+            fi
+          elif [[ "${VERSIONED}" == "true" ]]; then
+            version="$(tr -d '[:space:]' < "${SITE_ROOT}/${VERSION_FILE}")"
+            version="${version#v}"
+            tag="site-v${version}"
+            name="site-v${version}"
+          else
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              version="${INPUT_VERSION#v}"
+            else
+              version="${GITHUB_SHA::7}"
+            fi
+            tag="${RELEASE_PREFIX}-${version}"
+            name="${INPUT_NAME:-${RELEASE_PREFIX}-${version}}"
+          fi
+
+          echo "release-version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release-tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "release-name=${name}" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: meta
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.build-run-id }}
+          github-token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Verify artifact directory
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -d ./_published
+          test -n "$(find ./_published -mindepth 1 -maxdepth 1 | head -n 1)"
+
+      - name: Create tag
+        shell: bash
+        env:
+          TAG: ${{ needs.meta.outputs.release-tag }}
+        run: |
+          set -Eeuo pipefail
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "[INFO] Tag exists: ${TAG}"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "${TAG}"
+            git push origin "${TAG}"
+          fi
+
+      ## Create .tar.gz and .zip archives from pipeline build artifact
+      - name: Package site
+        shell: bash
+        env:
+          NAME: ${{ needs.meta.outputs.release-name }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p ./_release
+
+          ## Create .tar.gz and .zip archives of static site files
+          tar -C ./_published -czf "./_release/${NAME}.tar.gz" .
+          (cd ./_published && zip -qr "../_release/${NAME}.zip" .)
+
+      - name: Create GitHub Release
+        if: ${{ inputs.create-github-release }}
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.release-bot-pat || github.token }}
+        with:
+          tag_name: ${{ needs.meta.outputs.release-tag }}
+          name: ${{ needs.meta.outputs.release-name }}
+          files: |
+            ./_release/${{ needs.meta.outputs.release-name }}.tar.gz
+            ./_release/${{ needs.meta.outputs.release-name }}.zip
