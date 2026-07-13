@@ -4,12 +4,15 @@ The [`renovate`](../../../../../.github/workflows/renovate.yml) workflow runs Re
 
 The workflow can be triggered manually or on a schedule from the consuming repository. It supports onboarding, dependency dashboard creation, and regular update runs.
 
+If the consuming repository contains a `renovate.json` at the configured `config-file` path, that file is used. If no repo-local config is found, the workflow falls back to `pipelinetemplates/config/renovate/default.json`. The `run` mode performs a normal Renovate execution, `lookup` performs a lookup-style run without creating updates, and `extract` is for extraction-only behavior and does not create the normal Renovate outputs you would expect from a full run.
+
+The default Renovate config extends `config:recommended`, adds the `dependencies` label, limits concurrency, groups non-major updates, and automerges minor, patch, and digest updates. The default configuration also creates a Renovate "dashboard" issue in the issue tracker.
+
 ## Table of Contents <!-- omit in toc -->
 
 - [Responsibilities](#responsibilities)
 - [Inputs](#inputs)
 - [Secrets](#secrets)
-- [Behavior](#behavior)
 - [Example use](#example-use)
 
 ## Responsibilities
@@ -37,15 +40,6 @@ The workflow can be triggered manually or on a schedule from the consuming repos
 
 - `renovate-token`: GitHub PAT used by Renovate to authenticate and create pull requests or issues (`RENOVATE_TOKEN`).
 - `gh-api-token`: Optional GitHub API token used to reduce rate limiting (`GH_API_TOKEN`).
-
-## Behavior
-
-- If the consuming repository contains a `renovate.json` at the configured `config-file` path, that file is used.
-- If no repo-local config is found, the workflow falls back to `pipelinetemplates/config/renovate/default.json`.
-- `run` performs a normal Renovate execution.
-- `lookup` performs a lookup-style run without creating updates.
-- `extract` is for extraction-only behavior and does not create the normal Renovate outputs you would expect from a full run.
-- The default Renovate config extends `config:recommended`, adds the `dependencies` label, limits concurrency, groups non-major updates, and automerges minor, patch, and digest updates.
 
 ## Example use
 
