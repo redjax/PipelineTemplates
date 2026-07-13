@@ -73,7 +73,7 @@ on:
         description: "Branch, tag, or hash to checkout for PipelineTemplates."
         required: false
         type: string
-        default: feat/renovate-workflow
+        default: topic/renovate
       renovate-author-email:
         description: "Email address to use for Renovate bot."
         required: false
