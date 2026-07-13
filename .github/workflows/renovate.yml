@@ -1,27 +1,32 @@
----
-################################################################
-# Workflow to add Renovate support to a target repository.     #
-#                                                              #
-# Supports repositories that define their own renovate.json,   #
-# and provides a default if no config file exist.              #
-#                                                              #
-# Requires a Github Actions secret named RENOVATE_TOKEN, which #
-# is a Github PAT with the following access:                   #
-# - Code quality: Read-only                                    #
-# - Code scanning alerts: Read-only                            #
-# - Commit statuses: Read and write                            #
-# - Contents: Read and write                                   #
-# - Dependabot alerts: Read-only                               #
-# - Issues: Read and write                                     #
-# - Pull requests: Read and write                              #
-# - Repository security advisories: Read and write             #
-# - Secret scanning alerts: Read-only                          #
-# - Workflows: Read and write                                  #
-#                                                              #
-# You should also provide a Github API token with READ access  #
-# to avoid getting rate limited. Create a Github Actions       #
-# named GH_API_TOKEN for this token.                       #
-################################################################
+#################################################################################
+# Workflow run Renovate against a consuming repository.                         #
+#                                                                               #
+# Supports repositories that define their own renovate.json, # and provides a   #
+# default if no config file exist.                                              #
+#                                                                               #
+# Requires a Github Actions secret named RENOVATE_TOKEN, which is a Github PAT  #
+# with the following access:                                                    #
+# - Code quality: Read-only                                                     #
+# - Code scanning alerts: Read-only                                             #
+# - Commit statuses: Read and write                                             #
+# - Contents: Read and write                                                    #
+# - Dependabot alerts: Read-only                                                #
+# - Issues: Read and write                                                      #
+# - Pull requests: Read and write                                               #
+# - Repository security advisories: Read and write                              #
+# - Secret scanning alerts: Read-only                                           #
+# - Workflows: Read and write                                                   #
+#                                                                               #
+# You should also provide a Github API token with READ access to avoid getting  #
+# rate limited. Create a Github Actions named GH_API_TOKEN for this token.      #
+#                                                                               #
+# A consuming repository can extend the default Renovate config by adding a     #
+# 'github>' line:                                                               #
+#                                                                               #
+# {                                                                             #
+#   "extends": ["github>redjax/pipelinetemplates:config/renovate/default.json"] #
+# }                                                                             #
+#################################################################################
 
 name: Renovate Pipeline
 
@@ -44,30 +49,30 @@ on:
         type: string
         default: "info"
       config-file:
-        description: "Path to renovate config."
+        description: "Path to consuming repo's Renovate JSON config."
         required: false
         type: string
         default: "renovate.json"
       require-config:
-        description: "Renovate require-config behavior."
+        description: "Controls how Renovate handles repo-local config: required, optional, or ignored."
         required: false
         type: string
-        default: "required"
+        default: "optional"
       autodiscover:
-        description: "Whether Renovate should autodiscover repositories."
-        required: false
-        type: boolean
-        default: false
-      dry-run:
-        description: "Force dry run."
+        description: "Auto-discover account repositories with Renovate."
         required: false
         type: boolean
         default: false
       runner-image:
-        description: "Runner image."
+        description: "Runner image or label."
         required: false
         type: string
         default: ubuntu-latest
+      pipelinetemplates-ref:
+        description: "Branch, tag, or hash to checkout for PipelineTemplates."
+        required: false
+        type: string
+        default: feat/renovate-workflow
     secrets:
       renovate-token:
         required: true
@@ -84,18 +89,72 @@ jobs:
   renovate:
     runs-on: ${{ inputs.runner-image }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout consuming repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout pipelinetemplates
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/pipelinetemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Select config file
+        id: cfg
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          DEFAULT_CONFIG_FILE="pipelinetemplates/config/renovate/default.json"
+          CONFIG_FILE="${{ inputs.config-file }}"
+
+          if [[ -f "${CONFIG_FILE}" ]]; then
+            :
+          elif [[ -f "${DEFAULT_CONFIG_FILE}" ]]; then
+            CONFIG_FILE="${DEFAULT_CONFIG_FILE}"
+          else
+            echo "[ERROR] No renovate config found at either '${{ inputs.config-file }}' or '${DEFAULT_CONFIG_FILE}'." >&2
+            exit 1
+          fi
+
+          echo "config-file=${CONFIG_FILE}" >> "$GITHUB_OUTPUT"
+          echo "require-config=${{ inputs.require-config }}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide dry-run mode
+        id: mode
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          case "${{ inputs.mode }}" in
+            extract)
+              echo "dry-run=extract" >> "$GITHUB_OUTPUT"
+              ;;
+            lookup)
+              echo "dry-run=lookup" >> "$GITHUB_OUTPUT"
+              ;;
+            run)
+              echo "dry-run=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "[ERROR] Invalid mode: ${{ inputs.mode }} (use extract, lookup, or run)." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Run Renovate
-        uses: renovatebot/github-action@v46
+        uses: renovatebot/github-action@v43
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_PLATFORM: github
-          RENOVATE_REQUIRE_CONFIG: ${{ inputs.require-config }}
+          RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
           RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
-          RENOVATE_DRY_RUN: ${{ inputs.dry-run }}
-          RENOVATE_CONFIG_FILE: ${{ inputs.config-file }}
+          RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
+          RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
           GITHUB_COM_TOKEN: ${{ secrets.gh-api-token }}
         with:
           token: ${{ secrets.renovate-token }}
