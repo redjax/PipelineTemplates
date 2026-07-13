@@ -73,7 +73,7 @@ on:
         description: "Branch, tag, or hash to checkout for PipelineTemplates."
         required: false
         type: string
-        default: topic/renovate
+        default: main
       renovate-author-email:
         description: "Email address to use for Renovate bot."
         required: false
