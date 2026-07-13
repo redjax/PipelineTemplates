@@ -152,6 +152,7 @@ jobs:
           esac
 
       - name: Run Renovate
+        ## https://github.com/renovatebot/github-action/tags
         uses: renovatebot/github-action@v46.1.19
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
