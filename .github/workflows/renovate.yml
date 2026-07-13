@@ -146,7 +146,7 @@ jobs:
           esac
 
       - name: Run Renovate
-        uses: renovatebot/github-action@v43
+        uses: renovatebot/github-action@v46
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_PLATFORM: github
