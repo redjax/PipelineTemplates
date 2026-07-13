@@ -73,6 +73,11 @@ on:
         required: false
         type: string
         default: feat/renovate-workflow
+      renovate-author-email:
+        description: "Email address to use for Renovate bot."
+        required: false
+        type: string
+        default: "5534031+redjax@users.noreply.github.com"
     secrets:
       renovate-token:
         required: true
@@ -155,6 +160,7 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
           RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
           RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
+          RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
           GITHUB_COM_TOKEN: ${{ secrets.gh-api-token }}
         with:
           token: ${{ secrets.renovate-token }}
