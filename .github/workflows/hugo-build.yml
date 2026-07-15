@@ -109,6 +109,24 @@ jobs:
             echo "public-dir=${{ inputs.site-root }}/public" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Debug build state
+        shell: bash
+        run: |
+          echo "--- pwd ---"
+          pwd
+          echo "--- git sha ---"
+          git rev-parse HEAD
+          echo "--- git status ---"
+          git status --short
+          echo "--- hugo env ---"
+          hugo env
+          echo "--- go.mod ---"
+          cat go.mod
+          echo "--- modules ---"
+          go list -m all
+          echo "--- hugo mod graph ---"
+          hugo mod graph
+
       - name: Build Hugo site
         # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
         uses: redjax/pipelinetemplates/.github/actions/hugo-build@feat/hugo-netlify-publish
