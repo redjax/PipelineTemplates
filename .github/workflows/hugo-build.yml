@@ -130,4 +130,4 @@ jobs:
           artifact-name: ${{ inputs.artifact-name }}
           artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
           artifact-retention-days: ${{ inputs.artifact-retention-days }}
-          debug-state: ${{ inputs.debug-build-state }}
+          debug-state: ${{ inputs.debug-build-state && 'true' || 'false' }}
