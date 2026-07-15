@@ -11,6 +11,12 @@ name: Build Hugo Site
 on:
   workflow_call:
     inputs:
+      hugo-version:
+        description: "Hugo version to install."
+        required: false
+        type: string
+        default: "0.161.1"
+
       site-root:
         description: "Path to the Hugo site root."
         required: false
@@ -99,6 +105,7 @@ jobs:
       - name: Build Hugo site
         uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
         with:
+          hug-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}
           public-dir: ${{ steps.paths.outputs.public-dir }}
           check-changed: ${{ inputs.check-changed }}

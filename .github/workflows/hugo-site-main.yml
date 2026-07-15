@@ -16,6 +16,10 @@ name: Hugo Site Main Pipeline
 on:
   workflow_call:
     inputs:
+      hugo-version:
+        type: string
+        required: false
+        default: "0.161.1"
       site-root:
         type: string
         required: false
@@ -172,6 +176,7 @@ jobs:
     needs: [prep-versioned]
     uses: ./.github/workflows/hugo-build.yml
     with:
+      hugo-version: ${{ inputs.hugo-version }}
       site-root: ${{ inputs.site-root }}
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
@@ -184,6 +189,7 @@ jobs:
     needs: [prep-standard]
     uses: ./.github/workflows/hugo-build.yml
     with:
+      hugo-version: ${{ inputs.hugo-version }}
       site-root: ${{ inputs.site-root }}
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
