@@ -103,7 +103,8 @@ jobs:
           fi
 
       - name: Build Hugo site
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
+        # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@feat/hugo-netlify-publish
         with:
           hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}
