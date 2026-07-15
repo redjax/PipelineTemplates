@@ -57,7 +57,7 @@ on:
         description: "Extra Hugo build flags."
         required: false
         type: string
-        default: "--gc --minify --enableGitInfo"
+        default: "--gc --minify"
 
       artifact-retention-days:
         description: "Artifact retention period."
