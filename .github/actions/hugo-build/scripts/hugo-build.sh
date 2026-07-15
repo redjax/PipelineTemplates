@@ -24,6 +24,10 @@ DEBUG_BUILD="${HUGO_DEBUG_BUILD:-false}"
 
 cd "$SOURCE_DIR"
 
+if [[ -n "$TRACE_FILE" && "$TRACE_FILE" != /* ]]; then
+  TRACE_FILE="$(pwd)/$TRACE_FILE"
+fi
+
 mkdir -p "$PUBLIC_DIR"
 
 export HUGO_ENVIRONMENT="$ENVIRONMENT"
@@ -64,6 +68,10 @@ echo "========================"
 echo
 
 run_hugo() {
+  if [[ -n "$TRACE_FILE" ]]; then
+    echo "[INFO] Hugo trace file: $TRACE_FILE"
+  fi
+
   hugo "${flag_array[@]}" "${args[@]}"
 }
 

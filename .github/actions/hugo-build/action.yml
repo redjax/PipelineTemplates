@@ -219,22 +219,23 @@ runs:
         HUGO_ENVIRONMENT: ${{ inputs.environment }}
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
         HUGO_TRACE_FILE: ${{ inputs.debug-state == 'true' && format('{0}/hugo-trace.txt', github.workspace) || '' }}
-        HUGO_DEBUG_BUILD: ${{ inputs.debug-state }}
+        HUGO_DEBUG_BUILD: ${{ inputs.debug-state == 'true' && 'true' || 'false' }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
 
-    - name: Dump trace.txt
+    - name: Dump Hugo trace
       if: ${{ inputs.debug-state == 'true' }}
       shell: bash
       run: |
-        echo "--- trace excerpt ---"
-        if [[ -f "${{ inputs.source-dir }}/trace.txt" ]]; then
-            tail -200 "${{ inputs.source-dir }}/trace.txt"
+        echo "--- Hugo trace excerpt ---"
+
+        if [[ -f "${{ github.workspace }}/hugo-trace.txt" ]]; then
+          tail -200 "${{ github.workspace }}/hugo-trace.txt"
         else
-            echo "trace.txt not found"
+          echo "hugo-trace.txt not found"
         fi
 
     - name: Upload Hugo trace
-      if: ${{ inputs.debug-state == 'true' }}
+      if: ${{ always() && inputs.debug-state == 'true' }}
       uses: actions/upload-artifact@v7
       with:
         name: hugo-trace
@@ -246,15 +247,22 @@ runs:
       if: ${{ always() && inputs.debug-state == 'true' }}
       shell: bash
       run: |
-        mkdir -p hugo-debug
-        cp /tmp/hugo-transform-error* hugo-debug/ 2>/dev/null || true
+        mkdir -p "${{ github.workspace }}/hugo-debug"
+
+        shopt -s nullglob
+
+        files=(/tmp/hugo-transform-error*)
+
+        if ((${#files[@]} > 0)); then
+          cp "${files[@]}" "${{ github.workspace }}/hugo-debug/"
+        fi
 
     - name: Upload Hugo transform errors
       if: ${{ always() && inputs.debug-state == 'true' }}
       uses: actions/upload-artifact@v7
       with:
         name: hugo-transform-errors
-        path: hugo-debug/
+        path: ${{ github.workspace }}/hugo-debug/
         if-no-files-found: ignore
         retention-days: 7
 
