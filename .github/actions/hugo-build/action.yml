@@ -170,7 +170,15 @@ runs:
         HUGO_BASEURL: ${{ inputs.base-url }}
         HUGO_ENVIRONMENT: ${{ inputs.environment }}
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+        HUGO_TRACE_FILE: ${{ inputs.debug-state == 'true' && format('{0}/trace.txt', inputs.source-dir) || '' }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
+
+    - name: Dump trace.txt
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      run: |
+        echo "--- trace excerpt ---"
+        tail -n 200 "${{ inputs.source-dir }}/trace.txt"
 
     - name: Upload raw build artifact
       if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}

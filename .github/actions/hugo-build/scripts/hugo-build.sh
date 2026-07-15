@@ -10,6 +10,7 @@ set -Eeuo pipefail
 #   HUGO_BASEURL      (optional)                   #
 #   HUGO_BUILD_FLAGS  (default "--gc --minify")    #
 #   HUGO_ENVIRONMENT  (optional, e.g. production)  #
+#   HUGO_TRACE_FILE   (optional, e.g. trace.txt)   #
 ####################################################
 
 SOURCE_DIR="${HUGO_SOURCE_DIR:-.}"
@@ -17,6 +18,7 @@ PUBLIC_DIR="${HUGO_PUBLIC_DIR:-public}"
 BUILD_FLAGS="${HUGO_BUILD_FLAGS:---gc --minify}"
 BASE_URL="${HUGO_BASEURL:-}"
 ENVIRONMENT="${HUGO_ENVIRONMENT:-production}"
+TRACE_FILE="${HUGO_TRACE_FILE:-}"
 
 cd "$SOURCE_DIR"
 
@@ -29,6 +31,10 @@ args=(--destination "$PUBLIC_DIR" --environment "$ENVIRONMENT")
 
 if [[ -n "$BASE_URL" ]]; then
   args+=(--baseURL "$BASE_URL")
+fi
+
+if [[ -n "$TRACE_FILE" ]]; then
+  args+=(--trace "$TRACE_FILE" --templateMetrics --templateMetricsHints --logLevel debug)
 fi
 
 read -r -a flag_array <<<"$BUILD_FLAGS"
