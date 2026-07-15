@@ -118,9 +118,9 @@ runs:
         extended: ${{ inputs.extended }}
 
     - name: Verify Hugo modules
-      if: ${{ inputs.debug-build-state }}
+      if: ${{ inputs.debug-state == 'true' }}
       shell: bash
-      working-directory: ${{ inputs.site-root }}
+      working-directory: ${{ inputs.source-dir }}
       run: |
         echo "=== Working directory ==="
         pwd
@@ -172,21 +172,42 @@ runs:
     - name: Debug build state
       if: ${{ inputs.debug-state == 'true' }}
       shell: bash
+      working-directory: ${{ inputs.source-dir }}
       run: |
+        echo
+        echo "[DEBUG] Hugo Build state"
+        echo
+
         echo "--- pwd ---"
         pwd
+
+        echo
         echo "--- git sha ---"
         git rev-parse HEAD
+
+        echo
         echo "--- git status ---"
         git status --short
+
+        echo
         echo "--- hugo env ---"
         hugo env
-        echo "--- go.mod ---"
-        cat go.mod
-        echo "--- modules ---"
-        go list -m all
-        echo "--- hugo mod graph ---"
-        hugo mod graph
+
+        if [[ -f go.mod ]]; then
+          echo
+          echo "--- go.mod ---"
+          cat go.mod
+
+          echo
+          echo "--- modules ---"
+          go list -m all
+
+          echo
+          echo "--- hugo mod graph ---"
+          hugo mod graph
+        else
+          echo "No go.mod found"
+        fi
 
     - name: Build Hugo site
       if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true' }}
@@ -197,7 +218,8 @@ runs:
         HUGO_BASEURL: ${{ inputs.base-url }}
         HUGO_ENVIRONMENT: ${{ inputs.environment }}
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
-        HUGO_TRACE_FILE: ${{ inputs.debug-state == 'true' && format('{0}/trace.txt', inputs.source-dir) || '' }}
+        HUGO_TRACE_FILE: ${{ inputs.debug-state == 'true' && format('{0}/hugo-trace.txt', github.workspace) || '' }}
+        HUGO_DEBUG_BUILD: ${{ inputs.debug-state }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
 
     - name: Dump trace.txt
@@ -205,7 +227,36 @@ runs:
       shell: bash
       run: |
         echo "--- trace excerpt ---"
-        tail -n 200 "${{ inputs.source-dir }}/trace.txt"
+        if [[ -f "${{ inputs.source-dir }}/trace.txt" ]]; then
+            tail -200 "${{ inputs.source-dir }}/trace.txt"
+        else
+            echo "trace.txt not found"
+        fi
+
+    - name: Upload Hugo trace
+      if: ${{ inputs.debug-state == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: hugo-trace
+        path: ${{ github.workspace }}/hugo-trace.txt
+        if-no-files-found: warn
+        retention-days: 7
+
+    - name: Collect Hugo transform errors
+      if: ${{ always() && inputs.debug-state == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p hugo-debug
+        cp /tmp/hugo-transform-error* hugo-debug/ 2>/dev/null || true
+
+    - name: Upload Hugo transform errors
+      if: ${{ always() && inputs.debug-state == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: hugo-transform-errors
+        path: hugo-debug/
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Upload raw build artifact
       if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
