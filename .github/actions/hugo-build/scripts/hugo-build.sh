@@ -44,6 +44,19 @@ echo "[INFO] Output directory: $PUBLIC_DIR"
 echo "[INFO] Environment: $ENVIRONMENT"
 echo "[INFO] Build flags: $BUILD_FLAGS"
 
-hugo "${flag_array[@]}" "${args[@]}"
+# hugo "${flag_array[@]}" "${args[@]}"
 
-echo "[INFO] Hugo build completed."
+# echo "[INFO] Hugo build completed."
+
+set +e
+hugo "${flag_array[@]}" "${args[@]}"
+status=$?
+
+find /tmp -name 'hugo-transform-error*' -print
+
+for f in /tmp/hugo-transform-error*; do
+  echo "===== $f ====="
+  cat "$f"
+done
+
+exit $status
