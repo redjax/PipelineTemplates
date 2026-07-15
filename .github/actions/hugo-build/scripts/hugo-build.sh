@@ -42,7 +42,8 @@ if [[ -n "$BASE_URL" ]]; then
   args+=(--baseURL "$BASE_URL")
 fi
 
-if [[ -n "$TRACE_FILE" ]]; then
+# Debug-only Hugo flags
+if [[ "$DEBUG_BUILD" == "true" && -n "$TRACE_FILE" ]]; then
   args+=(
     --trace "$TRACE_FILE"
     --templateMetrics
@@ -57,6 +58,7 @@ echo "[INFO] Working directory: $(pwd)"
 echo "[INFO] Output directory: $PUBLIC_DIR"
 echo "[INFO] Environment: $ENVIRONMENT"
 echo "[INFO] Build flags: $BUILD_FLAGS"
+echo "[INFO] Debug build: $DEBUG_BUILD"
 
 echo
 echo "===== Hugo command ====="
@@ -68,7 +70,7 @@ echo "========================"
 echo
 
 run_hugo() {
-  if [[ -n "$TRACE_FILE" ]]; then
+  if [[ "$DEBUG_BUILD" == "true" && -n "$TRACE_FILE" ]]; then
     echo "[INFO] Hugo trace file: $TRACE_FILE"
   fi
 
@@ -98,20 +100,6 @@ echo "===== Hugo exit code ====="
 echo "$status"
 
 echo
-echo "===== Generated pages ====="
-if [[ -d "$PUBLIC_DIR" ]]; then
-  find "$PUBLIC_DIR" -name index.html | sort || true
-else
-  echo "No public directory generated."
-fi
-
-if [[ -f "$PUBLIC_DIR/posts/first/index.html" ]]; then
-  echo
-  echo "===== posts/first/index.html ====="
-  sed -n '1,200p' "$PUBLIC_DIR/posts/first/index.html"
-fi
-
-echo
 echo "===== Hugo transform error files ====="
 
 shopt -s nullglob
@@ -125,7 +113,10 @@ else
     echo "=================================================="
     echo "$f"
     echo "=================================================="
-    sed -n '1,200p' "$f"
+
+    ## Keep console output short, artifact upload gets the full file.
+    wc -c "$f"
+    cp "$f" "./$(basename "$f")"
   done
 fi
 
