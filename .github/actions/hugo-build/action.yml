@@ -15,8 +15,9 @@ inputs:
 
   debug-state:
     description: "Debug build state"
+    type: boolean
     required: false
-    default: "false"
+    default: false
 
   source-dir:
     description: "Path to the Hugo project root."
@@ -143,7 +144,7 @@ runs:
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-
 
     - name: Debug build state
-      if: ${{ inputs.debug-state == 'true' }}
+      if: ${{ inputs.debug-state }}
       shell: bash
       run: |
         echo "--- pwd ---"

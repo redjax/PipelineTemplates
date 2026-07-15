@@ -86,8 +86,8 @@ on:
       debug-build-state:
         description: "Debug-print data about the current state of the Hugo staging area in the pipeline when true."
         required: false
-        type: string
-        default: "false"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -130,3 +130,4 @@ jobs:
           artifact-name: ${{ inputs.artifact-name }}
           artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
           artifact-retention-days: ${{ inputs.artifact-retention-days }}
+          debug-state: ${{ inputs.debug-build-state }}

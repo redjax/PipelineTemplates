@@ -113,9 +113,9 @@ on:
         default: ""
       debug-hugo-build-state:
         description: "Enable debug printing of the Hugo state path in the pipeline."
-        type: string
+        type: boolean
         required: false
-        default: "false"
+        default: false
     secrets:
       release-bot-pat:
         required: true
