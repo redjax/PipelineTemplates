@@ -49,8 +49,18 @@ echo "[INFO] Build flags: $BUILD_FLAGS"
 # echo "[INFO] Hugo build completed."
 
 set +e
+
 hugo "${flag_array[@]}" "${args[@]}"
 status=$?
+
+echo "Exit code: $status"
+
+find "$PUBLIC_DIR" -name index.html | head -20
+
+if [[ -f "$PUBLIC_DIR/posts/first/index.html" ]]; then
+  echo "===== posts/first ====="
+  sed -n '1,200p' "$PUBLIC_DIR/posts/first/index.html"
+fi
 
 find /tmp -name 'hugo-transform-error*' -print
 
