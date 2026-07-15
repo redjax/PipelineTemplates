@@ -103,6 +103,32 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || 'main' }}
 
+      - name: Verify Hugo modules
+        shell: bash
+        working-directory: ${{ inputs.site-root }}
+        run: |
+          echo "=== Working directory ==="
+          pwd
+
+          echo "=== Hugo version ==="
+          hugo version || true
+
+          echo "=== Go version ==="
+          go version || true
+
+          if [[ -f go.mod ]]; then
+            echo "=== go.mod ==="
+            cat go.mod
+
+            echo "=== go list -m all ==="
+            go list -m all
+
+            echo "=== hugo mod graph ==="
+            hugo mod graph
+          else
+            echo "No go.mod found; skipping Hugo module diagnostics."
+          fi
+
       - name: Resolve site paths
         id: paths
         shell: bash
