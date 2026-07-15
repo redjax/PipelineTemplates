@@ -13,6 +13,11 @@ inputs:
     required: false
     default: "true"
 
+  debug-state:
+    description: "Debug build state"
+    required: false
+    default: "false"
+
   source-dir:
     description: "Path to the Hugo project root."
     required: false
@@ -136,6 +141,25 @@ runs:
         restore-keys: |
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-
+
+    - name: Debug build state
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      run: |
+        echo "--- pwd ---"
+        pwd
+        echo "--- git sha ---"
+        git rev-parse HEAD
+        echo "--- git status ---"
+        git status --short
+        echo "--- hugo env ---"
+        hugo env
+        echo "--- go.mod ---"
+        cat go.mod
+        echo "--- modules ---"
+        go list -m all
+        echo "--- hugo mod graph ---"
+        hugo mod graph
 
     - name: Build Hugo site
       if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true' }}

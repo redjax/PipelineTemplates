@@ -111,6 +111,11 @@ on:
         type: string
         required: false
         default: ""
+      debug-hugo-build-state:
+        description: "Enable debug printing of the Hugo state path in the pipeline."
+        type: string
+        required: false
+        default: "false"
     secrets:
       release-bot-pat:
         required: true
@@ -187,6 +192,7 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
+      debug-build-state: ${{ inputs.debug-hugo-build-state }}
     secrets: inherit
 
   ## Build step for the "standard"/automatic lane
@@ -201,6 +207,7 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
+      debug-build-state: ${{ inputs.debug-hugo-build-state }}
     secrets: inherit
 
   ## Create tagged release in calling repository (site-v1.2.3).
