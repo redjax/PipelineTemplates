@@ -48,6 +48,11 @@ inputs:
     required: false
     default: "true"
 
+  clean-cache:
+    description: "Remove local Hugo generated caches before building."
+    required: false
+    default: "false"
+
   cache-key-suffix:
     description: "Optional suffix to differentiate caches."
     required: false
@@ -153,6 +158,23 @@ runs:
         CHANGED_PATHS_MODE: ${{ inputs.changed-paths-mode }}
         CHANGED_PATHS: ${{ inputs.changed-paths }}
       run: bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
+
+    - name: Clean Hugo local cache
+      if: ${{ inputs.clean-cache == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        echo "[INFO] Cleaning Hugo local cache"
+
+        rm -rf .hugo_build_cache
+        rm -rf resources/_gen
+
+        if [[ -d node_modules ]]; then
+          echo "[INFO] Cleaning node_modules"
+          rm -rf node_modules
+        fi
+
+        echo "[INFO] Hugo cache cleanup complete"
 
     - name: Restore Hugo cache
       if: ${{ inputs.use-cache == 'true' }}

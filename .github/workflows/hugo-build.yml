@@ -47,6 +47,12 @@ on:
         type: string
         default: "true"
 
+      clean-cache:
+        description: "Clean Hugo generated cache before build."
+        required: false
+        type: string
+        default: "false"
+
       environment:
         description: "Build environment."
         required: false
@@ -124,6 +130,7 @@ jobs:
           public-dir: ${{ steps.paths.outputs.public-dir }}
           check-changed: ${{ inputs.check-changed }}
           use-cache: ${{ inputs.use-cache }}
+          clean-cache: ${{ inputs.clean-cache }}
           environment: ${{ inputs.environment }}
           build-flags: ${{ inputs.build-flags }}
           publish-artifact: "true"

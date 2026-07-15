@@ -121,6 +121,11 @@ on:
         type: boolean
         required: false
         default: true
+      clean-hugo-cache:
+        description: "Clean Hugo generated cache before build."
+        required: false
+        type: boolean
+        default: false
 
     secrets:
       release-bot-pat:
@@ -200,6 +205,7 @@ jobs:
       runner-image: ${{ inputs.runner-image }}
       debug-build-state: ${{ inputs.debug-hugo-build-state }}
       use-cache: ${{ inputs.use-hugo-cache }}
+      clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
   ## Build step for the "standard"/automatic lane
@@ -216,6 +222,7 @@ jobs:
       runner-image: ${{ inputs.runner-image }}
       debug-build-state: ${{ inputs.debug-hugo-build-state }}
       use-cache: ${{ inputs.use-hugo-cache }}
+      clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
   ## Create tagged release in calling repository (site-v1.2.3).
