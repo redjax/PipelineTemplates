@@ -160,7 +160,6 @@ runs:
       with:
         path: |
           ~/.cache/hugo
-          ${{ inputs.source-dir }}/resources/_gen
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
@@ -307,12 +306,11 @@ runs:
         retention-days: ${{ inputs.artifact-retention-days }}
 
     - name: Save Hugo cache state
-      if: ${{ always() && inputs.use-cache == 'true' }}
+      if: ${{ success() && inputs.use-cache == 'true' }}
       uses: actions/cache@v6
       with:
         path: |
           ~/.cache/hugo
-          ${{ inputs.source-dir }}/resources/_gen
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-

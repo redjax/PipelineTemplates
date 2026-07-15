@@ -116,6 +116,12 @@ on:
         type: boolean
         required: false
         default: false
+      use-hugo-cache:
+        description: "Enable/disable caching in Hugo build action."
+        type: boolean
+        required: false
+        default: true
+
     secrets:
       release-bot-pat:
         required: true
@@ -193,6 +199,7 @@ jobs:
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
       debug-build-state: ${{ inputs.debug-hugo-build-state }}
+      use-cache: ${{ inputs.use-hugo-cache }}
     secrets: inherit
 
   ## Build step for the "standard"/automatic lane
@@ -208,6 +215,7 @@ jobs:
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
       debug-build-state: ${{ inputs.debug-hugo-build-state }}
+      use-cache: ${{ inputs.use-hugo-cache }}
     secrets: inherit
 
   ## Create tagged release in calling repository (site-v1.2.3).

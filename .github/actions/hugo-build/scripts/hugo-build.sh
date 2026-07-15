@@ -28,6 +28,8 @@ if [[ -n "$TRACE_FILE" && "$TRACE_FILE" != /* ]]; then
   TRACE_FILE="$(pwd)/$TRACE_FILE"
 fi
 
+## Remove any existing public dir, i.e. from cache
+rm -rf "$PUBLIC_DIR"
 mkdir -p "$PUBLIC_DIR"
 
 export HUGO_ENVIRONMENT="$ENVIRONMENT"
