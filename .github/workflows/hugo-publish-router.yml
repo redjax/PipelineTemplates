@@ -1,0 +1,126 @@
+---
+################################################################################
+# Hugo Publish Router                                                          #
+#                                                                              #
+# This reusable workflow is the target-to-workflow router for Hugo publishing. #
+# It receives exactly one publish target from the dispatcher and selects the   #
+# matching destination-specific reusable workflow.                             #
+#                                                                              #
+# This workflow keeps provider-specific inputs and secrets isolated from the   #
+# dispatcher. It also keeps the main orchestrator from needing to know the     #
+# deployment details for each provider.                                        #
+#                                                                              #
+# Flow:                                                                        #
+# - hugo-site-main.yml controls the overall build/release/publish pipeline.    #
+# - hugo-publish-dispatch.yml creates the matrix of requested targets.         #
+# - hugo-publish-router.yml maps one target to one destination workflow.       #
+# - Destination workflows do the actual publish work for that provider.        #
+################################################################################
+
+name: Hugo Publish Router
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+      netlify-site-id:
+        required: false
+        type: string
+        default: ""
+      netlify-branch:
+        required: false
+        type: string
+        default: "main"
+      netlify-dir:
+        required: false
+        type: string
+        default: "."
+      cloudflare-pages-project:
+        required: false
+        type: string
+        default: ""
+      cloudflare-pages-branch:
+        required: false
+        type: string
+        default: "main"
+      branch-name:
+        required: false
+        type: string
+        default: "gh-pages"
+    secrets:
+      netlify-auth-token:
+        required: false
+      cloudflare-api-token:
+        required: false
+      cloudflare-account-id:
+        required: false
+      release-bot-pat:
+        required: false
+
+jobs:
+  netlify:
+    if: ${{ inputs.target == 'netlify' }}
+    uses: ./.github/workflows/hugo-publish-netlify.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+      netlify-site-id: ${{ inputs.netlify-site-id }}
+      netlify-branch: ${{ inputs.netlify-branch }}
+      netlify-dir: ${{ inputs.netlify-dir }}
+    secrets:
+      netlify-auth-token: ${{ secrets.netlify-auth-token }}
+
+  github-pages:
+    if: ${{ inputs.target == 'github-pages' }}
+    uses: ./.github/workflows/hugo-publish-gh-pages.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+
+  cloudflare-pages:
+    if: ${{ inputs.target == 'cloudflare-pages' }}
+    uses: ./.github/workflows/hugo-publish-cloudflare-pages.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  branch:
+    if: ${{ inputs.target == 'branch' }}
+    uses: ./.github/workflows/hugo-publish-branch.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+      branch-name: ${{ inputs.branch-name }}
+
+  github-release:
+    if: ${{ inputs.target == 'github-release' }}
+    uses: ./.github/workflows/hugo-publish-github-release.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
