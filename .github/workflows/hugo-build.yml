@@ -109,6 +109,20 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || 'main' }}
 
+      - name: Inspect repository state
+        shell: bash
+        run: |
+          echo "SHA:"
+          git rev-parse HEAD
+
+          echo
+          echo "Public exists?"
+          ls -la public || true
+
+          echo
+          echo "Hugo config:"
+          ls -la hugo.*
+
       - name: Resolve site paths
         id: paths
         shell: bash

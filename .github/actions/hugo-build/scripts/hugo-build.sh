@@ -39,8 +39,11 @@ export HUGO_ENV="$ENVIRONMENT"
 
 args=(
   --destination "$PUBLIC_DIR"
-  --environment "$ENVIRONMENT"
 )
+
+if [[ -n "$ENVIRONMENT" ]]; then
+  args+=(--environment "$ENVIRONMENT")
+fi
 
 if [[ -n "$BASE_URL" ]]; then
   args+=(--baseURL "$BASE_URL")
