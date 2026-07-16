@@ -1,0 +1,93 @@
+---
+###############################################################################
+# Hugo Publish to Netlify                                                     #
+#                                                                             #
+# This reusable workflow publishes a built Hugo site artifact to Netlify. It  #
+# is destination-specific and contains only the inputs, secrets, and deploy   #
+# logic needed for Netlify.                                                   #
+#                                                                             #
+# Flow:                                                                       #
+# - hugo-site-main.yml decides whether publishing should happen at all.       #
+# - hugo-publish-dispatch.yml selects which publish targets to run.           #
+# - hugo-publish-router.yml routes the target "netlify" to this workflow.     #
+# - This workflow performs the actual Netlify deployment.                     #
+###############################################################################
+
+name: Hugo Publish Netlify
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      netlify-site-id:
+        required: true
+        type: string
+      netlify-branch:
+        required: false
+        type: string
+        default: "main"
+      netlify-dir:
+        required: false
+        type: string
+        default: "."
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+    secrets:
+      netlify-auth-token:
+        required: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  netlify:
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install Netlify CLI
+        shell: bash
+        run: npm install -g netlify-cli
+
+      - name: Deploy to Netlify
+        shell: bash
+        working-directory: ./_published
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.netlify-auth-token }}
+          NETLIFY_SITE_ID: ${{ inputs.netlify-site-id }}
+          NETLIFY_BRANCH: ${{ inputs.netlify-branch }}
+          NETLIFY_DIR: ${{ inputs.netlify-dir }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${NETLIFY_AUTH_TOKEN:?missing NETLIFY_AUTH_TOKEN}"
+          : "${NETLIFY_SITE_ID:?missing NETLIFY_SITE_ID}"
+
+          netlify deploy \
+            --site "${NETLIFY_SITE_ID}" \
+            --auth "${NETLIFY_AUTH_TOKEN}" \
+            --dir "${NETLIFY_DIR}" \
+            --prod \
+            --message "Deploy ${GITHUB_SHA:0:7} on ${NETLIFY_BRANCH}"
