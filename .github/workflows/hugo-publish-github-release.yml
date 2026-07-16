@@ -70,6 +70,7 @@ jobs:
           RELEASE_TAG: ${{ inputs.release-tag }}
         run: |
           set -Eeuo pipefail
+
           if [[ -n "${RELEASE_TAG}" ]]; then
             TAG="${RELEASE_TAG}"
           elif [[ -n "${RELEASE_VERSION}" ]]; then
@@ -95,6 +96,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           shopt -s nullglob
+
           tar_files=(./_published/*.tar.gz)
           zip_files=(./_published/*.zip)
 

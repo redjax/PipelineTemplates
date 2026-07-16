@@ -81,6 +81,7 @@ jobs:
           NETLIFY_DIR: ${{ inputs.netlify-dir }}
         run: |
           set -Eeuo pipefail
+
           : "${NETLIFY_AUTH_TOKEN:?missing NETLIFY_AUTH_TOKEN}"
           : "${NETLIFY_SITE_ID:?missing NETLIFY_SITE_ID}"
 
