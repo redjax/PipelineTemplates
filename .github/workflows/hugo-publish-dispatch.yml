@@ -1,0 +1,99 @@
+---
+################################################################################
+# Hugo Publish Dispatcher                                                      #
+#                                                                              #
+# This reusable workflow is the fan-out layer for Hugo publishing. It accepts  #
+# a JSON array of publish targets, expands them into a matrix, and invokes the #
+# publish router once per target.                                              #
+#                                                                              #
+# This workflow does not know how to deploy to any specific provider. It only  #
+# coordinates which targets should run for the current pipeline lane           #
+# (versioned or standard/manual), and passes shared publish inputs downstream. #
+#                                                                              #
+# Flow:                                                                        #
+# - hugo-site-main.yml decides whether publishing should happen at all, and    #
+#   which lane is active (versioned or standard/manual).                       #
+# - hugo-publish-dispatch.yml turns the selected target list into jobs.        #
+# - hugo-publish-router.yml maps each target to its concrete destination       #
+#   workflow.                                                                  #
+# - Destination workflows (Netlify, GitHub Pages, Cloudflare Pages, etc.)      #
+#   perform the actual deployment.                                             #
+################################################################################
+
+name: Hugo Publish Dispatcher
+
+on:
+  workflow_call:
+    inputs:
+      publish-targets:
+        required: true
+        type: string
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+      netlify-site-id:
+        required: false
+        type: string
+        default: ""
+      netlify-branch:
+        required: false
+        type: string
+        default: "main"
+      netlify-dir:
+        required: false
+        type: string
+        default: "."
+      cloudflare-pages-project:
+        required: false
+        type: string
+        default: ""
+      cloudflare-pages-branch:
+        required: false
+        type: string
+        default: "main"
+      branch-name:
+        required: false
+        type: string
+        default: "gh-pages"
+    secrets:
+      netlify-auth-token:
+        required: false
+      cloudflare-api-token:
+        required: false
+      cloudflare-account-id:
+        required: false
+      release-bot-pat:
+        required: false
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(inputs.publish-targets) }}
+    uses: ./.github/workflows/hugo-publish-router.yml
+    with:
+      target: ${{ matrix.target }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner-image: ${{ inputs.runner-image }}
+      netlify-site-id: ${{ inputs.netlify-site-id }}
+      netlify-branch: ${{ inputs.netlify-branch }}
+      netlify-dir: ${{ inputs.netlify-dir }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      branch-name: ${{ inputs.branch-name }}
+    secrets:
+      netlify-auth-token: ${{ secrets.netlify-auth-token }}
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+      release-bot-pat: ${{ secrets.release-bot-pat }}
