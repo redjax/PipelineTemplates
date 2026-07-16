@@ -136,8 +136,6 @@ on:
         required: false
       netlify-auth-token:
         required: false
-      netlify-site-id:
-        required: false
 
 permissions:
   contents: write
