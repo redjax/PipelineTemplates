@@ -50,8 +50,8 @@ fi
 if [[ "$DEBUG_BUILD" == "true" && -n "$TRACE_FILE" ]]; then
   args+=(
     --trace "$TRACE_FILE"
-    --templateMetrics
-    --templateMetricsHints
+    # --templateMetrics
+    # --templateMetricsHints
     --logLevel debug
   )
 fi
@@ -115,11 +115,6 @@ if ((${#error_files[@]} == 0)); then
   echo "No /tmp/hugo-transform-error* files found."
 else
   for f in "${error_files[@]}"; do
-    echo
-    echo "===== CONTENTS (first 200 lines) ====="
-    sed -n '1,200p' "$f"
-    echo "===================="
-
     ## Keep console output short, artifact upload gets the full file.
     wc -c "$f"
 
