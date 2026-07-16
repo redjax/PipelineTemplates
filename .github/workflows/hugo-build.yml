@@ -11,6 +11,12 @@ name: Build Hugo Site
 on:
   workflow_call:
     inputs:
+      hugo-version:
+        description: "Hugo version to install."
+        required: false
+        type: string
+        default: "0.161.1"
+
       site-root:
         description: "Path to the Hugo site root."
         required: false
@@ -41,6 +47,12 @@ on:
         type: string
         default: "true"
 
+      clean-cache:
+        description: "Clean Hugo generated cache before build."
+        required: false
+        type: string
+        default: "false"
+
       environment:
         description: "Build environment."
         required: false
@@ -51,7 +63,7 @@ on:
         description: "Extra Hugo build flags."
         required: false
         type: string
-        default: "--gc --minify --enableGitInfo"
+        default: "--gc --minify"
 
       artifact-retention-days:
         description: "Artifact retention period."
@@ -71,6 +83,18 @@ on:
         type: string
         default: '"ubuntu-latest"'
 
+      checkout-ref:
+        description: "Branch, tag, or commit SHA to checkout in the consuming repository."
+        required: false
+        type: string
+        default: ""
+
+      debug-build-state:
+        description: "Debug-print data about the current state of the Hugo staging area in the pipeline when true."
+        required: false
+        type: boolean
+        default: false
+
 permissions:
   contents: read
   actions: write
@@ -83,6 +107,21 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || 'main' }}
+
+      - name: Inspect repository state
+        shell: bash
+        run: |
+          echo "SHA:"
+          git rev-parse HEAD
+
+          echo
+          echo "Public exists?"
+          ls -la public || true
+
+          echo
+          echo "Hugo config:"
+          ls -la hugo.*
 
       - name: Resolve site paths
         id: paths
@@ -97,15 +136,19 @@ jobs:
           fi
 
       - name: Build Hugo site
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
+        # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.3
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@feat/hugo-netlify-publish
         with:
+          hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}
           public-dir: ${{ steps.paths.outputs.public-dir }}
           check-changed: ${{ inputs.check-changed }}
           use-cache: ${{ inputs.use-cache }}
+          clean-cache: ${{ inputs.clean-cache }}
           environment: ${{ inputs.environment }}
           build-flags: ${{ inputs.build-flags }}
           publish-artifact: "true"
           artifact-name: ${{ inputs.artifact-name }}
           artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
           artifact-retention-days: ${{ inputs.artifact-retention-days }}
+          debug-state: ${{ inputs.debug-build-state && 'true' || 'false' }}

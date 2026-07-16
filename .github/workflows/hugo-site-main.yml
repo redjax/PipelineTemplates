@@ -16,6 +16,10 @@ name: Hugo Site Main Pipeline
 on:
   workflow_call:
     inputs:
+      hugo-version:
+        type: string
+        required: false
+        default: "0.161.1"
       site-root:
         type: string
         required: false
@@ -69,6 +73,25 @@ on:
         required: false
         default: ""
         type: string
+      publish-netlify:
+        required: false
+        default: false
+        type: boolean
+      netlify-site-id:
+        description: "Netlify site ID."
+        required: false
+        type: string
+        default: ""
+      netlify-branch:
+        description: "Branch name reported to Netlify."
+        required: false
+        type: string
+        default: "main"
+      netlify-dir:
+        description: "Directory to deploy to Netlify."
+        required: false
+        type: string
+        default: "public"
       runner-image:
         type: string
         required: false
@@ -82,13 +105,36 @@ on:
         description: "Optional Hugo build command flags, i.e. --gc and --minify"
         type: string
         required: false
-        default: "--gc --minify --enableGitInfo"
+        default: "--gc --minify"
+      checkout-ref:
+        description: "Branch, tag, or commit SHA to checkout in the consuming repository."
+        type: string
+        required: false
+        default: ""
+      debug-hugo-build-state:
+        description: "Enable debug printing of the Hugo state path in the pipeline."
+        type: boolean
+        required: false
+        default: false
+      use-hugo-cache:
+        description: "Enable/disable caching in Hugo build action."
+        type: boolean
+        required: false
+        default: true
+      clean-hugo-cache:
+        description: "Clean Hugo generated cache before build."
+        required: false
+        type: boolean
+        default: false
+
     secrets:
       release-bot-pat:
         required: true
       cloudflare-api-token:
         required: false
       cloudflare-account-id:
+        required: false
+      netlify-auth-token:
         required: false
 
 permissions:
@@ -151,10 +197,15 @@ jobs:
     needs: [prep-versioned]
     uses: ./.github/workflows/hugo-build.yml
     with:
+      checkout-ref: ${{ inputs.checkout-ref }}
+      hugo-version: ${{ inputs.hugo-version }}
       site-root: ${{ inputs.site-root }}
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
+      debug-build-state: ${{ inputs.debug-hugo-build-state }}
+      use-cache: ${{ inputs.use-hugo-cache }}
+      clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
   ## Build step for the "standard"/automatic lane
@@ -163,10 +214,15 @@ jobs:
     needs: [prep-standard]
     uses: ./.github/workflows/hugo-build.yml
     with:
+      checkout-ref: ${{ inputs.checkout-ref }}
+      hugo-version: ${{ inputs.hugo-version }}
       site-root: ${{ inputs.site-root }}
       artifact-name: ${{ inputs.artifact-name }}
       build-flags: ${{ inputs.hugo-build-flags }}
       runner-image: ${{ inputs.runner-image }}
+      debug-build-state: ${{ inputs.debug-hugo-build-state }}
+      use-cache: ${{ inputs.use-hugo-cache }}
+      clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
   ## Create tagged release in calling repository (site-v1.2.3).
@@ -277,3 +333,33 @@ jobs:
     secrets:
       cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
       cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  publish-netlify-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-netlify }}
+    needs: [release-versioned]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: netlify
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      netlify-site-id: ${{ inputs.netlify-site-id }}
+      netlify-branch: ${{ inputs.netlify-branch }}
+      netlify-dir: ${{ inputs.netlify-dir }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      netlify-auth-token: ${{ secrets.netlify-auth-token }}
+
+  publish-netlify-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-netlify }}
+    needs: [release-standard]
+    uses: ./.github/workflows/hugo-publish.yml
+    with:
+      target: netlify
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      netlify-site-id: ${{ inputs.netlify-site-id }}
+      netlify-branch: ${{ inputs.netlify-branch }}
+      netlify-dir: ${{ inputs.netlify-dir }}
+      runner-image: ${{ inputs.runner-image }}
+    secrets:
+      netlify-auth-token: ${{ secrets.netlify-auth-token }}

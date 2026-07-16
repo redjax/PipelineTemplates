@@ -13,6 +13,11 @@ inputs:
     required: false
     default: "true"
 
+  debug-state:
+    description: "Debug build state"
+    required: false
+    default: "false"
+
   source-dir:
     description: "Path to the Hugo project root."
     required: false
@@ -42,6 +47,11 @@ inputs:
     description: "Enable cache restore/save for Hugo-related build inputs."
     required: false
     default: "true"
+
+  clean-cache:
+    description: "Remove local Hugo generated caches before building."
+    required: false
+    default: "false"
 
   cache-key-suffix:
     description: "Optional suffix to differentiate caches."
@@ -112,6 +122,33 @@ runs:
         hugo-version: ${{ inputs.hugo-version }}
         extended: ${{ inputs.extended }}
 
+    - name: Verify Hugo modules
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        echo "=== Working directory ==="
+        pwd
+
+        echo "=== Hugo version ==="
+        hugo version || true
+
+        echo "=== Go version ==="
+        go version || true
+
+        if [[ -f go.mod ]]; then
+          echo "=== go.mod ==="
+          cat go.mod
+
+          echo "=== go list -m all ==="
+          go list -m all
+
+          echo "=== hugo mod graph ==="
+          hugo mod graph
+        else
+          echo "No go.mod found; skipping Hugo module diagnostics."
+        fi
+
     - name: Determine changed paths
       id: changed
       if: ${{ inputs.check-changed == 'true' }}
@@ -122,13 +159,31 @@ runs:
         CHANGED_PATHS: ${{ inputs.changed-paths }}
       run: bash "${{ github.action_path }}/scripts/hugo-check-changed.sh"
 
+    - name: Clean Hugo local cache
+      if: ${{ inputs.clean-cache == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        echo "[INFO] Cleaning Hugo local cache"
+
+        rm -rf .hugo_build_cache
+        rm -rf resources/_gen
+
+        if [[ -d node_modules ]]; then
+          echo "[INFO] Cleaning node_modules"
+          rm -rf node_modules
+        fi
+
+        echo "[INFO] Hugo cache cleanup complete"
+
     - name: Restore Hugo cache
       if: ${{ inputs.use-cache == 'true' }}
       uses: actions/cache@v6
       with:
         path: |
           ~/.cache/hugo
-          ${{ inputs.source-dir }}/resources/_gen
+          ~/.cache/go-build
+          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
@@ -136,6 +191,46 @@ runs:
         restore-keys: |
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-${{ inputs.cache-key-suffix }}-
           hugo-${{ runner.os }}-${{ inputs.hugo-version }}-${{ inputs.extended }}-
+
+    - name: Debug build state
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        echo
+        echo "[DEBUG] Hugo Build state"
+        echo
+
+        echo "--- pwd ---"
+        pwd
+
+        echo
+        echo "--- git sha ---"
+        git rev-parse HEAD
+
+        echo
+        echo "--- git status ---"
+        git status --short
+
+        echo
+        echo "--- hugo env ---"
+        hugo env
+
+        if [[ -f go.mod ]]; then
+          echo
+          echo "--- go.mod ---"
+          cat go.mod
+
+          echo
+          echo "--- modules ---"
+          go list -m all
+
+          echo
+          echo "--- hugo mod graph ---"
+          hugo mod graph
+        else
+          echo "No go.mod found"
+        fi
 
     - name: Build Hugo site
       if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true' }}
@@ -146,7 +241,53 @@ runs:
         HUGO_BASEURL: ${{ inputs.base-url }}
         HUGO_ENVIRONMENT: ${{ inputs.environment }}
         HUGO_BUILD_FLAGS: ${{ inputs.build-flags }}
+        HUGO_TRACE_FILE: ${{ inputs.debug-state == 'true' && format('{0}/hugo-trace.txt', github.workspace) || '' }}
+        HUGO_DEBUG_BUILD: ${{ inputs.debug-state == 'true' && 'true' || 'false' }}
       run: bash "${{ github.action_path }}/scripts/hugo-build.sh"
+
+    - name: Dump Hugo trace
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      run: |
+        echo "--- Hugo trace excerpt ---"
+
+        if [[ -f "${{ github.workspace }}/hugo-trace.txt" ]]; then
+          tail -200 "${{ github.workspace }}/hugo-trace.txt"
+        else
+          echo "hugo-trace.txt not found"
+        fi
+
+    - name: Upload Hugo trace
+      if: ${{ always() && inputs.debug-state == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: hugo-trace
+        path: ${{ github.workspace }}/hugo-trace.txt
+        if-no-files-found: warn
+        retention-days: 7
+
+    - name: Collect Hugo transform errors
+      if: ${{ always() && inputs.debug-state == 'true' }}
+      shell: bash
+      run: |
+        mkdir -p "${{ github.workspace }}/hugo-debug"
+
+        shopt -s nullglob
+
+        files=(/tmp/hugo-transform-error*)
+
+        if ((${#files[@]} > 0)); then
+          cp "${files[@]}" "${{ github.workspace }}/hugo-debug/"
+        fi
+
+    - name: Upload Hugo transform errors
+      if: ${{ always() && inputs.debug-state == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: hugo-transform-errors
+        path: ${{ github.workspace }}/hugo-debug/
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Upload raw build artifact
       if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.hugo-changed == 'true') }}
@@ -189,12 +330,13 @@ runs:
         retention-days: ${{ inputs.artifact-retention-days }}
 
     - name: Save Hugo cache state
-      if: ${{ always() && inputs.use-cache == 'true' }}
+      if: ${{ success() && inputs.use-cache == 'true' }}
       uses: actions/cache@v6
       with:
         path: |
           ~/.cache/hugo
-          ${{ inputs.source-dir }}/resources/_gen
+          ~/.cache/go-build
+          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
