@@ -114,13 +114,3 @@ jobs:
       run-id: ${{ inputs.run-id }}
       runner-image: ${{ inputs.runner-image }}
       branch-name: ${{ inputs.branch-name }}
-
-  github-release:
-    if: ${{ inputs.target == 'github-release' }}
-    uses: ./.github/workflows/hugo-publish-github-release.yml
-    with:
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ inputs.run-id }}
-      runner-image: ${{ inputs.runner-image }}
-    secrets:
-      release-bot-pat: ${{ secrets.release-bot-pat }}
