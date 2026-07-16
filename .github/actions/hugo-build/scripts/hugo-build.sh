@@ -34,9 +34,6 @@ rm -rf "resources/_gen"
 
 mkdir -p "$PUBLIC_DIR"
 
-export HUGO_ENVIRONMENT="$ENVIRONMENT"
-export HUGO_ENV="$ENVIRONMENT"
-
 args=(
   --destination "$PUBLIC_DIR"
 )
@@ -62,6 +59,8 @@ fi
 read -r -a flag_array <<<"$BUILD_FLAGS"
 
 echo "[INFO] Working directory: $(pwd)"
+echo "[INFO] Hugo version:"
+hugo version
 echo "[INFO] Output directory: $PUBLIC_DIR"
 echo "[INFO] Environment: $ENVIRONMENT"
 echo "[INFO] Build flags: $BUILD_FLAGS"
@@ -117,9 +116,9 @@ if ((${#error_files[@]} == 0)); then
 else
   for f in "${error_files[@]}"; do
     echo
-    echo "=================================================="
-    echo "$f"
-    echo "=================================================="
+    echo "===== CONTENTS (first 200 lines) ====="
+    sed -n '1,200p' "$f"
+    echo "===================="
 
     ## Keep console output short, artifact upload gets the full file.
     wc -c "$f"
