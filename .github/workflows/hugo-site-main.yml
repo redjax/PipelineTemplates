@@ -16,111 +16,121 @@ name: Hugo Site Main Pipeline
 on:
   workflow_call:
     inputs:
+      publish-targets:
+        description: 'JSON array of publish targets, e.g. ["netlify","github-pages"]'
+        required: false
+        type: string
+        default: "[]"
+
       hugo-version:
         type: string
         required: false
         default: "0.161.1"
+
       site-root:
         type: string
         required: false
         default: "."
+
       versioned:
         type: boolean
         required: false
         default: true
+
       version-file:
         type: string
         required: false
         default: ".version"
+
       bump-script:
         type: string
         required: false
         default: "shared/scripts/ci-cd/hugo/bump-site-version.sh"
+
       bump-config:
         type: string
         required: false
         default: ".bumpversion.toml"
+
       artifact-name:
         type: string
         required: false
         default: "hugo-site"
+
       release-prefix:
         type: string
         required: false
         default: "site"
-      publish-gh-pages:
-        type: boolean
-        required: false
-        default: false
-      publish-to-branch:
-        required: false
-        default: false
-        type: boolean
-      branch-name:
-        required: false
-        type: string
-        default: gh-pages
-      publish-cf-pages:
-        required: false
-        default: false
-        type: boolean
+
       cloudflare-pages-branch:
         description: "Branch name reported to Cloudflare Pages."
         required: false
         type: string
         default: "main"
+
       cloudflare-pages-project:
         required: false
         default: ""
         type: string
-      publish-netlify:
-        required: false
-        default: false
-        type: boolean
+
       netlify-site-id:
         description: "Netlify site ID."
         required: false
         type: string
         default: ""
+
       netlify-branch:
         description: "Branch name reported to Netlify."
         required: false
         type: string
         default: "main"
+
       netlify-dir:
         description: "Directory to deploy to Netlify."
         required: false
         type: string
         default: "public"
+
+      branch-name:
+        required: false
+        type: string
+        default: "gh-pages"
+
       runner-image:
         type: string
         required: false
         default: ubuntu-latest
+
       templates-ref:
         description: "PipelineTemplates repository ref (branch, commit, tag, etc)."
         type: string
         required: false
         default: main
+
       hugo-build-flags:
         description: "Optional Hugo build command flags, i.e. --gc and --minify"
         type: string
         required: false
         default: "--gc --minify"
+
       checkout-ref:
         description: "Branch, tag, or commit SHA to checkout in the consuming repository."
         type: string
         required: false
         default: ""
+
       debug-hugo-build-state:
         description: "Enable debug printing of the Hugo state path in the pipeline."
         type: boolean
         required: false
         default: false
+
       use-hugo-cache:
         description: "Enable/disable caching in Hugo build action."
-        type: boolean
         required: false
+        type: boolean
         default: true
+
       clean-hugo-cache:
         description: "Clean Hugo generated cache before build."
         required: false
@@ -145,7 +155,6 @@ permissions:
   id-token: write
 
 jobs:
-  ## Trigger a bump if calling pipeline requests it and calling site is versioned.
   bump:
     if: ${{ github.event_name == 'push' && inputs.versioned }}
     uses: ./.github/workflows/hugo-version-bump.yml
@@ -159,8 +168,6 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
-  ## Steps that apply to logical branches in the script, i.e.
-  #  every step needs to checkout the code, so do it once here.
   prep-versioned:
     if: ${{ github.event_name == 'push' && inputs.versioned }}
     needs: [bump]
@@ -176,7 +183,6 @@ jobs:
         shell: bash
         run: echo "short-sha=$(git rev-parse --short=7 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
-  ## Run preparation step automatically on PR to main with changed hugo files
   prep-standard:
     if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
     runs-on: ${{ inputs.runner-image }}
@@ -191,7 +197,6 @@ jobs:
         shell: bash
         run: echo "short-sha=$(git rev-parse --short=7 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
 
-  ## Build step for the "versioned" lane
   build-versioned:
     if: ${{ github.event_name == 'push' && inputs.versioned }}
     needs: [prep-versioned]
@@ -208,7 +213,6 @@ jobs:
       clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
-  ## Build step for the "standard"/automatic lane
   build-standard:
     if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
     needs: [prep-standard]
@@ -225,7 +229,6 @@ jobs:
       clean-cache: ${{ inputs.clean-hugo-cache }}
     secrets: inherit
 
-  ## Create tagged release in calling repository (site-v1.2.3).
   release-versioned:
     if: ${{ github.event_name == 'push' && inputs.versioned }}
     needs: [build-versioned, prep-versioned]
@@ -242,7 +245,6 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
-  ## Create tagged release in calling repository (site-<commit-hash>).
   release-standard:
     if: ${{ !(github.event_name == 'push' && inputs.versioned) }}
     needs: [build-standard, prep-standard]
@@ -259,107 +261,42 @@ jobs:
     secrets:
       release-bot-pat: ${{ secrets.release-bot-pat }}
 
-  ## Publish to a branch in the consuming repository, i.e. gh-pages
-  publish-branch-versioned:
-    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-to-branch }}
+  publish-dispatch-versioned:
+    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-targets != '[]' }}
     needs: [release-versioned]
-    uses: ./.github/workflows/hugo-publish.yml
+    uses: ./.github/workflows/hugo-publish-dispatch.yml
     with:
-      target: branch
-      branch-name: ${{ inputs.branch-name }}
+      publish-targets: ${{ inputs.publish-targets }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
-
-  publish-branch-standard:
-    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-to-branch }}
-    needs: [release-standard]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: branch
-      branch-name: ${{ inputs.branch-name }}
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
-      runner-image: ${{ inputs.runner-image }}
-
-  ## Publish release archive to Github Pages
-  publish-gh-pages-versioned:
-    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-gh-pages }}
-    needs: [release-versioned]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: github-pages
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
-      runner-image: ${{ inputs.runner-image }}
-
-  publish-gh-pages-standard:
-    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-gh-pages }}
-    needs: [release-standard]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: github-pages
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
-      runner-image: ${{ inputs.runner-image }}
-
-  ## Publish release archive to Cloudflare Pages using the Wrangler CLI
-  publish-cf-pages-versioned:
-    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-cf-pages }}
-    needs: [release-versioned]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: cloudflare-pages
-      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
-      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
-      runner-image: ${{ inputs.runner-image }}
-    secrets:
-      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
-      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
-
-  publish-cf-pages-standard:
-    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-cf-pages }}
-    needs: [release-standard]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: cloudflare-pages
-      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
-      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
-      runner-image: ${{ inputs.runner-image }}
-    secrets:
-      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
-      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
-
-  publish-netlify-versioned:
-    if: ${{ github.event_name == 'push' && inputs.versioned && inputs.publish-netlify }}
-    needs: [release-versioned]
-    uses: ./.github/workflows/hugo-publish.yml
-    with:
-      target: netlify
-      artifact-name: ${{ inputs.artifact-name }}
-      run-id: ${{ github.run_id }}
       netlify-site-id: ${{ inputs.netlify-site-id }}
       netlify-branch: ${{ inputs.netlify-branch }}
       netlify-dir: ${{ inputs.netlify-dir }}
-      runner-image: ${{ inputs.runner-image }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      branch-name: ${{ inputs.branch-name }}
     secrets:
       netlify-auth-token: ${{ secrets.netlify-auth-token }}
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
 
-  publish-netlify-standard:
-    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-netlify }}
+  publish-dispatch-standard:
+    if: ${{ !(github.event_name == 'push' && inputs.versioned) && inputs.publish-targets != '[]' }}
     needs: [release-standard]
-    uses: ./.github/workflows/hugo-publish.yml
+    uses: ./.github/workflows/hugo-publish-dispatch.yml
     with:
-      target: netlify
+      publish-targets: ${{ inputs.publish-targets }}
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
+      runner-image: ${{ inputs.runner-image }}
       netlify-site-id: ${{ inputs.netlify-site-id }}
       netlify-branch: ${{ inputs.netlify-branch }}
       netlify-dir: ${{ inputs.netlify-dir }}
-      runner-image: ${{ inputs.runner-image }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      branch-name: ${{ inputs.branch-name }}
     secrets:
       netlify-auth-token: ${{ secrets.netlify-auth-token }}
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
