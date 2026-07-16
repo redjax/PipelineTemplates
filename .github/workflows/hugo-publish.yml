@@ -422,7 +422,7 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.netlify-auth-token }}
           NETLIFY_SITE_ID: ${{ inputs.netlify-site-id }}
           NETLIFY_BRANCH: ${{ inputs.netlify-branch }}
-          NETLIFY_DIR: ${{ inputs.netlify-dir }}
+          NETLIFY_DIR: "."
         run: |
           set -Eeuo pipefail
 
