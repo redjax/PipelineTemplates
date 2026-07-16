@@ -122,6 +122,16 @@ runs:
         hugo-version: ${{ inputs.hugo-version }}
         extended: ${{ inputs.extended }}
 
+    - name: Download Hugo modules
+      shell: bash
+      working-directory: ${{ inputs.source-dir }}
+      run: |
+        if [[ -f go.mod ]]; then
+          hugo mod download
+          hugo mod graph
+          hugo mod verify
+        fi
+
     - name: Verify Hugo modules
       if: ${{ inputs.debug-state == 'true' }}
       shell: bash
@@ -182,6 +192,8 @@ runs:
       with:
         path: |
           ~/.cache/hugo
+          ~/.cache/go-build
+          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
@@ -333,6 +345,8 @@ runs:
       with:
         path: |
           ~/.cache/hugo
+          ~/.cache/go-build
+          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-

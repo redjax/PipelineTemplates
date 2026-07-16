@@ -28,8 +28,10 @@ if [[ -n "$TRACE_FILE" && "$TRACE_FILE" != /* ]]; then
   TRACE_FILE="$(pwd)/$TRACE_FILE"
 fi
 
-## Remove any existing public dir, i.e. from cache
+## Remove generated Hugo output/state
 rm -rf "$PUBLIC_DIR"
+rm -rf "resources/_gen"
+
 mkdir -p "$PUBLIC_DIR"
 
 export HUGO_ENVIRONMENT="$ENVIRONMENT"
@@ -118,7 +120,9 @@ else
 
     ## Keep console output short, artifact upload gets the full file.
     wc -c "$f"
-    cp "$f" "./$(basename "$f")"
+
+    mkdir -p hugo-debug
+    cp "$f" "hugo-debug/$(basename "$f")"
   done
 fi
 
