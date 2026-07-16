@@ -81,6 +81,24 @@ on:
         type: string
         default: "public"
 
+      netlify-site-id:
+        description: "Netlify site ID."
+        required: false
+        type: string
+        default: ""
+
+      netlify-branch:
+        description: "Branch name reported to Netlify."
+        required: false
+        type: string
+        default: "main"
+
+      netlify-dir:
+        description: "Directory to deploy to Netlify."
+        required: false
+        type: string
+        default: "public"
+
       release-name:
         description: "GitHub release name."
         required: false
@@ -116,6 +134,9 @@ on:
         required: false
 
       cloudflare-account-id:
+        required: false
+
+      netlify-auth-token:
         required: false
 
 permissions:
@@ -371,3 +392,46 @@ jobs:
           files: ${{ steps.assets.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+  ## Publish to Netlify
+  netlify:
+    if: ${{ inputs.target == 'netlify' }}
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install Netlify CLI
+        shell: bash
+        run: npm install -g netlify-cli
+
+      - name: Deploy to Netlify
+        shell: bash
+        working-directory: ./_published
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.netlify-auth-token }}
+          NETLIFY_SITE_ID: ${{ inputs.netlify-site-id }}
+          NETLIFY_BRANCH: ${{ inputs.netlify-branch }}
+          NETLIFY_DIR: "."
+        run: |
+          set -Eeuo pipefail
+
+          : "${NETLIFY_AUTH_TOKEN:?missing NETLIFY_AUTH_TOKEN}"
+          : "${NETLIFY_SITE_ID:?missing NETLIFY_SITE_ID}"
+
+          netlify deploy \
+            --site "${NETLIFY_SITE_ID}" \
+            --auth "${NETLIFY_AUTH_TOKEN}" \
+            --dir "${NETLIFY_DIR}" \
+            --prod \
+            --message "Deploy ${GITHUB_SHA:0:7} on ${NETLIFY_BRANCH}"

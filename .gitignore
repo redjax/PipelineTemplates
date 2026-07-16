@@ -9,3 +9,5 @@ tmp/
 changed-files.txt
 .changed-components.txt
 
+trace.txt
+hugo-trace.txt
