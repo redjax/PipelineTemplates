@@ -127,7 +127,7 @@ runs:
       working-directory: ${{ inputs.source-dir }}
       run: |
         if [[ -f go.mod ]]; then
-          hugo mod download
+          hugo mod get
           hugo mod graph
           hugo mod verify
         fi
