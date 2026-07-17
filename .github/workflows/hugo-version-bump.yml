@@ -60,7 +60,7 @@ on:
         description: "Title for the bump PR."
         required: false
         type: string
-        default: "chore(release): bump site version"
+        default: "chore(release): bump site version [skip ci]"
 
       pr-body:
         description: "Body text for the bump PR."

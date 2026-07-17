@@ -1,0 +1,102 @@
+---
+#############################################################################
+# Hugo Publish to Cloudflare Pages                                          #
+#                                                                           #
+# This reusable workflow publishes a built Hugo site artifact to Cloudflare #
+# Pages. It is destination-specific and contains only the inputs, secrets,  #
+# and Wrangler-based deploy logic needed for Cloudflare Pages.              #
+#                                                                           #
+# Flow:                                                                     #
+# - hugo-site-main.yml controls the build/release/publish pipeline.         #
+# - hugo-publish-dispatch.yml expands the selected publish targets.         #
+# - hugo-publish-router.yml routes the target "cloudflare-pages" here.      #
+# - This workflow performs the actual Cloudflare Pages deployment.          #
+#############################################################################
+
+name: Hugo Publish Cloudflare Pages
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      cloudflare-pages-project:
+        required: true
+        type: string
+      cloudflare-pages-branch:
+        required: false
+        type: string
+        default: "main"
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+    secrets:
+      cloudflare-api-token:
+        required: true
+      cloudflare-account-id:
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  cloudflare-pages:
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install Wrangler
+        shell: bash
+        run: npm install --save-dev wrangler@latest
+
+      - name: Ensure Cloudflare Pages project exists
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
+          CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
+          CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
+          : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
+
+          npx wrangler pages project create "${CF_PAGES_PROJECT}" --production-branch "${CF_PAGES_BRANCH}" || true
+
+      - name: Deploy to Cloudflare Pages
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.cloudflare-api-token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.cloudflare-account-id }}
+          CF_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
+          CF_PAGES_BRANCH: ${{ inputs.cloudflare-pages-branch }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${CLOUDFLARE_API_TOKEN:?missing CLOUDFLARE_API_TOKEN}"
+          : "${CLOUDFLARE_ACCOUNT_ID:?missing CLOUDFLARE_ACCOUNT_ID}"
+          : "${CF_PAGES_PROJECT:?missing CF_PAGES_PROJECT}"
+
+          npx wrangler pages deploy "./_published" \
+            --project-name "${CF_PAGES_PROJECT}" \
+            --branch "${CF_PAGES_BRANCH}"

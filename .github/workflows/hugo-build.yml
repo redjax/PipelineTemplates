@@ -107,21 +107,32 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || 'main' }}
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
 
       - name: Inspect repository state
         shell: bash
+        working-directory: ${{ inputs.site-root }}
         run: |
+          set -euo pipefail
+
+          echo "PWD:"
+          pwd
+
+          echo
           echo "SHA:"
           git rev-parse HEAD
 
           echo
-          echo "Public exists?"
-          ls -la public || true
+          echo "Site files:"
+          ls -la
 
           echo
-          echo "Hugo config:"
-          ls -la hugo.*
+          echo "Hugo config files:"
+          ls -la hugo.yml hugo.yaml hugo.toml config.* 2>/dev/null || true
+
+          echo
+          echo "Public exists?"
+          ls -la public 2>/dev/null || true
 
       - name: Resolve site paths
         id: paths
@@ -136,7 +147,8 @@ jobs:
           fi
 
       - name: Build Hugo site
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.4
+        # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.4
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@topic/hugo-pipeline-refinement
         with:
           hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}

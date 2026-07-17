@@ -5,24 +5,25 @@ The `hugo-site-main` workflow is the orchestration pipeline for Hugo sites. It c
 - [`hugo-version-bump`](../hugo-version-bump)
 - [`hugo-build`](../hugo-build)
 - [`hugo-gh-release`](../hugo-gh-release)
-- [`hugo-publish`](../hugo-publish)
+- [`hugo-publish-dispatch`](../hugo-publish-dispatch)
+- [`hugo-publish-router`](../hugo-publish-router)
+- [`hugo-publish-branch`](../hugo-publish-branch)
+- [`hugo-publish-gh-pages`](../hugo-publish-gh-pages)
+- [`hugo-publish-cloudflare-pages`](../hugo-publish-cloudflare-pages)
+- [`hugo-publish-netlify`](../hugo-publish-netlify)
 
-This workflow is intended to be called from a thin workflow stub in a consuming repository. The caller passes repository-specific inputs such as site path, versioning behavior, publishing options, and runner selection, and this pipeline conditionally runs the other workflows to build and release the Hugo site in the consuming repository.
+This workflow is intended to be called from a thin workflow stub in a consuming repository. The caller passes repository-specific inputs such as site path, versioning behavior, runner selection, and optional publish targets, and this pipeline conditionally runs the other workflows to build and release the Hugo site in the consuming repository.
 
-Automatic runs on `push` perform the bump step only when `versioned` is true. Some of my repositories are versioned with [`bump-my-version`](https://github.com/callowayproject/bump-my-version), while others might just be a "raw" Hugo site. This pipeline supports both. Manual runs also skip the bump step.
+Automatic runs on `push` perform the bump step only when `versioned` is true. Some repositories are versioned with [`bump-my-version`](https://github.com/callowayproject/bump-my-version), while others are raw Hugo sites. This pipeline supports both. Manual runs also skip the bump step.
 
-When releasing an un-versioned site, or on manual runs, the commit short SHA is used instead of a version tag. For example, the Git tag and Github release will be named something like `site-f52f891`, and the release artifacts `site-f52f891.tar.gz` and `site-f52f891.zip`.
+When releasing an un-versioned site, or on manual runs, the commit short SHA is used instead of a version tag. For example, the Git tag and GitHub release will be named something like `site-f52f891`, and the release artifacts `site-f52f891.tar.gz` and `site-f52f891.zip`.
 
-Publishing is optional and controlled by inputs. Currently support publish targets are:
+Publishing is optional and controlled by `publish-targets`, a JSON array of destination names. Supported targets:
 
-- A branch in the repository (i.e. `gh-pages`, for repos configured to deploy from a branch)
-- Github Pages
-- Cloudflare Page
-
->[!NOTE]
-> The publish job in this pipeline is a "fanout" job, which means it runs multiple workflows simultaneously. The result in the Github Actions webUI is a messy-looking graph towards the right of the flow.
->
-> This is normal/expected. I opted for maintainability (separating the steps in the pipeline) over a pretty graph, which would require joining the publish steps and orchestrating with a script.
+- `branch`
+- `github-pages`
+- `cloudflare-pages`
+- `netlify`
 
 ## Table of Contents <!-- omit in toc -->
 
@@ -39,7 +40,7 @@ Publishing is optional and controlled by inputs. Currently support publish targe
 - Run a version bump for versioned sites on automatic runs.
 - Build the Hugo site and upload to pipeline artifact.
 - Create the Git tag and GitHub Release, with `.tar.gz` and `.zip` archives as release assets.
-- Optionally publish to a destination such as GitHub Pages, Cloudflare Pages, etc.
+- Optionally publish to a destination such as GitHub Pages, Cloudflare Pages, a branch in Github, or Netlify.
 - Support both automatic and manual release flows.
 
 ## Inputs
@@ -51,23 +52,28 @@ Publishing is optional and controlled by inputs. Currently support publish targe
 - `bump-config`: Path to the bump configuration file.
 - `artifact-name`: Name of the uploaded build artifact.
 - `release-prefix`: Prefix used for generated release tags.
-- `publish-gh-pages`: Enables publishing to GitHub Pages.
-- `publish-to-branch`: Enables publishing to a branch in the repository, i.e. `gh-pages`.
-- `branch-name`: The name of the branch to publish to when `publish-to-branch: true`.
-- `publish-cf-pages`: Enables publishing to Cloudflare Pages.
-- `cloudflare-pages-branch`: Repository branch to publish to Cloudflare Pages.
-- `cloudflare-pages-project`: Cloudflare Pages project name (where the site is deployed; find this in Cloudflare Pages's admin portal).
+- `publish-targets`: JSON array of publish targets, e.g. `["github-pages","branch"]`.
+- `branch-name`: The name of the branch to publish to when `branch` is a target.
+- `cloudflare-pages-branch`: Branch name reported to Cloudflare Pages.
+- `cloudflare-pages-project`: Cloudflare Pages project name.
+- `netlify-site-id`: Netlify site ID.
+- `netlify-branch`: Branch name reported to Netlify.
+- `netlify-dir`: Directory to deploy to Netlify.
 - `runner-image`: Runner label or image to use.
 - `templates-ref`: Ref used to checkout the templates repository for shared scripts.
 - `hugo-build-flags`: Additional build flags for [`hugo-build` workflow](../hugo-build/), i.e. `--gc` or `--minify`.
+- `use-hugo-cache`: Enable/disable Hugo build cache.
+- `clean-hugo-cache`: Clean Hugo generated cache before build.
+- `debug-hugo-build-state`: Enable debug printing of the Hugo state path in the pipeline.
 
 ## Secrets
 
 The following secrets are required in the consuming repository (set them as Actions secrets in the repository's settings):
 
 - `release-bot-pat`: PAT used for release PR creation and merge operations (`RELEASE_BOT_PAT`).
-- `cloudflare-api-token`: Optional, used for Cloudflare publishing targets (`CLOUDFLARE_API_TOKEN`).
-- `cloudflare-account-id`: Optional, used for Cloudflare publishing targets (`CLOUDFLARE_ACCOUNT_ID`).
+- `cloudflare-api-token`: (optional) Used for Cloudflare publishing targets (`CLOUDFLARE_API_TOKEN`).
+- `cloudflare-account-id`: (optional) Used for Cloudflare publishing targets (`CLOUDFLARE_ACCOUNT_ID`).
+- `netlify-auth-token`: (optional) Used for Netlify publishing targets (`NETLIFY_AUTH_TOKEN`).
 
 The `RELEASE_BOT_PAT` is a [Github Personal Access Token (PAT)](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens), and requires the following permissions:
 
@@ -75,9 +81,7 @@ The `RELEASE_BOT_PAT` is a [Github Personal Access Token (PAT)](https://docs.git
 - Contents: Read and write
 - Workflows: Read and write
 
-The `CLOUDFLARE_API_TOKEN` is a [Cloudflare API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) and requires the following permissions:
-
-- Pages: Write
+The `CLOUDFLARE_API_TOKEN` is a [Cloudflare API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) and requires the `Pages: Write` permission.
 
 ## Release flows
 
@@ -111,22 +115,24 @@ flowchart TD
   H -->|versioned| I[Read version from .version, use site-v1.2.3]
   H -->|unversioned| J[Use site-&ltcommit-shorthash&gt]
 
-  I --> K[Run hugo-gh-release]
+  I --> K[Create git tag & release]
   J --> K
 
   K --> L{Publish enabled?}
   L -->|no| N[End]
-  L -->|yes| O{Publish release asset to target}
+  L -->|yes| O{"Publish release asset to target(s)"}
 
   O -->|branch| P[Run hugo-publish for branch deployment]
   O -->|github-pages| Q[Run hugo-publish to GitHub Pages]
   O -->|cloudflare-pages| R[Run hugo-publish to Cloudflare Pages]
-  O -->|multiple| S[Run hugo-publish for each selected target]
+  O -->|netlify| S[Run hugo-publish to Netlify]
+  O -->|multiple| T[Run hugo-publish-dispatch & router for each selected target]
 
   P --> N[End]
   Q --> N
   R --> N
   S --> N
+  T --> N
 
   M --> G
 ```
@@ -139,15 +145,15 @@ flowchart TD
   B --> C[Build site]
   C --> D[Create release metadata]
   D --> E[Use site-&ltcommit-shorthash&gt naming]
-  E --> F[Run hugo-gh-release]
+  E --> F[Create git tag & Github release]
   F --> G{Publish enabled?}
   G -->|no| H[End]
-  G -->|yes| I{Publish release asset to target}
+  G -->|yes| I{"Publish release asset to target(s)"}
 
-  I -->|branch| J[Run hugo-publish to branch]
-  I -->|github-pages| K[Run hugo-publish to GitHub Pages]
-  I -->|cloudflare-pages| L[Run hugo-publish to Cloudflare Pages]
-  I -->|multiple| M[Run hugo-publish for each selected target]
+  I -->|branch| J[Publish to branch]
+  I -->|github-pages| K[Publish to GitHub Pages]
+  I -->|cloudflare-pages| L[Publish to Cloudflare Pages]
+  I -->|netlify| M[Publish to Netlify]
 
   J --> H[End]
   K --> H
@@ -157,20 +163,20 @@ flowchart TD
 
 ## Example Consuming Repository Pipeline Stub
 
->[!NOTE]
+> [!NOTE]
 > You will need to change some of the values below depending on the type of repository calling the `hugo-site-main.yml` pipeline. At minimum you will likely need to update:
 >
 > - `site-root`: The path to the raw Hugo site files (default: `"."`, assumes Hugo was initialized at the repository root)
 >   - If a Hugo site is nested in a subdirectory in the consuming repository, i.e. in `apps/hugo-site/`, set `site-root` to the relative path from the repository root.
-> - versioned: Boolean value that determines if the [version bump step](../hugo-version-bump/) runs (default: `false`)
+> - `versioned`: Boolean value that determines if the [version bump step](../hugo-version-bump/) runs (default: `false`)
 >   - When `true`, the `version-file` and a `.bumpversion.toml` file must exist in the consuming repository.
 >   - The version bumping is handled by [`bump-my-version`](https://github.com/callowayproject/bump-my-version)
 > - `version-file`: ".version"
 >
-> The consuming repository must also set the `RELEASE_BOT_PAT`, `CLOUDFLARE_API_TOKEN`, and `CLOUDFLARE_ACCOUNT_ID` [repository secrets](#secrets).
+> The consuming repository must also set the `RELEASE_BOT_PAT`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and (optionally) `NETLIFY_AUTH_TOKEN` [repository secrets](#secrets).
 
 ```yaml
----
+***
 name: Hugo Site Main
 
 on:
@@ -189,21 +195,34 @@ on:
 
   workflow_dispatch:
     inputs:
-      publish-to-branch:
+      publish-targets:
+        description: 'JSON array of publish targets, e.g. ["github-pages","branch"]'
+        type: string
         required: false
-        default: false
-        type: boolean
+        default: '["github-pages","branch"]'
       branch-name:
         type: string
         required: false
         default: "gh-pages"
-      publish-cf-pages:
+      cloudflare-pages-project:
+        type: string
         required: false
-        default: false
-        type: boolean
+        default: "pipelinetemplates-test"
+      cloudflare-pages-branch:
+        type: string
+        required: false
+        default: "main"
       runner-img-or-label:
         type: string
         default: ubuntu-latest
+      use-hugo-cache:
+        type: boolean
+        required: false
+        default: true
+      clean-hugo-cache:
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   pipeline:
@@ -226,25 +245,24 @@ jobs:
       artifact-name: "hugo-site"
       ## Prefix for tags/releases, i.e. <prefix>-v1.2.3(.tar.gz/.zip)
       release-prefix: "site"
-      ## Publish to Github Pages, a branch, and/or Cloudflare Pages
-      publish-gh-pages: ${{ inputs.publish-gh-pages || false }}
-      ## Publish to a branch in the repository
-      publish-to-branch: ${{ inputs.publish-to-branch || false }}
-      ## Branch name where site is published when publish-to-branch: true
+      ## Publish targets controlling destinations
+      publish-targets: ${{ inputs.publish-targets || '["github-pages","branch"]' }}
+      ## Branch name where site is published when "branch" is a target
       branch-name: ${{ inputs.branch-name || 'gh-pages' }}
-      ## Publish to Cloudflare Pages
-      publish-cf-pages: ${{ inputs.publish-cf-pages || false }}
       ## Cloudflare Pages project name
-      cloudflare-pages-project: "pipelinetemplates-test"
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project || 'pipelinetemplates-test' }}
       ## Branch to deploy to Cloudflare Pages
-      cloudflare-pages-branch: "feat/test-publish-matrix"
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch || 'main' }}
       ## A label or supported runner image, for example 'self-hosted' if your selfhosted runner uses that label
       runner-image: ${{ inputs.runner-img-or-label || 'ubuntu-latest' }}
       ## PipelineTemplates repository ref for checkout step
       templates-ref: main
+      ## Enable/disable Hugo build cache
+      use-hugo-cache: ${{ inputs.use-hugo-cache || true }}
+      ## Clean Hugo generated cache before build
+      clean-hugo-cache: ${{ inputs.clean-hugo-cache || false }}
     secrets:
       release-bot-pat: ${{ secrets.RELEASE_BOT_PAT }}
       cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       cloudflare-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
 ```
