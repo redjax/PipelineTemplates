@@ -116,12 +116,12 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: ${{ inputs.source-dir }}/go.mod
-        ## Disable caching explicitly, let pipeline cache modules
-        cache: false
+    # - name: Set up Go
+    #   uses: actions/setup-go@v5
+    #   with:
+    #     go-version-file: ${{ inputs.source-dir }}/go.mod
+    #     ## Disable caching explicitly, let pipeline cache modules
+    #     cache: false
 
     - name: Install Hugo
       shell: bash
@@ -129,6 +129,10 @@ runs:
         HUGO_VERSION: ${{ inputs.hugo-version }}
         HUGO_EXTENDED: ${{ inputs.extended }}
       run: bash "${{ github.action_path }}/scripts/hugo-install.sh"
+
+    - name: Verify Go
+      shell: bash
+      run: go version
 
     - name: Verify Hugo modules
       if: ${{ inputs.debug-state == 'true' }}
