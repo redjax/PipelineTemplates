@@ -1,0 +1,65 @@
+---
+################################################################################
+# Hugo Publish to GitHub Pages                                                 #
+#                                                                              #
+# This reusable workflow publishes a built Hugo site artifact to GitHub Pages. #
+# It is destination-specific and contains only the inputs and deploy steps     #
+# needed for the GitHub Pages publishing flow.                                 #
+#                                                                              #
+# Flow:                                                                        #
+# - hugo-site-main.yml handles the build, release, and lane selection.         #
+# - hugo-publish-dispatch.yml fans out over the requested targets.             #
+# - hugo-publish-router.yml routes the target "github-pages" here.             #
+# - This workflow performs the official GitHub Pages deploy.                   #
+################################################################################
+
+name: Hugo Publish Github Pages
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  github-pages:
+    runs-on: ${{ inputs.runner-image }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./_published
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
