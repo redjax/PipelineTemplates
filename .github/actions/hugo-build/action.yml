@@ -183,7 +183,6 @@ runs:
         path: |
           ~/.cache/hugo
           ~/.cache/go-build
-          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
@@ -336,7 +335,6 @@ runs:
         path: |
           ~/.cache/hugo
           ~/.cache/go-build
-          ~/go/pkg/mod
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
