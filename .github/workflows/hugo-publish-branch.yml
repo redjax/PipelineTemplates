@@ -1,0 +1,91 @@
+---
+################################################################################
+# Hugo Publish to Branch                                                       #
+#                                                                              #
+# This reusable workflow publishes a built Hugo site artifact into a git       #
+# branch inside the repository, such as gh-pages or another deployment branch. #
+# It is destination-specific and contains only the inputs and git-push logic   #
+# needed for branch publishing.                                                #
+#                                                                              #
+# Flow:                                                                        #
+# - hugo-site-main.yml determines when publishing should occur.                #
+# - hugo-publish-dispatch.yml chooses which publish targets to run.            #
+# - hugo-publish-router.yml routes the target "branch" here.                   #
+# - This workflow force-updates the target branch with the published files.    #
+################################################################################
+
+name: Hugo Publish Branch
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: false
+        type: string
+        default: "hugo-site"
+      run-id:
+        required: false
+        type: string
+        default: ""
+      branch-name:
+        required: false
+        type: string
+        default: "gh-pages"
+      commit-message:
+        required: false
+        type: string
+        default: "Deploy Hugo site"
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+permissions:
+  contents: write
+
+jobs:
+  branch:
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ./_published
+
+      - name: Publish to branch
+        shell: bash
+        working-directory: ./_published
+        env:
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          git init
+
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git fetch origin "${BRANCH_NAME}" || true
+          git checkout -B "${BRANCH_NAME}"
+
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "[INFO] No changes to publish."
+            exit 0
+          fi
+
+          git commit -m "${COMMIT_MESSAGE}"
+          git push origin "${BRANCH_NAME}" --force
