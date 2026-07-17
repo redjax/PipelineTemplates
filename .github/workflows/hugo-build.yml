@@ -114,6 +114,7 @@ jobs:
         working-directory: ${{ inputs.site-root }}
         run: |
           set -euo pipefail
+
           echo "PWD:"
           pwd
 
@@ -126,8 +127,8 @@ jobs:
           ls -la
 
           echo
-          echo "Hugo config:"
-          ls -la hugo.* config.* 2>/dev/null || true
+          echo "Hugo config files:"
+          ls -la hugo.yml hugo.yaml hugo.toml config.* 2>/dev/null || true
 
           echo
           echo "Public exists?"
