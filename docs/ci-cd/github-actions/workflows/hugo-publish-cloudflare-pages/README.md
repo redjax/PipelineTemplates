@@ -1,6 +1,8 @@
 # Hugo Publish to Cloudflare Pages <!-- omit in toc -->
 
-The [`hugo-publish-cloudflare-pages`](../../../../../.github/workflows/hugo-publish-cloudflare-pages.yml) workflow publishes a built Hugo site artifact to Cloudflare Pages. It is destination-specific and contains only the inputs, secrets, and Wrangler-based deploy logic needed for Cloudflare Pages.
+The [`hugo-publish-cloudflare-pages`](../../../../../.github/workflows/hugo-publish-cloudflare-pages.yml) workflow publishes a built Hugo site artifact to Cloudflare Pages.
+
+This pipeline assumes you have disabled automatic deployments from a changed branch in Github. It uses the [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/) and a [Cloudflare API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/) to upload the site. The Cloudflare token must have `Pages: write` access.
 
 ## Table of Contents <!-- omit in toc -->
 
