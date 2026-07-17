@@ -2,9 +2,11 @@
 set -euo pipefail
 
 version="${HUGO_VERSION#v}"
-extended_flag=""
+## Build the filename prefix
 if [[ "${HUGO_EXTENDED}" == "true" ]]; then
-  extended_flag="-extended"
+  file_prefix="hugo_extended"
+else
+  file_prefix="hugo"
 fi
 
 arch="$(uname -m)"
@@ -21,11 +23,11 @@ aarch64)
   ;;
 esac
 
-url="https://github.com/gohugoio/hugo/releases/download/v${version}/hugo${extended_flag}_${version}_Linux-${arch}.tar.gz"
+url="https://github.com/gohugoio/hugo/releases/download/v${version}/${file_prefix}_${version}_Linux-${arch}.tar.gz"
 
 tmpdir="$(mktemp -d)"
 
-echo "Downloading hugo${extended_flag}_${version}_Linux-${arch}.tar.gz to ${tmpdir}"
+echo "Downloading ${file_prefix}_${version}_Linux-${arch}.tar.gz to ${tmpdir}"
 curl -fsSL "$url" -o "${tmpdir}/hugo.tar.gz"
 
 echo "Extracting hugo.tar.gz"
