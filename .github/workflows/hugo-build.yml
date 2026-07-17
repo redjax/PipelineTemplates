@@ -148,7 +148,7 @@ jobs:
 
       - name: Build Hugo site
         # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.4
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@feat/raw-go-hugo-install
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@topic/hugo-pipeline-refinement
         with:
           hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}
