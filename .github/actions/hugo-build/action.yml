@@ -128,7 +128,7 @@ runs:
       env:
         HUGO_VERSION: ${{ inputs.hugo-version }}
         HUGO_EXTENDED: ${{ inputs.extended }}
-      run: bash "${{ github.action_path }}/scripts/hugo-install.sh"
+      run: bash "${{ github.action_path }}/scripts/install-hugo.sh"
 
     - name: Verify Go
       shell: bash
