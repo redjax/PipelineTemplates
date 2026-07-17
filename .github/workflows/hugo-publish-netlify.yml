@@ -85,9 +85,8 @@ jobs:
           : "${NETLIFY_AUTH_TOKEN:?missing NETLIFY_AUTH_TOKEN}"
           : "${NETLIFY_SITE_ID:?missing NETLIFY_SITE_ID}"
 
-          netlify deploy \
+          npx --yes netlify-cli@18.1.1 deploy \
             --site "${NETLIFY_SITE_ID}" \
-            --auth "${NETLIFY_AUTH_TOKEN}" \
-            --dir "${NETLIFY_DIR}" \
+            --dir "./_published" \
             --prod \
-            --message "Deploy ${GITHUB_SHA:0:7} on ${NETLIFY_BRANCH}"
+            --message "Deploy ${GITHUB_SHA::7} on ${NETLIFY_BRANCH}"
