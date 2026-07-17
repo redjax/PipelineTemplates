@@ -1,6 +1,6 @@
 # Hugo Publish to Branch <!-- omit in toc -->
 
-The `hugo-publish-branch` workflow publishes a built Hugo site artifact to a git branch in the repository, such as `gh-pages`. It is destination-specific and contains only the inputs and git-push logic needed for branch publishing.
+The [`hugo-publish-branch`](../../../../../.github/workflows/hugo-publish-branch.yml) workflow publishes a built Hugo site artifact to a git branch in the repository, such as `gh-pages`. It is destination-specific and contains only the inputs and git-push logic needed for branch publishing.
 
 Some remote targets like Github Pages and Cloudflare Pages can automatically detect changes to a specific branch and publish them.
 
