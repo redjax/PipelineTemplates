@@ -67,10 +67,6 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install Netlify CLI
-        shell: bash
-        run: npm install -g netlify-cli
-
       - name: Deploy to Netlify
         shell: bash
         working-directory: ./_published
