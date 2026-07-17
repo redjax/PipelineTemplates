@@ -116,11 +116,23 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Hugo
-      uses: peaceiris/actions-hugo@v3
-      with:
-        hugo-version: ${{ inputs.hugo-version }}
-        extended: ${{ inputs.extended }}
+    # - name: Set up Go
+    #   uses: actions/setup-go@v5
+    #   with:
+    #     go-version-file: ${{ inputs.source-dir }}/go.mod
+    #     ## Disable caching explicitly, let pipeline cache modules
+    #     cache: false
+
+    - name: Install Hugo
+      shell: bash
+      env:
+        HUGO_VERSION: ${{ inputs.hugo-version }}
+        HUGO_EXTENDED: ${{ inputs.extended }}
+      run: bash "${{ github.action_path }}/scripts/install-hugo.sh"
+
+    - name: Verify Go
+      shell: bash
+      run: go version
 
     - name: Verify Hugo modules
       if: ${{ inputs.debug-state == 'true' }}
