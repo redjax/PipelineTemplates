@@ -181,8 +181,6 @@ runs:
       uses: actions/cache@v6
       with:
         path: |
-          ~/.cache/hugo
-          ~/.cache/go-build
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
@@ -333,8 +331,6 @@ runs:
       uses: actions/cache@v6
       with:
         path: |
-          ~/.cache/hugo
-          ~/.cache/go-build
           ${{ inputs.source-dir }}/node_modules
           ${{ inputs.source-dir }}/.hugo_build_cache
         key: >-
