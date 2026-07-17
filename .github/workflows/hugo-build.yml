@@ -147,8 +147,7 @@ jobs:
           fi
 
       - name: Build Hugo site
-        # uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.4
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@topic/hugo-pipeline-refinement
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.5
         with:
           hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}
