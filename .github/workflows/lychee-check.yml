@@ -1,0 +1,374 @@
+---
+#######################################################################
+# Runs Lychee in the pipeline to check a site or set of static files. #
+#                                                                     #
+# Lychee: https://github.com/lycheeverse/lychee                       #
+#######################################################################
+
+name: Lychee Link Checker
+
+on:
+  workflow_call:
+    inputs:
+      base-url:
+        description: "Base URL for resolving relative links / checking live site"
+        required: false
+        type: string
+        default: ""
+      offline:
+        description: "Check local files instead of live URL"
+        required: false
+        type: boolean
+        default: true
+      inputs:
+        description: "Files/URLs to check"
+        required: false
+        type: string
+        default: ""
+      config-file:
+        description: "Path to .lychee.toml"
+        required: false
+        type: string
+        default: ""
+      lychee-version:
+        description: "Lychee version (empty = latest)"
+        required: false
+        type: string
+        default: ""
+      install-dir:
+        description: "Install directory"
+        required: false
+        type: string
+        default: "/usr/local/bin"
+      verbose:
+        description: "Verbose level (error, warn, info, debug, trace)"
+        required: false
+        type: string
+        default: "warn"
+      no-progress:
+        description: "Disable progress bar"
+        required: false
+        type: boolean
+        default: true
+      timeout:
+        description: "Request timeout (seconds)"
+        required: false
+        type: number
+        default: 20
+      max-retries:
+        description: "Maximum retries"
+        required: false
+        type: number
+        default: 2
+      retry-wait-time:
+        description: "Seconds between retries"
+        required: false
+        type: number
+        default: 2
+      max-concurrency:
+        description: "Max concurrent checks"
+        required: false
+        type: number
+        default: 128
+      user-agent:
+        description: "Custom User-Agent"
+        required: false
+        type: string
+        default: "Mozilla/5.0 (compatible; lychee)"
+      accept:
+        description: "Accepted status codes"
+        required: false
+        type: string
+        default: "200..=299,429"
+      scheme:
+        description: "Only check these schemes (newline-separated)"
+        required: false
+        type: string
+        default: ""
+      require-https:
+        description: "Treat HTTP as error when HTTPS available"
+        required: false
+        type: boolean
+        default: false
+      exclude:
+        description: "Regex patterns to exclude (newline-separated)"
+        required: false
+        type: string
+        default: ""
+      exclude-path:
+        description: "Path patterns to exclude (newline-separated)"
+        required: false
+        type: string
+        default: ""
+      exclude-all-private:
+        description: "Exclude all private IPs"
+        required: false
+        type: boolean
+        default: false
+      exclude-private:
+        description: "Exclude private IP ranges"
+        required: false
+        type: boolean
+        default: false
+      exclude-loopback:
+        description: "Exclude loopback/localhost"
+        required: false
+        type: boolean
+        default: false
+      include-verbatim:
+        description: "Check links in <code>/<pre>"
+        required: false
+        type: boolean
+        default: false
+      include-fragments:
+        description: "Check URL fragments (#anchor)"
+        required: false
+        type: boolean
+        default: false
+      insecure:
+        description: "Allow insecure TLS"
+        required: false
+        type: boolean
+        default: false
+      header:
+        description: "Custom headers (newline-separated: 'Header: Value')"
+        required: false
+        type: string
+        default: ""
+      remap:
+        description: "Remap patterns (newline-separated: 'pattern replacement')"
+        required: false
+        type: string
+        default: ""
+      method:
+        description: "HTTP method"
+        required: false
+        type: string
+        default: "get"
+      output:
+        description: "Output file"
+        required: false
+        type: string
+        default: ""
+      format:
+        description: "Output format (compact, detailed, json, markdown, raw)"
+        required: false
+        type: string
+        default: "compact"
+      fail:
+        description: "Exit with error if broken links found"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install lychee
+        env:
+          LYCHEE_VERSION: ${{ inputs.lychee-version }}
+          INSTALL_DIR: ${{ inputs.install-dir }}
+        run: |
+          if [ -z "${LYCHEE_VERSION}" ]; then
+            VERSION="$(curl -sL https://api.github.com/repos/lycheeverse/lychee/releases/latest | grep tag_name | sed -E 's/.*"([^"]+)".*/\1/')"
+          else
+            VERSION="${LYCHEE_VERSION}"
+          fi
+
+          VERSION="${VERSION#lychee-}"
+
+          curl -fsSL "https://github.com/lycheeverse/lychee/releases/download/lychee-v${VERSION}/lychee-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" | \
+          tar -xzf - -C /tmp && \
+          mv /tmp/lychee-v${VERSION}-x86_64-unknown-linux-gnu/lychee ${INSTALL_DIR}/ && \
+          chmod +x ${INSTALL_DIR}/lychee
+
+      - name: Build exclude arguments
+        id: exclude-args
+        if: ${{ inputs.exclude != '' }}
+        run: |
+          ARGS=""
+
+          while IFS= read -r pattern; do
+            [ -z "$pattern" ] && continue
+            ARGS="${ARGS} --exclude '${pattern}'"
+          done <<< "${{ inputs.exclude }}"
+
+          echo "args=${ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Build exclude-path arguments
+        id: exclude-path-args
+        if: ${{ inputs.exclude-path != '' }}
+        run: |
+          ARGS=""
+
+          while IFS= read -r pattern; do
+            [ -z "$pattern" ] && continue
+            ARGS="${ARGS} --exclude-path '${pattern}'"
+          done <<< "${{ inputs.exclude-path }}"
+
+          echo "args=${ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Build scheme arguments
+        id: scheme-args
+        if: ${{ inputs.scheme != '' }}
+        run: |
+          ARGS=""
+
+          for scheme in $(echo "${{ inputs.scheme }}" | tr ',' ' '); do
+            [ -z "$scheme" ] && continue
+            ARGS="${ARGS} --scheme ${scheme}"
+          done
+
+          echo "args=${ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Build header arguments
+        id: header-args
+        if: ${{ inputs.header != '' }}
+        run: |
+          ARGS=""
+
+          while IFS= read -r h; do
+            [ -z "$h" ] && continue
+            ARGS="${ARGS} --header '${h}'"
+          done <<< "${{ inputs.header }}"
+
+          echo "args=${ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Build remap arguments
+        id: remap-args
+        if: ${{ inputs.remap != '' }}
+        run: |
+          ARGS=""
+
+          while IFS= read -r r; do
+            [ -z "$r" ] && continue
+            ARGS="${ARGS} --remap '${r}'"
+          done <<< "${{ inputs.remap }}"
+
+          echo "args=${ARGS}" >> $GITHUB_OUTPUT
+
+      - name: Check links (offline mode)
+        if: ${{ inputs.offline }}
+        env:
+          EXCLUDE_ARGS: ${{ steps.exclude-args.outputs.args }}
+          EXCLUDE_PATH_ARGS: ${{ steps.exclude-path-args.outputs.args }}
+          SCHEME_ARGS: ${{ steps.scheme-args.outputs.args }}
+          HEADER_ARGS: ${{ steps.header-args.outputs.args }}
+          REMAP_ARGS: ${{ steps.remap-args.outputs.args }}
+        run: |
+          if [ -z "${{ inputs.inputs }}" ]; then
+            echo "[ERROR] 'inputs' is required for offline mode" >&2
+            exit 1
+          fi
+
+          CMD="lychee --offline"
+
+          if [ -n "${{ inputs.config-file }}" ]; then
+            if [ -f "${{ inputs.config-file }}" ]; then
+              CMD="${CMD} --config ${{ inputs.config-file }}"
+            else
+              echo "[WARNING] Config file not found: ${{ inputs.config-file }}" >&2
+            fi
+          fi
+
+          CMD="${CMD} --verbose ${{ inputs.verbose }}"
+
+          [ "${{ inputs.no-progress }}" = "true" ] && CMD="${CMD} --no-progress"
+
+          CMD="${CMD} --timeout ${{ inputs.timeout }}"
+          CMD="${CMD} --max-retries ${{ inputs.max-retries }}"
+          CMD="${CMD} --retry-wait-time ${{ inputs.retry-wait-time }}"
+          CMD="${CMD} --max-concurrency ${{ inputs.max-concurrency }}"
+          CMD="${CMD} --user-agent '${{ inputs.user-agent }}'"
+          CMD="${CMD} --accept '${{ inputs.accept }}'"
+
+          [ -n "${{ inputs.scheme }}" ] && CMD="${CMD} ${SCHEME_ARGS}"
+          [ "${{ inputs.require-https }}" = "true" ] && CMD="${CMD} --require-https"
+          [ -n "${{ inputs.exclude }}" ] && CMD="${CMD} ${EXCLUDE_ARGS}"
+          [ -n "${{ inputs.exclude-path }}" ] && CMD="${CMD} ${EXCLUDE_PATH_ARGS}"
+          [ "${{ inputs.exclude-all-private }}" = "true" ] && CMD="${CMD} --exclude-all-private"
+          [ "${{ inputs.exclude-private }}" = "true" ] && CMD="${CMD} --exclude-private"
+          [ "${{ inputs.exclude-loopback }}" = "true" ] && CMD="${CMD} --exclude-loopback"
+          [ "${{ inputs.include-verbatim }}" = "true" ] && CMD="${CMD} --include-verbatim"
+          [ "${{ inputs.include-fragments }}" = "true" ] && CMD="${CMD} --include-fragments"
+          [ "${{ inputs.insecure }}" = "true" ] && CMD="${CMD} --insecure"
+          [ -n "${{ inputs.header }}" ] && CMD="${CMD} ${HEADER_ARGS}"
+          [ -n "${{ inputs.remap }}" ] && CMD="${CMD} ${REMAP_ARGS}"
+
+          CMD="${CMD} --method ${{ inputs.method }}"
+
+          [ -n "${{ inputs.output }}" ] && CMD="${CMD} --output ${{ inputs.output }}"
+
+          CMD="${CMD} --format ${{ inputs.format }}"
+          CMD="${CMD} ${{ inputs.inputs }}"
+
+          echo "Running: ${CMD}"
+          eval "${CMD}"
+          exit_code=$?
+
+          if [ $exit_code -ne 0 ] && [ "${{ inputs.fail }}" = "true" ]; then
+            exit $exit_code
+          fi
+
+      - name: Check links (live site)
+        if: ${{ !inputs.offline && inputs.base-url != '' }}
+        env:
+          EXCLUDE_ARGS: ${{ steps.exclude-args.outputs.args }}
+          EXCLUDE_PATH_ARGS: ${{ steps.exclude-path-args.outputs.args }}
+          SCHEME_ARGS: ${{ steps.scheme-args.outputs.args }}
+          HEADER_ARGS: ${{ steps.header-args.outputs.args }}
+          REMAP_ARGS: ${{ steps.remap-args.outputs.args }}
+        run: |
+          CMD="lychee --base-url ${{ inputs.base-url }}"
+
+          if [ -n "${{ inputs.config-file }}" ]; then
+            if [ -f "${{ inputs.config-file }}" ]; then
+              CMD="${CMD} --config ${{ inputs.config-file }}"
+            else
+              echo "[WARNING] Config file not found: ${{ inputs.config-file }}" >&2
+            fi
+          fi
+
+          CMD="${CMD} --verbose ${{ inputs.verbose }}"
+
+          [ "${{ inputs.no-progress }}" = "true" ] && CMD="${CMD} --no-progress"
+
+          CMD="${CMD} --timeout ${{ inputs.timeout }}"
+          CMD="${CMD} --max-retries ${{ inputs.max-retries }}"
+          CMD="${CMD} --retry-wait-time ${{ inputs.retry-wait-time }}"
+          CMD="${CMD} --max-concurrency ${{ inputs.max-concurrency }}"
+          CMD="${CMD} --user-agent '${{ inputs.user-agent }}'"
+          CMD="${CMD} --accept '${{ inputs.accept }}'"
+
+          [ -n "${{ inputs.scheme }}" ] && CMD="${CMD} ${SCHEME_ARGS}"
+          [ "${{ inputs.require-https }}" = "true" ] && CMD="${CMD} --require-https"
+          [ -n "${{ inputs.exclude }}" ] && CMD="${CMD} ${EXCLUDE_ARGS}"
+          [ -n "${{ inputs.exclude-path }}" ] && CMD="${CMD} ${EXCLUDE_PATH_ARGS}"
+          [ "${{ inputs.exclude-all-private }}" = "true" ] && CMD="${CMD} --exclude-all-private"
+          [ "${{ inputs.exclude-private }}" = "true" ] && CMD="${CMD} --exclude-private"
+          [ "${{ inputs.exclude-loopback }}" = "true" ] && CMD="${CMD} --exclude-loopback"
+          [ "${{ inputs.include-verbatim }}" = "true" ] && CMD="${CMD} --include-verbatim"
+          [ "${{ inputs.include-fragments }}" = "true" ] && CMD="${CMD} --include-fragments"
+          [ "${{ inputs.insecure }}" = "true" ] && CMD="${CMD} --insecure"
+          [ -n "${{ inputs.header }}" ] && CMD="${CMD} ${HEADER_ARGS}"
+          [ -n "${{ inputs.remap }}" ] && CMD="${CMD} ${REMAP_ARGS}"
+
+          CMD="${CMD} --method ${{ inputs.method }}"
+
+          [ -n "${{ inputs.output }}" ] && CMD="${CMD} --output ${{ inputs.output }}"
+
+          CMD="${CMD} --format ${{ inputs.format }}"
+          CMD="${CMD} ${{ inputs.base-url }}"
+
+          echo "Running: ${CMD}"
+          eval "${CMD}"
+          exit_code=$?
+
+          if [ $exit_code -ne 0 ] && [ "${{ inputs.fail }}" = "true" ]; then
+            exit $exit_code
+          fi
