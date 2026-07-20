@@ -175,17 +175,25 @@ jobs:
           INSTALL_DIR: ${{ inputs.install-dir }}
         run: |
           if [ -z "${LYCHEE_VERSION}" ]; then
-            VERSION="$(curl -sL https://api.github.com/repos/lycheeverse/lychee/releases/latest | grep tag_name | sed -E 's/.*"([^"]+)".*/\1/')"
+            VERSION="$(curl -sL https://api.github.com/repos/lycheeverse/lychee/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')"
+            VERSION="${VERSION#lychee-}"
           else
             VERSION="${LYCHEE_VERSION}"
           fi
 
-          VERSION="${VERSION#lychee-}"
+          echo "[INFO] Installing lychee v${VERSION}"
 
-          curl -fsSL "https://github.com/lycheeverse/lychee/releases/download/lychee-v${VERSION}/lychee-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" | \
-          tar -xzf - -C /tmp && \
-          mv /tmp/lychee-v${VERSION}-x86_64-unknown-linux-gnu/lychee ${INSTALL_DIR}/ && \
-          chmod +x ${INSTALL_DIR}/lychee
+          URL="https://github.com/lycheeverse/lychee/releases/download/lychee-v${VERSION}/lychee-x86_64-unknown-linux-gnu.tar.gz"
+          echo "[INFO] Downloading from: ${URL}"
+
+          curl -fsSL "${URL}" -o /tmp/lychee.tar.gz
+
+          tar -xzf /tmp/lychee.tar.gz -C /tmp
+          mv /tmp/lychee "${INSTALL_DIR}/"
+          chmod +x "${INSTALL_DIR}/lychee"
+
+          echo "[INFO] Installed to ${INSTALL_DIR}/lychee"
+          "${INSTALL_DIR}/lychee" --version
 
       - name: Build exclude arguments
         id: exclude-args
