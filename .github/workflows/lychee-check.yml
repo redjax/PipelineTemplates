@@ -177,6 +177,9 @@ jobs:
           if [ -z "${LYCHEE_VERSION}" ]; then
             VERSION="$(curl -sL https://api.github.com/repos/lycheeverse/lychee/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')"
             VERSION="${VERSION#lychee-}"
+            
+            ## Strip leading 'v' if present
+            VERSION="${VERSION#v}"
           else
             VERSION="${LYCHEE_VERSION}"
           fi
