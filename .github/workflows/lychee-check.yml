@@ -177,7 +177,7 @@ jobs:
           if [ -z "${LYCHEE_VERSION}" ]; then
             VERSION="$(curl -sL https://api.github.com/repos/lycheeverse/lychee/releases/latest | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')"
             VERSION="${VERSION#lychee-}"
-            
+
             ## Strip leading 'v' if present
             VERSION="${VERSION#v}"
           else
@@ -191,9 +191,17 @@ jobs:
 
           curl -fsSL "${URL}" -o /tmp/lychee.tar.gz
 
-          tar -xzf /tmp/lychee.tar.gz -C /tmp
-          mv /tmp/lychee "${INSTALL_DIR}/"
+          ## Extract to temp directory
+          mkdir -p /tmp/lychee-extract
+          tar -xzf /tmp/lychee.tar.gz -C /tmp/lychee-extract
+
+          ## Find the binary in subdirectory
+          find /tmp/lychee-extract -name "lychee" -type f -executable | head -1 | xargs -I {} mv {} "${INSTALL_DIR}/lychee"
+
           chmod +x "${INSTALL_DIR}/lychee"
+
+          ## Cleanup
+          rm -rf /tmp/lychee.tar.gz /tmp/lychee-extract
 
           echo "[INFO] Installed to ${INSTALL_DIR}/lychee"
           "${INSTALL_DIR}/lychee" --version
