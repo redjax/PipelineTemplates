@@ -353,10 +353,7 @@ jobs:
             fi
           fi
 
-          CMD="${CMD} --verbose ${{ inputs.verbose }}"
-
-          [ "${{ inputs.no-progress }}" = "true" ] && CMD="${CMD} --no-progress"
-
+          CMD="${CMD} --no-progress"
           CMD="${CMD} --timeout ${{ inputs.timeout }}"
           CMD="${CMD} --max-retries ${{ inputs.max-retries }}"
           CMD="${CMD} --retry-wait-time ${{ inputs.retry-wait-time }}"
@@ -380,7 +377,6 @@ jobs:
           CMD="${CMD} --method ${{ inputs.method }}"
 
           [ -n "${{ inputs.output }}" ] && CMD="${CMD} --output ${{ inputs.output }}"
-
           CMD="${CMD} --format ${{ inputs.format }}"
           CMD="${CMD} ${{ inputs.base-url }}"
 
