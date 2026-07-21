@@ -1,6 +1,22 @@
-# Jenkins
+# Jenkins <!-- omit in toc -->
 
 Documentation for my [Jenkins pipelines](../../../.jenkins/).
+
+## Table of Contents <!-- omit in toc -->
+
+- [Sections](#sections)
+- [Connecting to Github](#connecting-to-github)
+  - [Connect with a Github App](#connect-with-a-github-app)
+    - [Github App Permissions Table](#github-app-permissions-table)
+  - [Connect with a Personal Access Token (PAT)](#connect-with-a-personal-access-token-pat)
+    - [PAT Permissions Table](#pat-permissions-table)
+
+## Sections
+
+| Section | Description |
+| [jobs](./jobs/) | The unit of work called in the Jenkins webUI. Orchestrates a pipeline and exposes pipeline parameters to the caller in the webUI. |
+| [libraries](./libraries/) | Shared libraries are the reusable building blocks for a pipeline. They define things like building a Go app with parameters to control things like the CPU architecture and `CGO_ENABLED`. |
+| [pipelines](./pipelines/) | Wraps functionality of 1 or more shared libraries, or raw script logic. Orchestrated by a job file. |
 
 ## Connecting to Github
 
