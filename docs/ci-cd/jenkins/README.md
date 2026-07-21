@@ -46,6 +46,16 @@ To add the Github App as a credential, open Jenkins' settings and go to "Credent
 
 If you do not need the webhook functionality a Github App provides, you can also just use a PAT.
 
+A good starting point for the Jenkins PAT is:
+
+| Permission      | Value                                                          |
+| --------------- | -------------------------------------------------------------- |
+| Commit statuses | Read-only                                                      |
+| Contents        | Read and write                                                 |
+| Issues          | Read-only                                                      |
+| Metadata        | Read-only                                                      |
+| Pages           | (only if Jenkins is publishing to Github Pages) Read and write |
+
 #### PAT Permissions Table
 
 | Permission                                  | Required/Optional                                     | Purpose                                                                                                       |
