@@ -10,7 +10,7 @@ To run pipelines from Github, you can use a [Github App](https://docs.github.com
 
 Create a Github App with a name like `Jenkins` or `Jenkins-Homelab`. Depending on if your Jenkins instance is reachable from Github/the Internet or not, you will need to use different configurations.
 
-After creating the app, save the App ID and Client ID, then generate a client secret and save it somewhere secure. Scroll down and generate a private key. You will need to convert this key to PKCS#8 format (you can also use the [`convert-github-privatekey.sh` script](./scripts/convert-github-privatekey.sh)):
+After creating the app, save the App ID and Client ID, then generate a client secret and save it somewhere secure. Scroll down and generate a private key. You will need to convert this key to PKCS#8 format:
 
 ```shell
 openssl pkcs8 -topk8 -inform PEM -outform PEM -in yourappname.YYYY-mm-dd.private-key.pem -out converted.yourappname.pem -nocrypt
