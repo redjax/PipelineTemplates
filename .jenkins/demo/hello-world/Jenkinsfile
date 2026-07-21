@@ -1,0 +1,41 @@
+//
+// Demo 'hello world' pipeline for Jenkins.
+//
+// Accepts a "NAME" parameter (default: world) for the greeting.
+// Accepts an "AGENT_LABEL" parameter (default: '') to control
+//   which agent runs the pipeline.
+//
+// To run in Jenkins, create an SCM pipeline and give it the URL
+// to this repo/pipeline. When you run this SCM pipeline in
+// Jenkins, you can pass a name and optional agent label.
+//
+
+pipeline {
+  agent none
+
+  parameters {
+    string(name: 'NAME', defaultValue: 'world', description: 'Who should I greet?')
+    string(name: 'AGENT_LABEL', defaultValue: '', description: 'Optional agent label')
+  }
+
+  stages {
+    stage('Hello') {
+      agent {
+        label "${params.AGENT_LABEL?.trim() ? params.AGENT_LABEL.trim() : 'main'}"
+      }
+      steps {
+        echo "Hello ${params.NAME}, from ${env.NODE_NAME}!"
+      }
+    }
+
+    stage('Workspace') {
+      agent {
+        label "${params.AGENT_LABEL?.trim() ? params.AGENT_LABEL.trim() : 'main'}"
+      }
+      steps {
+        sh 'pwd'
+        sh 'ls -la'
+      }
+    }
+  }
+}
