@@ -1,0 +1,33 @@
+{
+    "$schema": "https://docs.renovatebot.com/config-options/",
+    "extends": [
+        "config:recommended"
+    ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "Update netlify-cli version in GitHub Actions workflows",
+            "fileMatch": [
+                "^\\.github/workflows/.*\\.ya?ml$"
+            ],
+            "matchStrings": [
+                "netlify-cli@(?<currentValue>\\d+(\\.\\d+)*(-[a-zA-Z0-9.]+)?)"
+            ],
+            "depNameTemplate": "netlify-cli",
+            "datasourceTemplate": "npm",
+            "versioningTemplate": "npm"
+        }
+    ],
+    "packageRules": [
+        {
+            "matchPackageNames": [
+                "netlify-cli"
+            ],
+            "matchUpdateTypes": [
+                "minor",
+                "patch"
+            ],
+            "automerge": false
+        }
+    ]
+}
