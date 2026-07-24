@@ -81,7 +81,7 @@ jobs:
           : "${NETLIFY_AUTH_TOKEN:?missing NETLIFY_AUTH_TOKEN}"
           : "${NETLIFY_SITE_ID:?missing NETLIFY_SITE_ID}"
 
-          npx --yes netlify-cli@23.5.1 deploy \
+          npx --yes netlify-cli@26.2.0 deploy \
             --site "${NETLIFY_SITE_ID}" \
             --dir "." \
             --prod \
