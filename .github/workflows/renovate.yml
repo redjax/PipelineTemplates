@@ -153,7 +153,7 @@ jobs:
 
       - name: Run Renovate
         ## https://github.com/renovatebot/github-action/tags
-        uses: renovatebot/github-action@v46.1.19
+        uses: renovatebot/github-action@v46.1.20
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_PLATFORM: github
