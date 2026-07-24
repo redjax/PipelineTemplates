@@ -7,8 +7,8 @@
         {
             "customType": "regex",
             "description": "Update netlify-cli version in GitHub Actions workflows",
-            "fileMatch": [
-                "^\\.github/workflows/.*\\.ya?ml$"
+            "managerFilePatterns": [
+                "/^\\.github/workflows/.*\\.ya?ml$/"
             ],
             "matchStrings": [
                 "netlify-cli@(?<currentValue>\\d+(\\.\\d+)*(-[a-zA-Z0-9.]+)?)"
