@@ -30,9 +30,6 @@ on:
           - info
           - debug
           - trace
-  push:
-    branches:
-      - feat/renovate-pipelinetemplates-repo
 
 permissions:
   contents: read
