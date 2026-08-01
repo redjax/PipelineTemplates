@@ -1,0 +1,159 @@
+---
+#################################################################################
+# Workflow to run Renovate against a consuming repository.                     #
+#                                                                              #
+# Supports repositories that define their own renovate.json, and provides a    #
+# default if no config file exists.                                            #
+#                                                                              #
+# Requires a Forgejo Actions secret named RENOVATE_TOKEN, which is a Forgejo   #
+# PAT with the following access:                                               #
+# - Repository: Read and write                                                 #
+# - Issues: Read and write                                                     #
+# - Pull requests: Read and write                                              #
+#                                                                              #
+#################################################################################
+
+name: Renovate Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "Renovate mode: extract, lookup, or run."
+        required: false
+        type: string
+        default: "run"
+      repository:
+        description: "Target repository to process."
+        required: false
+        type: string
+        default: ""
+      log-level:
+        description: "Renovate log level."
+        required: false
+        type: string
+        default: "info"
+      config-file:
+        description: "Path to consuming repo's Renovate JSON config."
+        required: false
+        type: string
+        default: "renovate.json"
+      require-config:
+        description: "Controls how Renovate handles repo-local config: required, optional, or ignored."
+        required: false
+        type: string
+        default: "optional"
+      autodiscover:
+        description: "Auto-discover account repositories with Renovate."
+        required: false
+        type: boolean
+        default: false
+      runner-label:
+        description: "Runner label to use (e.g., renovate, ubuntu)."
+        required: false
+        type: string
+        default: renovate
+      pipelinetemplates-ref:
+        description: "Branch, tag, or hash to checkout for PipelineTemplates."
+        required: false
+        type: string
+        default: main
+      renovate-author-email:
+        description: "Email address to use for Renovate bot."
+        required: false
+        type: string
+        default: "renovate-bot@yourdomain.com"
+      base-branches:
+        description: "Renovate base branches (comma-separated or single branch)."
+        required: false
+        type: string
+        default: ""
+      use-base-branch-config:
+        description: "Use base branch config for Renovate."
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      renovate-token:
+        required: true
+      github-com-token:
+        required: false
+
+jobs:
+  renovate:
+    runs-on: ${{ inputs.runner-label }}
+    steps:
+      - name: Checkout consuming repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout pipelinetemplates
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/pipelinetemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+          token: ${{ secrets.renovate-token }}
+
+      - name: Select config file
+        id: cfg
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          DEFAULT_CONFIG_FILE="pipelinetemplates/config/renovate/default.json"
+          CONFIG_FILE="${{ inputs.config-file }}"
+
+          if [[ -f "${CONFIG_FILE}" ]]; then
+            :
+          elif [[ -f "${DEFAULT_CONFIG_FILE}" ]]; then
+            CONFIG_FILE="${DEFAULT_CONFIG_FILE}"
+          else
+            echo "[ERROR] No renovate config found at either '${{ inputs.config-file }}' or '${DEFAULT_CONFIG_FILE}'." >&2
+            exit 1
+          fi
+
+          echo "config-file=${CONFIG_FILE}" >> "$GITHUB_OUTPUT"
+          echo "require-config=${{ inputs.require-config }}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide dry-run mode
+        id: mode
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          case "${{ inputs.mode }}" in
+            extract)
+              echo "dry-run=extract" >> "$GITHUB_OUTPUT"
+              ;;
+            lookup)
+              echo "dry-run=lookup" >> "$GITHUB_OUTPUT"
+              ;;
+            run)
+              echo "dry-run=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "[ERROR] Invalid mode: ${{ inputs.mode }} (use extract, lookup, or run)." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v46.2.0
+        env:
+          LOG_LEVEL: ${{ inputs.log-level }}
+          RENOVATE_PLATFORM: gitea
+          RENOVATE_ENDPOINT: https://your-forgejo-domain/api/v1
+          RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
+          RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
+          RENOVATE_REPOSITORIES: ${{ inputs.repository }}
+          RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
+          RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
+          RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
+          GITHUB_COM_TOKEN: ${{ secrets.github-com-token }}
+          RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
+          RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config && 'true' || '' }}
+        with:
+          token: ${{ secrets.renovate-token }}
