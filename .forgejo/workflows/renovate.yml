@@ -88,6 +88,21 @@ jobs:
   renovate:
     runs-on: ${{ inputs.runner-label }}
     steps:
+      - name: Validate Forgejo endpoint
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${{ inputs.forgejo-endpoint }}" ]]; then
+            echo "[ERROR] forgejo-endpoint input is empty (vars.FJ_ENDPOINT not set?)." >&2
+            exit 1
+          fi
+
+          if [[ "${{ inputs.forgejo-endpoint }}" != *"/api/v1" ]]; then
+            echo "[ERROR] forgejo-endpoint should end with /api/v1, got: ${{ inputs.forgejo-endpoint }}" >&2
+            exit 1
+          fi
+
       - name: Checkout consuming repository
         shell: bash
         run: |
@@ -96,7 +111,10 @@ jobs:
           git clone "${{ github.server_url }}/${{ github.repository }}.git" .
 
       - name: Checkout PipelineTemplates
+        shell: bash
         run: |
+          set -Eeuo pipefail
+
           git clone \
             --branch "${{ inputs.pipelinetemplates-ref }}" \
             https://github.com/redjax/pipelinetemplates.git \
@@ -146,7 +164,13 @@ jobs:
           esac
 
       - name: Run Renovate
+        shell: bash
+        env:
+          DOCKER_HOST: tcp://docker-in-docker:2375
+          DOCKER_TLS_CERTDIR: ""
         run: |
+          set -Eeuo pipefail
+
           docker run --rm \
             -e RENOVATE_PLATFORM=gitea \
             -e RENOVATE_ENDPOINT="${{ inputs.forgejo-endpoint }}" \
@@ -156,6 +180,3 @@ jobs:
             -v "$PWD:/workspace" \
             -w /workspace \
             ghcr.io/renovatebot/renovate:latest
-        environment:
-          DOCKER_HOST: tcp://docker-in-docker:2375
-          DOCKER_TLS_CERTDIR: ""
