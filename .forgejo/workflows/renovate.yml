@@ -62,7 +62,7 @@ on:
         description: "Email address to use for Renovate bot."
         required: false
         type: string
-        default: "renovate-bot@yourdomain.com"
+        default: "renovate-bot@localhost"
       base-branches:
         description: "Renovate base branches (comma-separated or single branch)."
         required: false
@@ -73,6 +73,11 @@ on:
         required: false
         type: boolean
         default: false
+      forgejo-endpoint:
+        description: "Forgejo API endpoint URL (e.g., https://code.example.com/api/v1)."
+        required: false
+        type: string
+        default: ""
     secrets:
       renovate-token:
         required: true
@@ -84,18 +89,18 @@ jobs:
     runs-on: ${{ inputs.runner-label }}
     steps:
       - name: Checkout consuming repo
-        uses: actions/checkout@v4
+        uses: https://github.com/actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout pipelinetemplates
-        uses: actions/checkout@v4
+        uses: https://github.com/actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/pipelinetemplates
+          repository: redjax/pipelinetemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
-          token: ${{ secrets.renovate-token }}
 
       - name: Select config file
         id: cfg
@@ -141,11 +146,12 @@ jobs:
           esac
 
       - name: Run Renovate
-        uses: renovatebot/github-action@v46.2.0
+        uses: https://github.com/renovatebot/github-action@v46.2.0
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_PLATFORM: gitea
-          RENOVATE_ENDPOINT: https://your-forgejo-domain/api/v1
+          RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
+          RENOVATE_TOKEN: ${{ secrets.renovate-token }}
           RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
           RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
