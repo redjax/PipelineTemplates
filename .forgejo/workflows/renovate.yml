@@ -103,22 +103,19 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout consuming repository
-        shell: bash
-        run: |
-          set -Eeuo pipefail
+      - name: Checkout consuming repo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
-          git clone "${{ github.server_url }}/${{ github.repository }}.git" .
-
-      - name: Checkout PipelineTemplates
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          git clone \
-            --branch "${{ inputs.pipelinetemplates-ref }}" \
-            https://github.com/redjax/pipelinetemplates.git \
-            pipelinetemplates
+      - name: Checkout pipelinetemplates
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository_owner }}/pipelinetemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+          token: ${{ secrets.renovate-token }}
 
       - name: Select config file
         id: cfg
@@ -177,6 +174,14 @@ jobs:
             -e RENOVATE_TOKEN="${{ secrets.renovate-token }}" \
             -e RENOVATE_REPOSITORIES="${{ inputs.repository }}" \
             -e LOG_LEVEL="${{ inputs.log-level }}" \
+            -e RENOVATE_CONFIG_FILE="${{ steps.cfg.outputs.config-file }}" \
+            -e RENOVATE_REQUIRE_CONFIG="${{ steps.cfg.outputs.require-config }}" \
+            -e RENOVATE_DRY_RUN="${{ steps.mode.outputs.dry-run }}" \
+            -e RENOVATE_AUTODISCOVER="${{ inputs.autodiscover }}" \
+            -e RENOVATE_BASE_BRANCHES="${{ inputs.base-branches }}" \
+            -e RENOVATE_USE_BASE_BRANCH_CONFIG="${{ inputs.use-base-branch-config && 'true' || '' }}" \
+            -e RENOVATE_GIT_AUTHOR="Renovate Bot <${{ inputs.renovate-author-email }}>" \
+            -e GITHUB_COM_TOKEN="${{ secrets.github-com-token }}" \
             -v "$PWD:/workspace" \
             -w /workspace \
             ghcr.io/renovatebot/renovate:latest
