@@ -89,7 +89,10 @@ jobs:
     runs-on: ${{ inputs.runner-label }}
     steps:
       - name: Checkout consuming repository
+        shell: bash
         run: |
+          set -Eeuo pipefail
+
           git clone "${{ github.server_url }}/${{ github.repository }}.git" .
 
       - name: Checkout PipelineTemplates
@@ -151,4 +154,8 @@ jobs:
             -e RENOVATE_REPOSITORIES="${{ inputs.repository }}" \
             -e LOG_LEVEL="${{ inputs.log-level }}" \
             -v "$PWD:/workspace" \
+            -w /workspace \
             ghcr.io/renovatebot/renovate:latest
+        environment:
+          DOCKER_HOST: tcp://docker-in-docker:2375
+          DOCKER_TLS_CERTDIR: ""
