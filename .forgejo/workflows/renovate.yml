@@ -52,7 +52,7 @@ on:
         description: "Runner label to use (e.g., renovate, ubuntu)."
         required: false
         type: string
-        default: renovate
+        default: ubuntu
       pipelinetemplates-ref:
         description: "Branch, tag, or hash to checkout for PipelineTemplates."
         required: false
