@@ -88,19 +88,16 @@ jobs:
   renovate:
     runs-on: ${{ inputs.runner-label }}
     steps:
-      - name: Checkout consuming repo
-        uses: https://github.com/actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
+      - name: Checkout consuming repository
+        run: |
+          git clone "${{ github.server_url }}/${{ github.repository }}.git" .
 
-      - name: Checkout pipelinetemplates
-        uses: https://github.com/actions/checkout@v4
-        with:
-          repository: redjax/pipelinetemplates
-          ref: ${{ inputs.pipelinetemplates-ref }}
-          path: pipelinetemplates
-          fetch-depth: 0
+      - name: Checkout PipelineTemplates
+        run: |
+          git clone \
+            --branch "${{ inputs.pipelinetemplates-ref }}" \
+            https://github.com/redjax/pipelinetemplates.git \
+            pipelinetemplates
 
       - name: Select config file
         id: cfg
@@ -146,20 +143,12 @@ jobs:
           esac
 
       - name: Run Renovate
-        uses: https://github.com/renovatebot/github-action@v46.2.0
-        env:
-          LOG_LEVEL: ${{ inputs.log-level }}
-          RENOVATE_PLATFORM: gitea
-          RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
-          RENOVATE_TOKEN: ${{ secrets.renovate-token }}
-          RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
-          RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
-          RENOVATE_REPOSITORIES: ${{ inputs.repository }}
-          RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
-          RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
-          RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
-          GITHUB_COM_TOKEN: ${{ secrets.github-com-token }}
-          RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
-          RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config && 'true' || '' }}
-        with:
-          token: ${{ secrets.renovate-token }}
+        run: |
+          docker run --rm \
+            -e RENOVATE_PLATFORM=gitea \
+            -e RENOVATE_ENDPOINT="${{ inputs.forgejo-endpoint }}" \
+            -e RENOVATE_TOKEN="${{ secrets.renovate-token }}" \
+            -e RENOVATE_REPOSITORIES="${{ inputs.repository }}" \
+            -e LOG_LEVEL="${{ inputs.log-level }}" \
+            -v "$PWD:/workspace" \
+            ghcr.io/renovatebot/renovate:latest
