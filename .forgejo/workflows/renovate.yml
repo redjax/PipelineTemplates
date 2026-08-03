@@ -107,14 +107,17 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Checkout pipelinetemplates
         uses: actions/checkout@v7
         with:
-          repository: ${{ github.repository_owner }}/pipelinetemplates
+          # repository: ${{ github.repository_owner }}/pipelinetemplates
+          repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
+          persist-credentials: false
           token: ${{ secrets.renovate-token }}
 
       - name: Select config file
