@@ -1,0 +1,45 @@
+---
+##########################################################################
+# Example pipeline stub                                                  #
+#                                                                        #
+# Copy this into the repository you want to call this Renovate pipeline, #
+# then deploy it from the calling repository with the fly CLI.           #
+##########################################################################
+
+resources:
+  - name: app
+    type: git
+    source:
+      uri: git@forgejo.example.com:team/my-repo.git
+      branch: main
+      private_key: ((git_private_key))
+
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: git@github.com:redjax/PipelineTemplates.git
+      branch: main
+      private_key: ((templates_private_key))
+
+jobs:
+  - name: renovate
+    plan:
+      - get: app
+        trigger: true
+
+      - get: pipelinetemplates
+
+      - task: renovate
+        file: pipelinetemplates/.concourse/maint/renovate/tasks/renovate.yml
+        params:
+          mode: ((mode))
+          target_repo: ((target_repo))
+          log_level: ((log_level))
+          config_file: ((config_file))
+          require_config: ((require_config))
+          autodiscover: ((autodiscover))
+          renovate_author_email: ((renovate_author_email))
+          base_branches: ((base_branches))
+          use_base_branch_config: ((use_base_branch_config))
+          renovate_token: ((renovate_token))
+          github_api_token: ((github_api_token))
