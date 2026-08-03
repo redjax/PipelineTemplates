@@ -43,7 +43,9 @@ export LOG_LEVEL="${log_level}"
 export RENOVATE_PLATFORM="github"
 export RENOVATE_REQUIRE_CONFIG="${require_config}"
 export RENOVATE_AUTODISCOVER="${autodiscover}"
-export RENOVATE_REPOSITORIES="${target_repo}"
+
+[[ -n "${target_repo}" ]] && export RENOVATE_REPOSITORIES="${target_repo}"
+
 export RENOVATE_DRY_RUN="${dry_run}"
 export RENOVATE_CONFIG_FILE="${selected_config}"
 export RENOVATE_GIT_AUTHOR="Renovate Bot <${renovate_author_email}>"
