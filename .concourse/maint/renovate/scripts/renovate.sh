@@ -50,6 +50,7 @@ export RENOVATE_DRY_RUN="${dry_run}"
 export RENOVATE_CONFIG_FILE="${selected_config}"
 export RENOVATE_GIT_AUTHOR="Renovate Bot <${renovate_author_email}>"
 export GITHUB_COM_TOKEN="${GITHUB_COM_TOKEN}"
+export GITHUB_TOKEN="${GITHUB_COM_TOKEN}"
 export RENOVATE_BASE_BRANCHES="${base_branches}"
 export RENOVATE_USE_BASE_BRANCH_CONFIG="${use_base_branch_config}"
 
