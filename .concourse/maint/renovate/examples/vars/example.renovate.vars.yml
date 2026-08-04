@@ -1,0 +1,17 @@
+---
+forgejo_repo_uri: ssh://git@your-forge/username/repo-name.git
+forgejo_repo_branch: feat/some-working-branch  # or main
+templates_repo_uri: git@github.com:redjax/PipelineTemplates.git
+templates_repo_branch: feat/some-working-pipelinetemplates-branch  # or main
+
+platform: forgejo
+mode: run
+renovate_endpoint: http://your-forgejo-ip-or-hostname:3000/api/v1
+target_repo: username/repo-name
+log_level: info
+config_file: renovate.json
+require_config: optional
+autodiscover: false
+renovate_author_email: 5534031+redjax@users.noreply.github.com
+base_branches: main
+use_base_branch_config: false
