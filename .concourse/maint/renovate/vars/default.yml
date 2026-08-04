@@ -1,0 +1,18 @@
+---
+git_uri: ""
+git_branch: main
+
+repo_name: ""
+
+mode: run
+target_repo: ""
+log_level: info
+config_file: renovate.json
+require_config: optional
+autodiscover: false
+renovate_author_email: 5534031+redjax@users.noreply.github.com
+base_branches: ""
+use_base_branch_config: false
+
+renovate_token: ""
+github_api_token: ""
