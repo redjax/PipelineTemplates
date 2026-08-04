@@ -57,6 +57,7 @@ export RENOVATE_BASE_BRANCHES="${base_branches}"
 export RENOVATE_USE_BASE_BRANCH_CONFIG="${use_base_branch_config}"
 
 echo "[INFO] CONFIG: ${selected_config}"
+echo "[INFO] PLATFORM: ${platform}"
 echo "[INFO] MODE: ${mode}"
 echo "[INFO] TARGET_REPO: ${target_repo}"
 
