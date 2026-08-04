@@ -10,6 +10,7 @@ autodiscover="${AUTODISCOVER:-false}"
 renovate_author_email="${RENOVATE_AUTHOR_EMAIL:-5534031+redjax@users.noreply.github.com}"
 base_branches="${BASE_BRANCHES:-}"
 use_base_branch_config="${USE_BASE_BRANCH_CONFIG:-false}"
+platform="${PLATFORM:-github}"
 
 : "${RENOVATE_TOKEN:?RENOVATE_TOKEN is required}"
 : "${GITHUB_COM_TOKEN:?GITHUB_COM_TOKEN is required}"
@@ -40,7 +41,7 @@ run)
 esac
 
 export LOG_LEVEL="${log_level}"
-export RENOVATE_PLATFORM="github"
+export RENOVATE_PLATFORM="${platform}"
 export RENOVATE_REQUIRE_CONFIG="${require_config}"
 export RENOVATE_AUTODISCOVER="${autodiscover}"
 
