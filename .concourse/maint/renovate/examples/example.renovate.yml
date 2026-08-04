@@ -10,36 +10,67 @@ resources:
   - name: app
     type: git
     source:
-      uri: git@forgejo.example.com:team/my-repo.git
-      branch: main
-      private_key: ((git_private_key))
+      ## SSH or HTTPS URL to target repo to clone.
+      #  The name 'app' is just an identifier for the pipeline, you can
+      #  call it whatever you want, but if you change it, make sure you
+      #  update references to 'app' throughout this file.
+      uri: ssh://git@github-or-forgejo-hostname-or-ip/username/repo-name.git
+      ## The branch to checkout when cloning
+      branch: feat/some-feature-branch
+      ## SSH private key corresponding to a public key you've uploaded to
+      #  the target platform.
+      private_key: ((forgejo_git_private_key))
 
   - name: pipelinetemplates
     type: git
     source:
       uri: git@github.com:redjax/PipelineTemplates.git
+      ## PipelineTemplates repository branch to checkout
       branch: main
-      private_key: ((templates_private_key))
+      ## SSH private key with a corresponding public key already uploaded to Github.
+      private_key: ((github_templates_private_key))
+
+  ## Define a schedule trigger.
+  - name: every-6-hours
+    type: time
+    source:
+      interval: 6h
 
 jobs:
   - name: renovate
     plan:
-      - get: app
+      - get: every-6-hours
+        ## Trigger pipeline every 6 hours
         trigger: true
 
+      - get: app
+        ## When 'true', changes to the target 'app' repo trigger the pipeline.
+        # trigger: true
+
+      ## Clone PipelineTemplates repository
       - get: pipelinetemplates
 
+      ## Run renovate pipeline from PipelineTemplates repo, with inputs from
+      #  this calling pipeline stub.
       - task: renovate
         file: pipelinetemplates/.concourse/maint/renovate/tasks/renovate.yml
+        ## These vars are set in renovate.vars.yml and renovate.secrets.yml, or
+        #  loaded from a vault/the environment.
+        #
+        #  When enrolling a pipeline in Concourse, pass -v path/to/renovate.vars.yml
+        #  and -v path/to/renovate.secrets.yml (if using a secrets file instead of
+        #  a vault/the environment).
         params:
-          mode: ((mode))
-          target_repo: ((target_repo))
-          log_level: ((log_level))
-          config_file: ((config_file))
-          require_config: ((require_config))
-          autodiscover: ((autodiscover))
-          renovate_author_email: ((renovate_author_email))
-          base_branches: ((base_branches))
-          use_base_branch_config: ((use_base_branch_config))
-          renovate_token: ((renovate_token))
-          github_api_token: ((github_api_token))
+          PLATFORM: ((platform))
+          RENOVATE_ENDPOINT: ((renovate_endpoint))
+          MODE: ((mode))
+          TARGET_REPO: ((target_repo))
+          LOG_LEVEL: ((log_level))
+          CONFIG_FILE: ((config_file))
+          REQUIRE_CONFIG: ((require_config))
+          AUTODISCOVER: ((autodiscover))
+          RENOVATE_AUTHOR_EMAIL: ((renovate_author_email))
+          BASE_BRANCHES: ((base_branches))
+          USE_BASE_BRANCH_CONFIG: ((use_base_branch_config))
+          RENOVATE_TOKEN: ((renovate_token))
+          GITHUB_COM_TOKEN: ((github_api_token))
