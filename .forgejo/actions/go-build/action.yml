@@ -50,7 +50,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup Go
-      uses: redjax/PipelineTemplates/.forgejo/actions/setup-go@fj/setup-go/v0.0.1
+      uses: redjax/pipelinetemplates/.forgejo/actions/setup-go@fj/setup-go/v0.0.1
       with:
         version: ${{ inputs.go-version }}
         enable-cache: ${{ inputs.enable-cache }}
