@@ -89,6 +89,12 @@ on:
         type: string
         default: '["go.mod","go.sum","cmd/**","internal/**"]'
 
+      pipelinetemplates-ref:
+        description: Branch, tag, or SHA for PipelineTemplates
+        required: false
+        type: string
+        default: main
+
     outputs:
       changes_detected:
         description: Whether watched paths changed.
@@ -169,7 +175,7 @@ jobs:
         uses: https://github.com/actions/checkout@v7
         with:
           repository: redjax/PipelineTemplates
-          ref: ${{ github.workflow_ref }}
+          ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
 
