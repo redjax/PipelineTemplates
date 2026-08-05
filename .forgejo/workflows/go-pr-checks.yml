@@ -165,8 +165,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ github.workflow_ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
       - name: Build snapshot
-        uses: https://github.com/redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
+        uses: ./pipelinetemplates/.forgejo/actions/go-build
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
