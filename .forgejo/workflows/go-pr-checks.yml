@@ -95,7 +95,7 @@ on:
 
 jobs:
   detect:
-    runs-on: docker
+    runs-on: forgejo-runner-base
     outputs:
       go_changed: ${{ steps.filter.outputs.go_changed }}
     steps:
@@ -115,15 +115,15 @@ jobs:
   build-preview:
     needs: detect
     if: needs.detect.outputs.go_changed == 'true'
-    runs-on: docker
+    runs-on: forgejo-runner-base
     container:
-      image: ghcr.io/redjax/dockerfiles/forgejo-runner-base:89dd00b
+      image: ghcr.io/redjax/dockerfiles/forgejo-runner-base:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Build snapshot
-        uses: redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
+        uses: https://github.com/redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
