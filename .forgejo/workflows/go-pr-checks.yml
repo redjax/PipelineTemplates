@@ -85,16 +85,10 @@ on:
         type: string
 
       change-paths:
-        description: |
-          Newline-separated glob patterns used to determine whether a build is required.
-          Any changed file matching one of these patterns will trigger the build.
+        description: JSON array of glob patterns used to detect changed files.
         required: false
         type: string
-        default: |
-          go.mod
-          go.sum
-          cmd/**
-          internal/**
+        default: '["go.mod","go.sum","cmd/**","internal/**"]'
 
     outputs:
       changes_detected:
@@ -121,21 +115,28 @@ jobs:
         run: |
           changed=false
 
-          ## Handle first commit (all zeroes)
+          ## Handle new branches, 0+ commits
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then
             echo "Base SHA is empty branch creation commit; using repository root commit"
             BASE_SHA=$(git rev-list --max-parents=0 HEAD)
           fi
 
-          while IFS= read -r file; do
-            while IFS= read -r pattern; do
-              [[ -z "$pattern" ]] && continue
+          ## Validate change_paths input
+          if ! echo "$CHANGE_PATHS" | jq empty; then
+            echo "change-paths must be valid JSON"
+            exit 1
+          fi
 
+          ## Convert JSON list to Bash array
+          mapfile -t patterns < <(echo "$CHANGE_PATHS" | jq -r '.[]')
+
+          while IFS= read -r file; do
+            for pattern in "${patterns[@]}"; do
               if [[ "$file" == $pattern ]]; then
                 changed=true
                 break 2
               fi
-            done <<< "$CHANGE_PATHS"
+            done
           done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
 
           echo "Detected changes: $changed"
