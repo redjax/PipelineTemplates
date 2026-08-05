@@ -123,7 +123,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build snapshot
-        uses: https://github.com/redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
+        uses: redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
