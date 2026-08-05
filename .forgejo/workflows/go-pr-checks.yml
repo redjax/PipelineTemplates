@@ -103,6 +103,8 @@ jobs:
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Detect changes
         id: filter
@@ -150,6 +152,8 @@ jobs:
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Build snapshot
         uses: redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
