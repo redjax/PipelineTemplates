@@ -131,6 +131,16 @@ jobs:
           ## Convert JSON list to Bash array
           mapfile -t patterns < <(echo "$CHANGE_PATHS" | jq -r '.[]')
 
+          if ! git cat-file -e "$BASE_SHA^{commit}"; then
+            echo "Base SHA $BASE_SHA is not available in checkout"
+            exit 1
+          fi
+
+          if ! git cat-file -e "$HEAD_SHA^{commit}"; then
+            echo "Head SHA $HEAD_SHA is not available in checkout"
+            exit 1
+          fi
+
           while IFS= read -r file; do
             for pattern in "${patterns[@]}"; do
               if [[ "$file" == $pattern ]]; then
