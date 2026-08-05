@@ -1,0 +1,138 @@
+---
+############################################
+# Call from a consuming repository to do a #
+# test app build.                          #
+############################################
+
+name: Go PR Checks
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: Path to the Go module root.
+        required: false
+        type: string
+        default: "."
+
+      build-package:
+        description: Go package path to build.
+        required: true
+        type: string
+
+      binary-name:
+        description: Name for the built binary.
+        required: true
+        type: string
+
+      go-version:
+        description: Go toolchain version to install.
+        required: false
+        type: string
+        default: "1.25.6"
+
+      platforms:
+        description: Comma-separated GOOS/GOARCH targets.
+        required: false
+        type: string
+        default: "linux/amd64"
+
+      build-tags:
+        description: Optional Go build tags.
+        required: false
+        type: string
+        default: ""
+
+      ldflags:
+        description: Optional ldflags passed to go build.
+        required: false
+        type: string
+        default: ""
+
+      output-dir:
+        description: Directory to write build artifacts to.
+        required: false
+        type: string
+        default: "dist"
+
+      artifact-name:
+        description: Artifact name to upload. If empty, a default is derived.
+        required: false
+        type: string
+        default: ""
+
+      upload-artifacts:
+        description: Upload build artifacts.
+        required: false
+        type: boolean
+        default: true
+
+      enable-cache:
+        description: Enable Go module/build caching.
+        required: false
+        type: boolean
+        default: true
+
+      base-sha:
+        description: Base SHA for the PR diff.
+        required: true
+        type: string
+
+      head-sha:
+        description: Head SHA for the PR diff.
+        required: true
+        type: string
+
+      go-change-pattern:
+        description: Regex used to detect Go-related file changes.
+        required: false
+        type: string
+        default: '(^|/)(go\.mod|go\.sum|.*\.go)$'
+
+    outputs:
+      go_changed:
+        value: ${{ jobs.detect.outputs.go_changed }}
+
+jobs:
+  detect:
+    runs-on: docker
+    outputs:
+      go_changed: ${{ steps.filter.outputs.go_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect Go changes
+        id: filter
+        shell: bash
+        run: |
+          if git diff --name-only "${{ inputs.base-sha }}" "${{ inputs.head-sha }}" | grep -E "${{ inputs.go-change-pattern }}" >/dev/null; then
+            echo "go_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-preview:
+    needs: detect
+    if: needs.detect.outputs.go_changed == 'true'
+    runs-on: docker
+    container:
+      image: ghcr.io/redjax/dockerfiles/forgejo-runner-base:89dd00b
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build snapshot
+        uses: redjax/pipelinetemplates/.forgejo/actions/go-build@feat/forgejo-go-pr-checks
+        with:
+          module-dir: ${{ inputs.module-dir }}
+          build-package: ${{ inputs.build-package }}
+          binary-name: ${{ inputs.binary-name }}
+          platforms: ${{ inputs.platforms }}
+          build-tags: ${{ inputs.build-tags }}
+          ldflags: ${{ inputs.ldflags }}
+          output-dir: ${{ inputs.output-dir }}
+          go-version: ${{ inputs.go-version }}
+          artifact-name: ${{ inputs.artifact-name }}
+          upload-artifacts: ${{ inputs.upload-artifacts }}
+          enable-cache: ${{ inputs.enable-cache }}
