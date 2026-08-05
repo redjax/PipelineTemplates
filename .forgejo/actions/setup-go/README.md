@@ -1,0 +1,1 @@
+# Forgejo Action: Setup Go
