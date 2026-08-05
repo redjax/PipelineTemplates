@@ -1,4 +1,5 @@
 ---
+---
 ############################################
 # Call from a consuming repository to do a #
 # test app build.                          #
@@ -83,39 +84,63 @@ on:
         required: true
         type: string
 
-      go-change-pattern:
-        description: Regex used to detect Go-related file changes.
+      change-paths:
+        description: |
+          Newline-separated glob patterns used to determine whether a build is required.
+          Any changed file matching one of these patterns will trigger the build.
         required: false
         type: string
-        default: '(^|/)(go\.mod|go\.sum|.*\.go)$'
+        default: |
+          go.mod
+          go.sum
+          cmd/**
+          internal/**
 
     outputs:
-      go_changed:
-        value: ${{ jobs.detect.outputs.go_changed }}
+      changes_detected:
+        description: Whether watched paths changed.
+        value: ${{ jobs.detect.outputs.changes_detected }}
 
 jobs:
   detect:
     runs-on: forgejo-runner-base
     outputs:
-      go_changed: ${{ steps.filter.outputs.go_changed }}
+      changes_detected: ${{ steps.filter.outputs.changes_detected }}
+
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
 
-      - name: Detect Go changes
+      - name: Detect changes
         id: filter
         shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base-sha }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          CHANGE_PATHS: ${{ inputs.change-paths }}
         run: |
-          if git diff --name-only "${{ inputs.base-sha }}" "${{ inputs.head-sha }}" | grep -E "${{ inputs.go-change-pattern }}" >/dev/null; then
-            echo "go_changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "go_changed=false" >> "$GITHUB_OUTPUT"
-          fi
+          changed=false
+
+          while IFS= read -r file; do
+            while IFS= read -r pattern; do
+              [[ -z "$pattern" ]] && continue
+
+              if [[ "$file" == $pattern ]]; then
+                changed=true
+                break 2
+              fi
+            done <<< "$CHANGE_PATHS"
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          echo "Detected changes: $changed"
+
+          echo "changes_detected=$changed" >> "$GITHUB_OUTPUT"
 
   build-preview:
     needs: detect
-    if: needs.detect.outputs.go_changed == 'true'
+    if: needs.detect.outputs.changes_detected == 'true'
     runs-on: forgejo-runner-base
+
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
