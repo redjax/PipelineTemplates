@@ -116,8 +116,6 @@ jobs:
     needs: detect
     if: needs.detect.outputs.go_changed == 'true'
     runs-on: forgejo-runner-base
-    container:
-      image: ghcr.io/redjax/dockerfiles/forgejo-runner-base:latest
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
