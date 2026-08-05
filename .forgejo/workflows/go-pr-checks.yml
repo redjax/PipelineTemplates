@@ -121,6 +121,12 @@ jobs:
         run: |
           changed=false
 
+          ## Handle first commit (all zeroes)
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            echo "Base SHA is empty branch creation commit; using repository root commit"
+            BASE_SHA=$(git rev-list --max-parents=0 HEAD)
+          fi
+
           while IFS= read -r file; do
             while IFS= read -r pattern; do
               [[ -z "$pattern" ]] && continue
