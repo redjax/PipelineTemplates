@@ -114,8 +114,14 @@ runs:
 
         if [[ "${GORELEASER_VERSION}" == "latest" ]]; then
           version="$(
-            curl -fsSL https://api.github.com/repos/goreleaser/goreleaser/releases/latest \
-              | jq -r '.tag_name'
+            curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/goreleaser/goreleaser/releases" \
+              | jq -r '
+                  map(select(.prerelease == false))
+                  | map(select(.draft == false))
+                  | .[0].tag_name
+                '
           )"
         else
           version="v${GORELEASER_VERSION#v}"
@@ -125,6 +131,9 @@ runs:
 
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
+
+        echo "Downloading GoReleaser:"
+        echo "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_${version#v}_Linux_${GORELEASER_ARCH}.tar.gz"
 
         curl -fsSL \
           -o "${tmp}/goreleaser.tar.gz" \
