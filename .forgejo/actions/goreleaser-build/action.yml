@@ -68,6 +68,11 @@ inputs:
     required: false
     default: ""
 
+  upload-artifacts:
+    description: "Upload build artifacts"
+    required: false
+    default: "true"
+
   github-token:
     description: "Token for creating releases (defaults to GITHUB_TOKEN)"
     required: false
@@ -118,8 +123,9 @@ runs:
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/goreleaser/goreleaser/releases" \
               | jq -r '
-                  map(select(.prerelease == false))
-                  | map(select(.draft == false))
+                  map(select(.prerelease == false and .draft == false))
+                  | sort_by(.published_at)
+                  | reverse
                   | .[0].tag_name
                 '
           )"
@@ -133,11 +139,11 @@ runs:
         trap 'rm -rf "$tmp"' EXIT
 
         echo "Downloading GoReleaser:"
-        echo "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_${version#v}_Linux_${GORELEASER_ARCH}.tar.gz"
+        echo "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_Linux_${GORELEASER_ARCH}.tar.gz"
 
         curl -fsSL \
           -o "${tmp}/goreleaser.tar.gz" \
-          "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_${version#v}_Linux_${GORELEASER_ARCH}.tar.gz"
+          "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_Linux_${GORELEASER_ARCH}.tar.gz"
 
         tar -xzf "${tmp}/goreleaser.tar.gz" -C "${tmp}"
 
@@ -233,8 +239,8 @@ runs:
         echo "Artifact will be named: $ARTIFACT_NAME"
 
     - name: Upload artifacts
-      if: ${{ inputs.snapshot == 'true' || inputs.skip-publish == 'true' }}
-      uses: forgejo/upload-artifact@v4
+      if: ${{ inputs.upload-artifacts == 'true' && (inputs.snapshot == 'true' || inputs.skip-publish == 'true') }}
+      uses: forgejo/upload-artifact@v3
       with:
         name: ${{ steps.artifact-name.outputs.name }}
         path: ${{ inputs.working-directory }}/dist/
@@ -251,4 +257,9 @@ runs:
         GO_VERSION: ${{ inputs.go-version }}
         GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
       run: |
+        echo "github.action_path=${{ github.action_path }}"
+
+        ls -la "${{ github.action_path }}"
+        ls -la "${{ github.action_path }}/scripts"
+
         bash "${{ github.action_path }}/scripts/summary.sh"
