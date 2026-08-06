@@ -84,7 +84,7 @@ runs:
 
     - name: Upload artifacts
       if: ${{ inputs.upload-artifacts == 'true' }}
-      uses: actions/upload-artifact@v3
+      uses: forgejo/upload-artifact@v3
       with:
         name: ${{ steps.artifact-name.outputs.name }}
         path: |
