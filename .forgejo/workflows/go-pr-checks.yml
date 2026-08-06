@@ -191,6 +191,18 @@ jobs:
           git branch --show-current
           git log -1 --decorate --oneline
 
+      - name: Setup Go
+        # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: ${{ inputs.enable-cache }}
+
+      - name: Verify Go installation
+        shell: bash
+        run: |
+          echo "Go version: $(go version)"
+
       - name: Build snapshot
         uses: ./pipelinetemplates/.forgejo/actions/go-build/
         with:
@@ -201,7 +213,7 @@ jobs:
           build-tags: ${{ inputs.build-tags }}
           ldflags: ${{ inputs.ldflags }}
           output-dir: ${{ inputs.output-dir }}
-          go-version: ${{ inputs.go-version }}
+          # go-version: ${{ inputs.go-version }}
           artifact-name: ${{ inputs.artifact-name }}
           upload-artifacts: ${{ inputs.upload-artifacts }}
-          enable-cache: ${{ inputs.enable-cache }}
+          # enable-cache: ${{ inputs.enable-cache }}

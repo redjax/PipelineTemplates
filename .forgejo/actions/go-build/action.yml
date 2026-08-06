@@ -29,10 +29,10 @@ inputs:
     description: "Directory to write build artifacts to."
     required: false
     default: "dist"
-  go-version:
-    description: "Go toolchain version to install."
-    required: false
-    default: "1.25.6"
+  # go-version:
+  #   description: "Go toolchain version to install."
+  #   required: false
+  #   default: "1.25.6"
   artifact-name:
     description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
     required: false
@@ -41,20 +41,20 @@ inputs:
     description: "Upload build artifacts (default: true)"
     required: false
     default: "true"
-  enable-cache:
-    description: "Enable Go module/build caching"
-    required: false
-    default: "true"
+  # enable-cache:
+  #   description: "Enable Go module/build caching"
+  #   required: false
+  #   default: "true"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Go
-      # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
-      uses: redjax/PipelineTemplates/.forgejo/actions/setup-go@feat/forgejo-go-pr-checks
-      with:
-        version: ${{ inputs.go-version }}
-        enable-cache: ${{ inputs.enable-cache }}
+    # - name: Setup Go
+    #   # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
+    #   uses: redjax/PipelineTemplates/.forgejo/actions/setup-go@feat/forgejo-go-pr-checks
+    #   with:
+    #     version: ${{ inputs.go-version }}
+    #     enable-cache: ${{ inputs.enable-cache }}
 
     - name: Verify Go installation
       shell: bash
