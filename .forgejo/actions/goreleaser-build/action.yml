@@ -33,11 +33,6 @@ inputs:
     required: false
     default: "latest"
 
-  go-version:
-    description: "Go toolchain version to install (default: 1.25.6)"
-    required: false
-    default: "1.25.6"
-
   working-directory:
     description: "Working directory for the build (default: .)"
     required: false
@@ -73,11 +68,6 @@ inputs:
     required: false
     default: ""
 
-  enable-cache:
-    description: "Enable Go module/build caching"
-    required: false
-    default: "true"
-
 runs:
   using: "composite"
   steps:
@@ -90,12 +80,6 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: git fetch --force --tags
-
-    - name: Setup Go
-      uses: redjax/PipelineTemplates/.forgejo/actions/setup-go@feat/forgejo-go-pr-checks
-      with:
-        version: ${{ inputs.go-version }}
-        enable-cache: ${{ inputs.enable-cache }}
 
     - name: Verify Go installation
       shell: bash

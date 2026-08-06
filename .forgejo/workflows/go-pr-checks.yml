@@ -192,7 +192,6 @@ jobs:
           git log -1 --decorate --oneline
 
       - name: Setup Go
-        # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
         uses: ./pipelinetemplates/.forgejo/actions/setup-go
         with:
           version: ${{ inputs.go-version }}
@@ -213,7 +212,5 @@ jobs:
           build-tags: ${{ inputs.build-tags }}
           ldflags: ${{ inputs.ldflags }}
           output-dir: ${{ inputs.output-dir }}
-          # go-version: ${{ inputs.go-version }}
           artifact-name: ${{ inputs.artifact-name }}
           upload-artifacts: ${{ inputs.upload-artifacts }}
-          # enable-cache: ${{ inputs.enable-cache }}
