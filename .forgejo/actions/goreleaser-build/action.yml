@@ -92,7 +92,7 @@ runs:
       run: git fetch --force --tags
 
     - name: Setup Go
-      uses: ./.forgejo/actions/setup-go
+      uses: redjax/PipelineTemplates/.forgejo/actions/setup-go@feat/forgejo-go-pr-checks
       with:
         version: ${{ inputs.go-version }}
         enable-cache: ${{ inputs.enable-cache }}
