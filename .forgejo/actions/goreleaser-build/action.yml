@@ -3,6 +3,11 @@ name: "GoReleaser Build"
 description: "Build and release Go apps using GoReleaser (snapshot or release)."
 
 inputs:
+  go-version:
+    description: "Go version used for the build"
+    required: false
+    default: ""
+
   goreleaser-config:
     description: "Path to .goreleaser.yml config file (default: .goreleaser.yml)"
     required: false
@@ -81,12 +86,83 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: git fetch --force --tags
 
-    - name: Verify Go installation
+    - name: Install GoReleaser
+      shell: bash
+      env:
+        GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
+      run: |
+        set -euo pipefail
+
+        if command -v goreleaser >/dev/null 2>&1; then
+          echo "GoReleaser already available:"
+          goreleaser --version
+          exit 0
+        fi
+
+        case "$(uname -m)" in
+          x86_64)
+            GORELEASER_ARCH="x86_64"
+            ;;
+          aarch64|arm64)
+            GORELEASER_ARCH="arm64"
+            ;;
+          *)
+            echo "Unsupported architecture: $(uname -m)"
+            exit 1
+            ;;
+        esac
+
+        if [[ "${GORELEASER_VERSION}" == "latest" ]]; then
+          version="$(
+            curl -fsSL https://api.github.com/repos/goreleaser/goreleaser/releases/latest \
+              | jq -r '.tag_name'
+          )"
+        else
+          version="v${GORELEASER_VERSION#v}"
+        fi
+
+        echo "Installing GoReleaser ${version}"
+
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+
+        curl -fsSL \
+          -o "${tmp}/goreleaser.tar.gz" \
+          "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_${version#v}_Linux_${GORELEASER_ARCH}.tar.gz"
+
+        tar -xzf "${tmp}/goreleaser.tar.gz" -C "${tmp}"
+
+        mkdir -p "${HOME}/bin"
+        mv "${tmp}/goreleaser" "${HOME}/bin/goreleaser"
+
+        echo "${HOME}/bin" >> "${GITHUB_PATH}"
+
+        echo "Installed:"
+        "${HOME}/bin/goreleaser" --version
+
+    - name: Verify tools
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        echo "Go version: $(go version)"
-        echo "GoReleaser version: $(goreleaser --version)"
+        echo "Go:"
+        go version
+
+        echo
+        echo "GoReleaser:"
+        goreleaser --version
+
+    - name: Verify GoReleaser config
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [[ ! -f "${{ inputs.goreleaser-config }}" ]]; then
+          echo "GoReleaser config not found:"
+          echo "  ${{ inputs.working-directory }}/${{ inputs.goreleaser-config }}"
+          exit 1
+        fi
+
+        echo "Using GoReleaser config:"
+        echo "  ${{ inputs.goreleaser-config }}"
 
     - name: Docker Login (if Docker build enabled)
       if: ${{ inputs.docker-build == 'true' }}

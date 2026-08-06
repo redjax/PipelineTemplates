@@ -8,6 +8,22 @@ name: GoReleaser PR Checks
 on:
   workflow_call:
     inputs:
+      change-paths:
+        description: "Paths triggering GoReleaser build."
+        required: false
+        type: string
+        default: |
+          [
+            "go.mod",
+            "go.sum",
+            "**/go.mod",
+            "**/go.sum",
+            ".goreleaser.yml",
+            ".goreleaser.yaml",
+            "cmd/**",
+            "internal/**"
+          ]
+
       module-dir:
         description: "Directory containing .goreleaser.yml"
         required: false
@@ -136,24 +152,17 @@ jobs:
           version: ${{ inputs.go-version }}
           enable-cache: ${{ inputs.enable-cache }}
 
-      - name: Setup GoReleaser
-        shell: bash
-        run: |
-          curl -sfL \
-            https://goreleaser.com/static/run \
-            | sh -s -- -i ${{ inputs.goreleaser-version }}
-
-      - name: Verify tools
+      - name: Verify Go installation
         shell: bash
         run: |
           go version
-          goreleaser --version
 
       - name: GoReleaser snapshot
         uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
         with:
           working-directory: ${{ inputs.module-dir }}
-          snapshot: ${{ inputs.snapshot }}
+          snapshot: "${{ inputs.snapshot }}"
           skip-publish: true
           upload-artifacts: ${{ inputs.upload-artifacts }}
           goreleaser-version: ${{ inputs.goreleaser-version }}
+          go-version: ${{ inputs.go-version }}
