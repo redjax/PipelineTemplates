@@ -195,7 +195,7 @@ jobs:
           cat pipelinetemplates/.forgejo/actions/go-build/action.yml
 
       - name: Build snapshot
-        uses: ./pipelinetemplates/.forgejo/actions/go-build
+        uses: ./pipelinetemplates/.forgejo/actions/go-build/
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
