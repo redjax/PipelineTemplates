@@ -4,12 +4,10 @@ set -euo pipefail
 ########################################################################
 # Forgejo Actions Go installer                                         #
 #                                                                      #
-# Installs and caches Go toolchains without requiring root privileges. #
+# Installs and configures Go toolchains without requiring root.        #
 ########################################################################
 
 : "${GO_VERSION:?GO_VERSION must be set}"
-: "${GITHUB_PATH:?GITHUB_PATH must be set}"
-: "${GITHUB_ENV:?GITHUB_ENV must be set}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
@@ -66,10 +64,7 @@ if [[ -x "${TOOLCHAIN_DIR}/bin/go" ]]; then
   if [[ "${INSTALLED_VERSION}" == "${GO_VERSION}" ]]; then
     echo "Using cached Go toolchain ${GO_VERSION}"
   else
-    echo "Cached Go version mismatch:"
-    echo "  Found: ${INSTALLED_VERSION}"
-    echo "  Wanted: ${GO_VERSION}"
-
+    echo "Removing mismatched Go toolchain"
     rm -rf "${TOOLCHAIN_DIR}"
   fi
 fi
@@ -79,7 +74,6 @@ if [[ ! -x "${TOOLCHAIN_DIR}/bin/go" ]]; then
   echo "Installing Go ${GO_VERSION}"
 
   rm -rf "${TOOLCHAIN_DIR}"
-
   mkdir -p "${TOOLCHAIN_DIR}"
 
   tar \
@@ -91,21 +85,33 @@ if [[ ! -x "${TOOLCHAIN_DIR}/bin/go" ]]; then
 
 fi
 
-## Configure environment
+## Configure environment for later Forgejo steps
 
-echo "${TOOLCHAIN_DIR}/bin" >>"${GITHUB_PATH}"
+if [[ -n "${GITHUB_PATH:-}" ]]; then
+  echo "${TOOLCHAIN_DIR}/bin" >>"${GITHUB_PATH}"
+fi
 
-echo "GOROOT=${TOOLCHAIN_DIR}" >>"${GITHUB_ENV}"
-echo "GOPATH=${HOME}/go" >>"${GITHUB_ENV}"
+if [[ -n "${GITHUB_ENV:-}" ]]; then
+  echo "GOROOT=${TOOLCHAIN_DIR}" >>"${GITHUB_ENV}"
+  echo "GOPATH=${HOME}/go" >>"${GITHUB_ENV}"
+fi
+
+export PATH="${TOOLCHAIN_DIR}/bin:${PATH}"
+export GOROOT="${TOOLCHAIN_DIR}"
+export GOPATH="${HOME}/go"
 
 mkdir -p \
   "${HOME}/.cache/go/build" \
   "${HOME}/.cache/go/pkg/mod"
 
 if [[ "${ENABLE_CACHE:-true}" == "true" ]]; then
+  if [[ -n "${GITHUB_ENV:-}" ]]; then
+    echo "GOCACHE=${HOME}/.cache/go/build" >>"${GITHUB_ENV}"
+    echo "GOMODCACHE=${HOME}/.cache/go/pkg/mod" >>"${GITHUB_ENV}"
+  fi
 
-  echo "GOCACHE=${HOME}/.cache/go/build" >>"${GITHUB_ENV}"
-  echo "GOMODCACHE=${HOME}/.cache/go/pkg/mod" >>"${GITHUB_ENV}"
+  export GOCACHE="${HOME}/.cache/go/build"
+  export GOMODCACHE="${HOME}/.cache/go/pkg/mod"
 
   echo "Go cache enabled"
 
@@ -115,14 +121,12 @@ else
 
 fi
 
-## Verify
-
-echo ""
+echo
 echo "Go installation complete:"
-echo ""
+echo
 
-"${TOOLCHAIN_DIR}/bin/go" version
+go version
 
-echo ""
+echo
 echo "Go environment:"
-"${TOOLCHAIN_DIR}/bin/go" env GOROOT GOPATH GOCACHE GOMODCACHE
+go env GOROOT GOPATH GOCACHE GOMODCACHE

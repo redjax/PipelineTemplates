@@ -60,7 +60,6 @@ runs:
       shell: bash
       run: |
         echo "Go version: $(go version)"
-        echo "GoReleaser version: $(goreleaser --version)"
 
     - name: Build
       shell: bash
