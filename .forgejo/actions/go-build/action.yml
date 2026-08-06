@@ -49,6 +49,16 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: "[DEBUG] Show go-build action"
+      shell: bash
+      run: |
+        echo "github.action_path=${{ github.action_path }}"
+        pwd
+        ls -R "${{ github.action_path }}"
+        echo
+        echo "===== action.yml ====="
+        cat "${{ github.action_path }}/action.yml"
+
     - name: Setup Go
       # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
       uses: ./.forgejo/actions/setup-go
