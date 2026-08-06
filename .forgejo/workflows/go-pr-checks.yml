@@ -187,6 +187,13 @@ jobs:
           git branch --show-current
           git log --oneline -1
 
+      - name: "[DEBUG] Inspect checked out action"
+        run: |
+          pwd
+          ls -R pipelinetemplates/.forgejo/actions/go-build
+          echo
+          cat pipelinetemplates/.forgejo/actions/go-build/action.yml
+
       - name: Build snapshot
         uses: ./pipelinetemplates/.forgejo/actions/go-build
         with:
