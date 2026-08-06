@@ -1,0 +1,190 @@
+---
+############################################
+# Call from a consuming repository to do a #
+# GoReleaser build validation.             #
+############################################
+name: GoReleaser PR Checks
+
+on:
+  workflow_call:
+    inputs:
+      change-paths:
+        description: "Paths triggering GoReleaser build."
+        required: false
+        type: string
+        default: |
+          [
+            "go.mod",
+            "go.sum",
+            "**/go.mod",
+            "**/go.sum",
+            ".goreleaser.yml",
+            ".goreleaser.yaml",
+            "cmd/**",
+            "internal/**"
+          ]
+
+      module-dir:
+        description: "Directory containing .goreleaser.yml"
+        required: false
+        type: string
+        default: "."
+
+      go-version:
+        description: "Go version."
+        required: false
+        type: string
+        default: "1.26.4"
+
+      goreleaser-version:
+        description: "GoReleaser version."
+        required: false
+        type: string
+        default: "latest"
+
+      snapshot:
+        description: "Run snapshot build."
+        required: false
+        type: boolean
+        default: true
+
+      upload-artifacts:
+        description: "Upload artifacts."
+        required: false
+        type: boolean
+        default: true
+
+      enable-cache:
+        description: "Enable Go cache."
+        required: false
+        type: boolean
+        default: true
+
+      base-sha:
+        required: true
+        type: string
+
+      head-sha:
+        required: true
+        type: string
+
+      pipelinetemplates-ref:
+        required: false
+        type: string
+        default: main
+
+jobs:
+  detect:
+    runs-on: forgejo-runner-base
+    outputs:
+      changes_detected: ${{ steps.filter.outputs.changes_detected }}
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: filter
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base-sha }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          CHANGE_PATHS: ${{ inputs.change-paths }}
+        run: |
+          changed=false
+
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          mapfile -t patterns < <(
+            echo "$CHANGE_PATHS" | jq -r '.[]'
+          )
+
+          while IFS= read -r file; do
+            for pattern in "${patterns[@]}"; do
+              if [[ "$file" == $pattern ]]; then
+                changed=true
+                break 2
+              fi
+            done
+          done < <(
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA"
+          )
+
+          echo "Detected changes: $changed"
+          echo \
+            "changes_detected=$changed" \
+            >> "$GITHUB_OUTPUT"
+
+  build-preview:
+    needs: detect
+    if: needs.detect.outputs.changes_detected == 'true'
+    runs-on: forgejo-runner-base
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      # - name: "[DEBUG] PipelineTemplates checkout"
+      #   shell: bash
+      #   run: |
+      #     pwd
+      #     ls -la
+      #     echo "---"
+      #     ls -la pipelinetemplates || true
+      #     echo "---"
+      #     find pipelinetemplates -maxdepth 4 -type d | head -50 || true
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: ${{ inputs.enable-cache }}
+
+      - name: Verify Go installation
+        shell: bash
+        run: |
+          go version
+
+      # - name: "[DEBUG] Action source"
+      #   shell: bash
+      #   run: |
+      #     echo "github.action_path=${{ github.action_path }}"
+      #     echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+
+      #     echo "Tree:"
+      #     find "$GITHUB_WORKSPACE/pipelinetemplates/.forgejo/actions/goreleaser-build" -maxdepth 3 -type f -print || true
+
+      #     echo "Git tracked:"
+      #     git -C pipelinetemplates ls-files .forgejo/actions/goreleaser-build
+
+      - name: GoReleaser snapshot
+        uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
+        with:
+          working-directory: ${{ inputs.module-dir }}
+          snapshot: "${{ inputs.snapshot }}"
+          skip-publish: true
+          upload-artifacts: ${{ inputs.upload-artifacts }}
+          goreleaser-version: ${{ inputs.goreleaser-version }}
+          go-version: ${{ inputs.go-version }}
