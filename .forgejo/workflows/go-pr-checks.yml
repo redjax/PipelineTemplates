@@ -93,7 +93,7 @@ on:
         description: Branch, tag, or SHA for PipelineTemplates
         required: false
         type: string
-        default: feat/forgejo-go-pr-checks
+        default: main
 
     outputs:
       changes_detected:
