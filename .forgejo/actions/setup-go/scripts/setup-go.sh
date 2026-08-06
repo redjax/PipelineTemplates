@@ -121,10 +121,17 @@ else
 
 fi
 
+## Verify
+
 echo
 echo "Go installation complete:"
 echo
 
+echo "Installed Go toolchain:"
+"${TOOLCHAIN_DIR}/bin/go" version
+
+echo
+echo "Selected Go toolchain:"
 go version
 
 echo
