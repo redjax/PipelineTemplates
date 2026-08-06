@@ -59,6 +59,12 @@ runs:
         echo "===== action.yml ====="
         cat "${{ github.action_path }}/action.yml"
 
+    - name: "[DEBUG] Show setup-go]"
+      shell: bash
+      run: |
+        echo "===== setup-go ====="
+        cat "${{ github.action_path }}/../setup-go/action.yml"
+
     - name: Setup Go
       # uses: .forgejo/actions/setup-go@fj/setup-go/v0.0.1
       uses: ./.forgejo/actions/setup-go
