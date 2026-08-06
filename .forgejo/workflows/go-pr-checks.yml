@@ -179,6 +179,14 @@ jobs:
           path: pipelinetemplates
           fetch-depth: 0
 
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          cd pipelinetemplates
+          git rev-parse HEAD
+          git branch --show-current
+          git log --oneline -1
+
       - name: Build snapshot
         uses: ./pipelinetemplates/.forgejo/actions/go-build
         with:
