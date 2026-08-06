@@ -167,6 +167,18 @@ jobs:
         run: |
           go version
 
+      - name: "[DEBUG] Action source"
+        shell: bash
+        run: |
+          echo "github.action_path=${{ github.action_path }}"
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+
+          echo "Tree:"
+          find "$GITHUB_WORKSPACE/pipelinetemplates/.forgejo/actions/goreleaser-build" -maxdepth 3 -type f -print || true
+
+          echo "Git tracked:"
+          git -C pipelinetemplates ls-files .forgejo/actions/goreleaser-build
+
       - name: GoReleaser snapshot
         uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
         with:
