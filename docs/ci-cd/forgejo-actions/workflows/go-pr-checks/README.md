@@ -6,6 +6,10 @@ The workflow is designed for PR validation only. It does not publish artifacts, 
 
 ## Table of Contents <!-- omit in toc -->
 
+- [Responsibilities](#responsibilities)
+- [Inputs](#inputs)
+- [Example use](#example-use)
+
 ## Responsibilities
 
 - Check-out the consuming repository.
