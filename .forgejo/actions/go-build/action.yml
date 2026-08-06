@@ -4,17 +4,17 @@ description: "Build a Go application and optionally upload artifacts"
 
 inputs:
   module-dir:
-    description: "(default: .) Path to directory containing main.go entrypoint"
+    description: "Path to the Go module root (directory containing go.mod)."
     required: false
     default: "."
   build-package:
-    description: "Go package path to build, for example . or ./cmd/example."
+    description: "Go package path to build relative to module-dir. Examples: ., ./cmd/api"
     required: true
   binary-name:
     description: "Name for binary file."
     required: true
   platforms:
-    description: "Comma-separated list of GOOS/GOARCH targets, such as linux/amd64,linux/arm64."
+    description: "Comma-separated list of GOOS/GOARCH targets."
     required: false
     default: "linux/amd64"
   build-tags:
@@ -26,35 +26,32 @@ inputs:
     required: false
     default: ""
   output-dir:
-    description: "Directory to write build artifacts to."
+    description: "Directory to write build artifacts to relative to module-dir."
     required: false
     default: "dist"
-  go-version:
-    description: "Go toolchain version to install."
-    required: false
-    default: "1.25.6"
   artifact-name:
-    description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
+    description: "Name for uploaded artifacts. If empty, derived automatically."
     required: false
     default: ""
   upload-artifacts:
-    description: "Upload build artifacts (default: true)"
-    required: false
-    default: "true"
-  enable-cache:
-    description: "Enable Go module/build caching"
+    description: "Upload build artifacts."
     required: false
     default: "true"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup Go
-      uses: actions/setup-go@v7
-      with:
-        go-version: ${{ inputs.go-version }}
-        cache: ${{ inputs.enable-cache }}
-        cache-dependency-path: ${{ inputs.module-dir }}/go.sum
+    - name: Verify Go installation
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        echo "Go version:"
+        go version
+
+        echo
+        echo "Go environment:"
+        go env GOROOT GOPATH
 
     - name: Build
       shell: bash
@@ -66,7 +63,8 @@ runs:
         BUILD_TAGS: ${{ inputs.build-tags }}
         LDFLAGS: ${{ inputs.ldflags }}
         OUTPUT_DIR: ${{ inputs.output-dir }}
-      run: bash "${{ github.action_path }}/go-build.sh"
+      run: |
+        bash "${{ github.action_path }}/go-build.sh"
 
     - name: Determine artifact name
       if: ${{ inputs.upload-artifacts == 'true' }}
@@ -74,19 +72,22 @@ runs:
       shell: bash
       run: |
         if [[ -n "${{ inputs.artifact-name }}" ]]; then
-          ARTIFACT_NAME="${{ inputs.artifact-name }}"
+          artifact_name="${{ inputs.artifact-name }}"
         else
-          REPO_NAME="${GITHUB_REPOSITORY##*/}"
-          ARTIFACT_NAME="${REPO_NAME}-${{ inputs.binary-name }}-dist"
+          repo_name="${GITHUB_REPOSITORY##*/}"
+          artifact_name="${repo_name}-${{ inputs.binary-name }}-dist"
         fi
-        echo "name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
-        echo "Artifact will be named: $ARTIFACT_NAME"
+
+        echo "name=${artifact_name}" >> "$GITHUB_OUTPUT"
+
+        echo "Artifact name: ${artifact_name}"
 
     - name: Upload artifacts
       if: ${{ inputs.upload-artifacts == 'true' }}
-      uses: actions/upload-artifact@v7
+      uses: forgejo/upload-artifact@v3
       with:
         name: ${{ steps.artifact-name.outputs.name }}
-        path: ${{ inputs.module-dir }}/${{ inputs.output-dir }}/
+        path: |
+          ${{ inputs.module-dir }}/${{ inputs.output-dir }}/
         retention-days: 7
         if-no-files-found: warn
