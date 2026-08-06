@@ -183,9 +183,13 @@ jobs:
         shell: bash
         run: |
           cd pipelinetemplates
+
+          echo "PipelineTemplates:"
+
+          git remote -v
           git rev-parse HEAD
           git branch --show-current
-          git log --oneline -1
+          git log -1 --decorate --oneline
 
       - name: Build snapshot
         uses: ./pipelinetemplates/.forgejo/actions/go-build/
