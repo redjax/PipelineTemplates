@@ -29,5 +29,7 @@ fi
 [[ -n "$RELEASE_NOTES" ]] && ARGS="$ARGS --release-notes=$RELEASE_NOTES"
 [[ -n "$EXTRA_ARGS" ]] && ARGS="$ARGS $EXTRA_ARGS"
 
-echo "args=$ARGS" >>"$FORGEJO_OUTPUT"
+OUTPUT="${GITHUB_OUTPUT:-${FORGEJO_OUTPUT}}"
+
+echo "args=$ARGS" >>"$OUTPUT"
 echo "GoReleaser will run: goreleaser $ARGS"
