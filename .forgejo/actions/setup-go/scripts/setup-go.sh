@@ -127,6 +127,8 @@ echo
 echo "Go installation complete:"
 echo
 
+export PATH="${TOOLCHAIN_DIR}/bin:${PATH}"
+
 echo "Installed Go toolchain:"
 "${TOOLCHAIN_DIR}/bin/go" version
 
