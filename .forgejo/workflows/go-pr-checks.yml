@@ -1,7 +1,7 @@
 ---
 ############################################
 # Call from a consuming repository to do a #
-# test app build.                          #
+# Go build validation.                     #
 ############################################
 
 name: Go PR Checks
@@ -10,94 +10,88 @@ on:
   workflow_call:
     inputs:
       module-dir:
-        description: Path to the Go module root.
+        description: "Path to Go module root containing go.mod."
         required: false
         type: string
         default: "."
-
       build-package:
-        description: Go package path to build.
-        required: true
+        description: "Go package to build relative to module-dir."
+        required: false
         type: string
-
+        default: "."
       binary-name:
-        description: Name for the built binary.
+        description: "Name for the built binary."
         required: true
         type: string
-
       go-version:
-        description: Go toolchain version to install.
+        description: "Go version."
         required: false
         type: string
         default: "1.25.6"
-
       platforms:
-        description: Comma-separated GOOS/GOARCH targets.
+        description: "Comma separated GOOS/GOARCH targets."
         required: false
         type: string
         default: "linux/amd64"
-
       build-tags:
-        description: Optional Go build tags.
+        description: "Optional build tags."
         required: false
         type: string
         default: ""
-
       ldflags:
-        description: Optional ldflags passed to go build.
+        description: "Optional linker flags."
         required: false
         type: string
         default: ""
-
       output-dir:
-        description: Directory to write build artifacts to.
+        description: "Output directory."
         required: false
         type: string
         default: "dist"
-
       artifact-name:
-        description: Artifact name to upload. If empty, a default is derived.
+        description: "Artifact name."
         required: false
         type: string
         default: ""
-
       upload-artifacts:
-        description: Upload build artifacts.
+        description: "Upload artifacts."
         required: false
         type: boolean
         default: true
-
       enable-cache:
-        description: Enable Go module/build caching.
+        description: "Enable Go cache."
         required: false
         type: boolean
         default: true
-
       base-sha:
-        description: Base SHA for the PR diff.
+        description: "Base commit."
         required: true
         type: string
-
       head-sha:
-        description: Head SHA for the PR diff.
+        description: "Head commit."
         required: true
         type: string
-
       change-paths:
-        description: JSON array of glob patterns used to detect changed files.
+        description: "Paths triggering build."
         required: false
         type: string
-        default: '["go.mod","go.sum","cmd/**","internal/**"]'
-
+        default: |
+          [
+            "go.mod",
+            "go.sum",
+            "**/go.mod",
+            "**/go.sum",
+            "cmd/**",
+            "internal/**"
+          ]
       pipelinetemplates-ref:
-        description: Branch, tag, or SHA for PipelineTemplates
+        description: "PipelineTemplates revision."
         required: false
         type: string
         default: main
-
     outputs:
       changes_detected:
-        description: Whether watched paths changed.
+        description: "Whether Go files changed."
         value: ${{ jobs.detect.outputs.changes_detected }}
 
 jobs:
@@ -122,30 +116,13 @@ jobs:
         run: |
           changed=false
 
-          ## Handle new branches, 0+ commits
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then
-            echo "Base SHA is empty branch creation commit; using repository root commit"
             BASE_SHA=$(git rev-list --max-parents=0 HEAD)
           fi
 
-          ## Validate change_paths input
-          if ! echo "$CHANGE_PATHS" | jq empty; then
-            echo "change-paths must be valid JSON"
-            exit 1
-          fi
-
-          ## Convert JSON list to Bash array
-          mapfile -t patterns < <(echo "$CHANGE_PATHS" | jq -r '.[]')
-
-          if ! git cat-file -e "$BASE_SHA^{commit}"; then
-            echo "Base SHA $BASE_SHA is not available in checkout"
-            exit 1
-          fi
-
-          if ! git cat-file -e "$HEAD_SHA^{commit}"; then
-            echo "Head SHA $HEAD_SHA is not available in checkout"
-            exit 1
-          fi
+          mapfile -t patterns < <(
+            echo "$CHANGE_PATHS" | jq -r '.[]'
+          )
 
           while IFS= read -r file; do
             for pattern in "${patterns[@]}"; do
@@ -154,17 +131,19 @@ jobs:
                 break 2
               fi
             done
-          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          done < <(
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA"
+          )
 
           echo "Detected changes: $changed"
-
-          echo "changes_detected=$changed" >> "$GITHUB_OUTPUT"
+          echo \
+            "changes_detected=$changed" \
+            >> "$GITHUB_OUTPUT"
 
   build-preview:
     needs: detect
     if: needs.detect.outputs.changes_detected == 'true'
     runs-on: forgejo-runner-base
-
     steps:
       - name: Checkout
         uses: https://github.com/actions/checkout@v7
@@ -184,11 +163,8 @@ jobs:
         run: |
           cd pipelinetemplates
 
-          echo "PipelineTemplates:"
-
           git remote -v
           git rev-parse HEAD
-          git branch --show-current
           git log -1 --decorate --oneline
 
       - name: Setup Go
@@ -200,10 +176,12 @@ jobs:
       - name: Verify Go installation
         shell: bash
         run: |
-          echo "Go version: $(go version)"
+          which go
+          go version
+          go env GOPATH GOMOD
 
       - name: Build snapshot
-        uses: ./pipelinetemplates/.forgejo/actions/go-build/
+        uses: ./pipelinetemplates/.forgejo/actions/go-build
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
