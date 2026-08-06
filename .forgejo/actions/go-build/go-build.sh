@@ -22,6 +22,7 @@ read -r -a platform_list <<<"${platforms//,/ }"
 
 for platform in "${platform_list[@]}"; do
   IFS=/ read -r goos goarch <<<"$platform"
+
   out_path="$root/$output_dir/${binary_name}-${goos}-${goarch}"
 
   args=(build -o "$out_path")
@@ -31,7 +32,22 @@ for platform in "${platform_list[@]}"; do
 
   (
     cd "$root"
-    GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="${CGO_ENABLED:-0}" go "${args[@]}"
+
+    echo "pwd: $(pwd)"
+    echo "build_package=$build_package"
+    echo "goos=$goos"
+    echo "goarch=$goarch"
+    echo "go.mod: $(go env GOMOD)"
+
+    echo "Packages:"
+    go list ./...
+
+    echo "Running:"
+    printf 'go %q ' "${args[@]}"
+    echo
+
+    GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="${CGO_ENABLED:-0}" \
+      go "${args[@]}"
   )
 
   echo "Built $out_path"
