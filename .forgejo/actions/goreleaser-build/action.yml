@@ -247,6 +247,18 @@ runs:
         retention-days: 7
         if-no-files-found: warn
 
+    - name: "[DEBUG] Check GoReleaser action"
+      shell: bash
+      run: |
+        pwd
+        find pipelinetemplates/.forgejo/actions -maxdepth 3 -type f | sort | grep goreleaser || true
+
+        echo "---"
+        ls -la pipelinetemplates/.forgejo/actions/goreleaser-build || true
+
+        echo "---"
+        ls -la pipelinetemplates/.forgejo/actions/goreleaser-build/scripts || true
+
     - name: Generate build summary
       if: always()
       shell: bash

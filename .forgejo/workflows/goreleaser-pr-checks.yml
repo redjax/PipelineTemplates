@@ -137,6 +137,16 @@ jobs:
           path: pipelinetemplates
           fetch-depth: 0
 
+      - name: "[DEBUG] PipelineTemplates checkout"
+        shell: bash
+        run: |
+          pwd
+          ls -la
+          echo "---"
+          ls -la pipelinetemplates || true
+          echo "---"
+          find pipelinetemplates -maxdepth 4 -type d | head -50 || true
+
       - name: Verify PipelineTemplates revision
         shell: bash
         run: |
