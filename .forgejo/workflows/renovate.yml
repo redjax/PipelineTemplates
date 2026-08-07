@@ -93,6 +93,15 @@ jobs:
     runs-on: forgejo-runner-base
 
     steps:
+      - name: "[DEBUG] Node environment"
+        run: |
+          echo "PATH=$PATH"
+          which node || true
+          node --version || true
+          which npm || true
+          npm --version || true
+          cat /etc/os-release
+
       - name: Validate Forgejo endpoint
         shell: bash
         run: |
