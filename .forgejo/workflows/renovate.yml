@@ -87,16 +87,24 @@ jobs:
   run-renovate:
     runs-on: forgejo-runner-base
     steps:
-      - name: "[Debug] Forgejo Runner Environment"
-        shell: bash
+      - name: Identify image
         run: |
-          echo "hostname=$(hostname)"
-          echo "user=$(id)"
-          echo "image:"
-          cat /etc/os-release || true
-          echo "docker:"
+          cat /etc/os-release
           which docker || true
-          docker version || true
+          docker --version || true
+          git --version
+          ps -p 1 -f
+
+      # - name: "[Debug] Forgejo Runner Environment"
+      #   shell: bash
+      #   run: |
+      #     echo "hostname=$(hostname)"
+      #     echo "user=$(id)"
+      #     echo "image:"
+      #     cat /etc/os-release || true
+      #     echo "docker:"
+      #     which docker || true
+      #     docker version || true
 
       - name: Validate Forgejo endpoint
         shell: bash
