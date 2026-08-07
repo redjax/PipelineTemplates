@@ -189,14 +189,7 @@ jobs:
       - name: Install Renovate
         shell: bash
         run: |
-          set -Eeuo pipefail
-
-          echo "Node version: $(node --version)"
-          echo "Npm version: $(npm --version)"
-
-          npm install --global renovate
-
-          echo "Renovate version: $(renovate --version)"
+          npm install -g renovate
 
       - name: Run Renovate
         shell: bash
@@ -206,6 +199,7 @@ jobs:
           RENOVATE_TOKEN: ${{ secrets.renovate-token }}
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
           LOG_LEVEL: ${{ inputs.log-level }}
+          RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
           RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
           RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
           RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
@@ -213,29 +207,11 @@ jobs:
           RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config }}
           RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
           GITHUB_COM_TOKEN: ${{ secrets.github-com-token }}
-
         run: |
           set -Eeuo pipefail
 
-          CONFIG_FILE="${{ steps.cfg.outputs.config-file }}"
+          echo "Renovate version:"
+          renovate --version
 
-          echo "Workspace:"
-          pwd
-          ls -la
-
-          echo
-          echo "Renovate config:"
-          echo "${CONFIG_FILE}"
-
-          if [[ ! -f "${CONFIG_FILE}" ]]; then
-            echo "[ERROR] Renovate config missing:"
-            echo "${CONFIG_FILE}"
-
-            exit 1
-          fi
-
-          export RENOVATE_CONFIG_FILE="${CONFIG_FILE}"
-
-          echo "Running Renovate with config file: ${CONFIG_FILE}"
-
+          echo "Running Renovate"
           renovate
