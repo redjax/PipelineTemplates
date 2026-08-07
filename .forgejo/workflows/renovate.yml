@@ -1,29 +1,16 @@
 ---
-#################################################################################
-
-# Workflow to run Renovate against a consuming repository.
-
-#
-
-# Supports repositories that define their own renovate.json, and provides a
-
-# default if no config file exists.
-
-#
-
-# Requires a Forgejo Actions secret named RENOVATE_TOKEN, which is a Forgejo
-
-# PAT with the following access:
-
-# - Repository: Read and write
-
-# - Issues: Read and write
-
-# - Pull requests: Read and write
-
-#
-
-#################################################################################
+##############################################################################
+# Workflow to run Renovate against a consuming repository.                   #
+#                                                                            #
+# Supports repositories that define their own renovate.json, and provides a  #
+# default if no config file exists.                                          #
+#                                                                            #
+# Requires a Forgejo Actions secret named RENOVATE_TOKEN, which is a Forgejo #
+# PAT with:                                                                  #
+# - Repository: Read and write                                               #
+# - Issues: Read and write                                                   #
+# - Pull requests: Read and write                                            #
+##############################################################################
 
 name: Renovate Pipeline
 
@@ -48,58 +35,51 @@ on:
         default: "info"
 
       config-file:
-        description: "Path to consuming repo's Renovate JSON config."
+        description: "Path to consuming repo Renovate config."
         required: false
         type: string
         default: "renovate.json"
 
       require-config:
-        description: "Controls how Renovate handles repo-local config: required, optional, or ignored."
+        description: "Renovate config requirement mode."
         required: false
         type: string
         default: "optional"
 
       autodiscover:
-        description: "Auto-discover account repositories with Renovate."
+        description: "Enable Renovate autodiscovery."
         required: false
         type: boolean
         default: false
 
-      # runner-label:
-      #   description: "Runner label to use (e.g., forgejo-runner-base, renovate, ubuntu)."
-      #   required: false
-      #   type: string
-      #   default: forgejo-runner-base
-
       pipelinetemplates-ref:
-        description: "Branch, tag, or hash to checkout for PipelineTemplates."
+        description: "PipelineTemplates branch/tag/hash."
         required: false
         type: string
-        default: main
+        default: "main"
 
       renovate-author-email:
-        description: "Email address to use for Renovate bot."
+        description: "Renovate git author email."
         required: false
         type: string
         default: "renovate-bot@localhost"
 
       base-branches:
-        description: "Renovate base branches (comma-separated or single branch)."
+        description: "Renovate base branches."
         required: false
         type: string
         default: ""
 
       use-base-branch-config:
-        description: "Use base branch config for Renovate."
+        description: "Use base branch Renovate config."
         required: false
         type: boolean
         default: false
 
       forgejo-endpoint:
-        description: "Forgejo API endpoint URL (e.g., https://codeberg.org/api/v1, https://192.168.1.100:3000/api/v1)."
+        description: "Forgejo API endpoint."
         required: true
         type: string
-        default: ""
 
     secrets:
       renovate-token:
@@ -113,47 +93,20 @@ jobs:
     runs-on: forgejo-runner-base
 
     steps:
-      - name: Identify image
-        run: |
-          cat /etc/os-release
-          which docker || true
-          docker --version || true
-          git --version
-          ps -p 1 -f
-
-      # - name: "[Debug] Forgejo Runner Environment"
-      #   shell: bash
-      #   run: |
-      #     echo "hostname=$(hostname)"
-      #     echo "user=$(id)"
-      #     echo "image:"
-      #     cat /etc/os-release || true
-      #     echo "docker:"
-      #     which docker || true
-      #     docker version || true
-
-      # - name: "[DEBUG] Renovate token presence"
-      #   shell: bash
-      #   run: |
-      #     if [ -n "${{ secrets.renovate-token }}" ]; then
-      #       echo "Token is present"
-      #     else
-      #       echo "Token is EMPTY"
-      #       exit 1
-      #     fi
-
       - name: Validate Forgejo endpoint
         shell: bash
         run: |
           set -Eeuo pipefail
 
           if [[ -z "${{ inputs.forgejo-endpoint }}" ]]; then
-            echo "[ERROR] forgejo-endpoint input is empty (vars.FJ_ENDPOINT not set?)." >&2
+            echo "[ERROR] forgejo-endpoint is empty"
             exit 1
           fi
 
           if [[ "${{ inputs.forgejo-endpoint }}" != *"/api/v1" ]]; then
-            echo "[ERROR] forgejo-endpoint should end with /api/v1, got: ${{ inputs.forgejo-endpoint }}" >&2
+            echo "[ERROR] forgejo-endpoint must end with /api/v1"
+            echo "Got: ${{ inputs.forgejo-endpoint }}"
+
             exit 1
           fi
 
@@ -163,7 +116,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: "Checkout PipelineTemplates"
+      - name: Checkout PipelineTemplates
         uses: https://github.com/actions/checkout@v7
         with:
           repository: redjax/PipelineTemplates
@@ -171,7 +124,7 @@ jobs:
           path: pipelinetemplates
           fetch-depth: 0
 
-      - name: Select config file
+      - name: Select Renovate config
         id: cfg
         shell: bash
         run: |
@@ -180,16 +133,18 @@ jobs:
           DEFAULT_CONFIG_FILE="pipelinetemplates/config/renovate/default.json"
           USER_CONFIG_FILE="${{ inputs.config-file }}"
 
-          CONFIG_FILE=""
-
           if [[ -f "${USER_CONFIG_FILE}" ]]; then
-            echo "Using repository Renovate config: ${USER_CONFIG_FILE}"
+            echo "Using repository Renovate config:"
+            echo "  ${USER_CONFIG_FILE}"
+
             cp "${USER_CONFIG_FILE}" renovate-config.json
-            CONFIG_FILE="/workspace/renovate-config.json"
+
           elif [[ -f "${DEFAULT_CONFIG_FILE}" ]]; then
-            echo "Using PipelineTemplates default Renovate config"
+            echo "Using PipelineTemplates default Renovate config:"
+            echo "  ${DEFAULT_CONFIG_FILE}"
+
             cp "${DEFAULT_CONFIG_FILE}" renovate-config.json
-            CONFIG_FILE="/workspace/renovate-config.json"
+
           else
             echo "[ERROR] No Renovate config found."
             echo "Checked:"
@@ -198,13 +153,16 @@ jobs:
             exit 1
           fi
 
-          echo "config-file=${CONFIG_FILE}" >> "$GITHUB_OUTPUT"
+          CONFIG_PATH="${PWD}/renovate-config.json"
+
+          echo "config-file=${CONFIG_PATH}" >> "$GITHUB_OUTPUT"
           echo "require-config=${{ inputs.require-config }}" >> "$GITHUB_OUTPUT"
 
-          echo "Selected Renovate config:"
-          ls -la renovate-config.json
+          echo
+          echo "Selected config:"
+          ls -la "${CONFIG_PATH}"
 
-      - name: Decide dry-run mode
+      - name: Decide Renovate mode
         id: mode
         shell: bash
         run: |
@@ -221,70 +179,63 @@ jobs:
               echo "dry-run=false" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "[ERROR] Invalid mode: ${{ inputs.mode }} (use extract, lookup, or run)." >&2
+              echo "[ERROR] Invalid mode:"
+              echo "${{ inputs.mode }}"
+
               exit 1
               ;;
           esac
 
-      - name: "[DEBUG] Docker environment"
+      - name: Install Renovate
         shell: bash
-        env:
-          DOCKER_HOST: tcp://docker-in-docker:2375
-          DOCKER_TLS_CERTDIR: ""
         run: |
-          set -eux
+          set -Eeuo pipefail
 
-          echo "Running as: $(id)"
-          echo "Docker at: $(which docker)"
-          echo "Docker version: $(docker version)"
-          echo
+          node --version
+          npm --version
 
-          docker info
+          npm install --global renovate
+
+          renovate --version
 
       - name: Run Renovate
         shell: bash
         env:
-          DOCKER_HOST: tcp://docker-in-docker:2375
-          DOCKER_TLS_CERTDIR: ""
+          RENOVATE_PLATFORM: gitea
+          RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
+          RENOVATE_TOKEN: ${{ secrets.renovate-token }}
+          RENOVATE_REPOSITORIES: ${{ inputs.repository }}
+          LOG_LEVEL: ${{ inputs.log-level }}
+          RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
+          RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
+          RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
+          RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
+          RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config }}
+          RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
+          GITHUB_COM_TOKEN: ${{ secrets.github-com-token }}
+
         run: |
           set -Eeuo pipefail
 
           CONFIG_FILE="${{ steps.cfg.outputs.config-file }}"
 
-          echo "Renovate config path:"
-          echo "${CONFIG_FILE}"
-
-          if [[ ! -f "./renovate-config.json" ]]; then
-            echo "[ERROR] Renovate config file does not exist inside runner workspace:"
-            ls -la
-            exit 1
-          fi
-
-          ## Debug container workspace
-          echo "[DEBUG] Host workspace:"
+          echo "Workspace:"
           pwd
           ls -la
 
-          echo "Docker sees:"
-          docker run --rm \
-            -v "$(pwd):/workspace" \
-            alpine \
-            ls -la /workspace
+          echo
+          echo "Renovate config:"
+          echo "${CONFIG_FILE}"
 
-          docker run --rm \
-            -e RENOVATE_PLATFORM=gitea \
-            -e RENOVATE_ENDPOINT="${{ inputs.forgejo-endpoint }}" \
-            -e RENOVATE_TOKEN="${{ secrets.renovate-token }}" \
-            -e RENOVATE_REPOSITORIES="${{ inputs.repository }}" \
-            -e LOG_LEVEL="${{ inputs.log-level }}" \
-            -e RENOVATE_CONFIG_FILE="/workspace/renovate-config.json" \
-            -e RENOVATE_REQUIRE_CONFIG="${{ steps.cfg.outputs.require-config }}" \
-            -e RENOVATE_DRY_RUN="${{ steps.mode.outputs.dry-run }}" \
-            -e RENOVATE_AUTODISCOVER="${{ inputs.autodiscover }}" \
-            -e RENOVATE_BASE_BRANCHES="${{ inputs.base-branches }}" \
-            -e RENOVATE_USE_BASE_BRANCH_CONFIG="${{ inputs.use-base-branch-config }}" \
-            -e RENOVATE_GIT_AUTHOR="Renovate Bot <${{ inputs.renovate-author-email }}>" \
-            -e GITHUB_COM_TOKEN="${{ secrets.github-com-token }}" \
-            -v "$(pwd):/workspace" \
-            -w /workspace \
-            ghcr.io/renovatebot/renovate:latest
+          if [[ ! -f "${CONFIG_FILE}" ]]; then
+            echo "[ERROR] Renovate config missing:"
+            echo "${CONFIG_FILE}"
+
+            exit 1
+          fi
+
+          export RENOVATE_CONFIG_FILE="${CONFIG_FILE}"
+
+          echo "Running Renovate with config file: ${CONFIG_FILE}"
+
+          renovate
