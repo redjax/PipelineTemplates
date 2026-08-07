@@ -27,7 +27,6 @@ on:
         description: "Target repository to process."
         required: true
         type: string
-        default: ""
       log-level:
         description: "Renovate log level."
         required: false
