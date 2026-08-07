@@ -159,6 +159,21 @@ jobs:
               ;;
           esac
 
+      - name: "[DEBUG] Docker environment"
+        shell: bash
+        env:
+          DOCKER_HOST: tcp://docker-in-docker:2375
+          DOCKER_TLS_CERTDIR: ""
+        run: |
+          set -eux
+
+          echo "Running as: $(id)"
+          echo "Docker at: $(which docker)"
+          echo "Docker version: $(docker version)"
+          echo
+
+          docker info
+
       - name: Run Renovate
         shell: bash
         env:
