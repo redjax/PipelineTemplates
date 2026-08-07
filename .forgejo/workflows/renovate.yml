@@ -132,6 +132,7 @@ jobs:
           ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Select Renovate config
         id: cfg
