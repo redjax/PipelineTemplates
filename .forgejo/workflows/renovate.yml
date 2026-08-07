@@ -86,7 +86,7 @@ on:
 
 jobs:
   renovate:
-    runs-on: forgejo-runner-base
+    runs-on: ubuntu
     steps:
       - name: Validate Forgejo endpoint
         shell: bash
