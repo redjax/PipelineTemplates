@@ -48,11 +48,11 @@ on:
         required: false
         type: boolean
         default: false
-      runner-label:
-        description: "Runner label to use (e.g., forgejo-runner-base, renovate, ubuntu)."
-        required: false
-        type: string
-        default: forgejo-runner-base
+      # runner-label:
+      #   description: "Runner label to use (e.g., forgejo-runner-base, renovate, ubuntu)."
+      #   required: false
+      #   type: string
+      #   default: forgejo-runner-base
       pipelinetemplates-ref:
         description: "Branch, tag, or hash to checkout for PipelineTemplates."
         required: false
@@ -86,7 +86,7 @@ on:
 
 jobs:
   renovate:
-    runs-on: ${{ inputs.runner-label }}
+    runs-on: forgejo-runner-base
     steps:
       - name: Validate Forgejo endpoint
         shell: bash
