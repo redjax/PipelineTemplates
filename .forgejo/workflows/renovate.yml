@@ -16,6 +16,9 @@
 name: Renovate Pipeline
 
 on:
+  push:
+    branches:
+      - feat/forgejo-renovate
   workflow_call:
     inputs:
       mode:
