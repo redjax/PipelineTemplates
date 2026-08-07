@@ -90,7 +90,7 @@ on:
 
 jobs:
   run-renovate:
-    runs-on: forgejo-runner-base
+    runs-on: forgejo-renovate
 
     steps:
       - name: "[DEBUG] Node environment"
