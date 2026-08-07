@@ -191,12 +191,12 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          node --version
-          npm --version
+          echo "Node version: $(node --version)"
+          echo "Npm version: $(npm --version)"
 
           npm install --global renovate
 
-          renovate --version
+          echo "Renovate version: $(renovate --version)"
 
       - name: Run Renovate
         shell: bash
