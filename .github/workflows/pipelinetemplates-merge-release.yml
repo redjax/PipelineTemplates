@@ -38,6 +38,12 @@ on:
         type: boolean
         default: true
 
+      base_ref:
+        description: "Starting commit/tag/branch to compare from (examples: HEAD~1, HEAD~3, origin/main, v1.2.0, 2c6328a)"
+        required: false
+        type: string
+        default: ""
+
 permissions:
   contents: write
   pull-requests: write
@@ -73,13 +79,33 @@ jobs:
 
       - name: Apply version bumps
         env:
-          BASE_REF: ${{ github.event.before }}
           OUTPUT_FILE: .changed-components.txt
         run: |
-          if [[ -z "${BASE_REF}" || "${BASE_REF}" == "0000000000000000000000000000000000000000" ]]; then
-            echo "[ERROR] Missing valid BASE_REF for push event"
-            exit 1
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            BASE_REF="${{ inputs.base_ref }}"
+
+            if [[ -z "$BASE_REF" ]]; then
+              BASE_REF="$(git rev-parse HEAD~1)"
+            fi
+          else
+            BASE_REF="${{ github.event.before }}"
+
+            if [[ -z "$BASE_REF" || "$BASE_REF" == "0000000000000000000000000000000000000000" ]]; then
+              echo "[ERROR] Missing valid BASE_REF for push event"
+              exit 1
+            fi
           fi
+
+          git rev-parse --verify "$BASE_REF^{commit}" >/dev/null || {
+            echo "[ERROR] '$BASE_REF' is not a valid commit, tag, or branch."
+            exit 1
+          }
+
+          export BASE_REF
+
+          echo "Comparing changes from:"
+          echo "  BASE_REF: $BASE_REF"
+          echo "  HEAD:     $(git rev-parse HEAD)"
 
           ./shared/scripts/bash/versioning/release-components.sh
 
