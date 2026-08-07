@@ -260,13 +260,24 @@ jobs:
             exit 1
           fi
 
+          ## Debug container workspace
+          echo "[DEBUG] Host workspace:"
+          pwd
+          ls -la
+
+          echo "Docker sees:"
+          docker run --rm \
+            -v "$(pwd):/workspace" \
+            alpine \
+            ls -la /workspace
+
           docker run --rm \
             -e RENOVATE_PLATFORM=gitea \
             -e RENOVATE_ENDPOINT="${{ inputs.forgejo-endpoint }}" \
             -e RENOVATE_TOKEN="${{ secrets.renovate-token }}" \
             -e RENOVATE_REPOSITORIES="${{ inputs.repository }}" \
             -e LOG_LEVEL="${{ inputs.log-level }}" \
-            -e RENOVATE_CONFIG_FILE="${CONFIG_FILE}" \
+            -e RENOVATE_CONFIG_FILE="/workspace/renovate-config.json" \
             -e RENOVATE_REQUIRE_CONFIG="${{ steps.cfg.outputs.require-config }}" \
             -e RENOVATE_DRY_RUN="${{ steps.mode.outputs.dry-run }}" \
             -e RENOVATE_AUTODISCOVER="${{ inputs.autodiscover }}" \
@@ -274,6 +285,6 @@ jobs:
             -e RENOVATE_USE_BASE_BRANCH_CONFIG="${{ inputs.use-base-branch-config }}" \
             -e RENOVATE_GIT_AUTHOR="Renovate Bot <${{ inputs.renovate-author-email }}>" \
             -e GITHUB_COM_TOKEN="${{ secrets.github-com-token }}" \
-            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "$(pwd):/workspace" \
             -w /workspace \
             ghcr.io/renovatebot/renovate:latest
