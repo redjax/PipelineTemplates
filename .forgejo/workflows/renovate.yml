@@ -119,13 +119,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout PipelineTemplates
+      - name: "Checkout PipelineTemplates"
         uses: https://github.com/actions/checkout@v7
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipelinetemplates
           fetch-depth: 0
+          persist-credentials: false
+          token: ${{ secrets.renovate-token }}
 
       - name: Select config file
         id: cfg
