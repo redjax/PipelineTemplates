@@ -196,6 +196,11 @@ jobs:
               ;;
           esac
 
+      - name: Verify Renovate
+        shell: bash
+        run: |
+          echo "Renovate version: $(renovate --version)"
+
       - name: Run Renovate
         shell: bash
         env:
