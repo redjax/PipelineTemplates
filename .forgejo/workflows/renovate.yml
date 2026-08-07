@@ -106,6 +106,16 @@ jobs:
       #     which docker || true
       #     docker version || true
 
+      - name: "[DEBUG] Renovate token presence"
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.renovate-token }}" ]; then
+            echo "Token is present"
+          else
+            echo "Token is EMPTY"
+            exit 1
+          fi
+
       - name: Validate Forgejo endpoint
         shell: bash
         run: |
