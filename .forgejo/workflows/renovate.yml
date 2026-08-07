@@ -84,7 +84,7 @@ on:
         required: false
 
 jobs:
-  renovate:
+  run-renovate:
     runs-on: ubuntu
     steps:
       - name: Validate Forgejo endpoint
