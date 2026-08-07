@@ -82,10 +82,10 @@ on:
         type: string
 
     secrets:
-      renovate-token:
+      RENOVATE_TOKEN:
         required: true
 
-      github-com-token:
+      GH_COM_TOKEN:
         required: false
 
 jobs:
@@ -218,7 +218,7 @@ jobs:
         env:
           RENOVATE_PLATFORM: gitea
           RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
-          RENOVATE_TOKEN: ${{ secrets.renovate-token }}
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
@@ -228,7 +228,7 @@ jobs:
           RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
           RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config }}
           RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
-          GITHUB_COM_TOKEN: ${{ secrets.github-com-token }}
+          GITHUB_COM_TOKEN: ${{ secrets.GH_COM_TOKEN }}
         run: |
           set -Eeuo pipefail
 
