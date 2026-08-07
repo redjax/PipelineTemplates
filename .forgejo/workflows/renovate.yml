@@ -25,7 +25,7 @@ on:
         default: "run"
       repository:
         description: "Target repository to process."
-        required: false
+        required: true
         type: string
         default: ""
       log-level:
