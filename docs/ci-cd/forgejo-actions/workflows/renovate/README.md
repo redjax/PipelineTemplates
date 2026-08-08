@@ -4,6 +4,9 @@ The Renovate pipeline runs Renovate against a consuming repository to detect dep
 
 The workflow supports repository-specific `renovate.json` configuration, with a PipelineTemplates default configuration used when the consuming repository does not provide its own. It can run normally or in Renovate's `extract` and `lookup` dry-run modes for troubleshooting and configuration inspection.
 
+> [!NOTE]
+> This pipeline uses my [custom Forgejo runner image](https://github.com/redjax/Dockerfiles/tree/main/dockerfiles/ci/forgejo/automation/renovate).
+
 ## Table of Contents <!-- omit in toc -->
 
 - [Responsibilities](#responsibilities)
