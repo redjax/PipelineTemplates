@@ -202,6 +202,32 @@ jobs:
           echo "Renovate version: $(renovate --version)"
 
       ## Uncomment for debugging
+      - name: Inspect Renovate token format
+        shell: bash
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          token="${RENOVATE_TOKEN}"
+
+          echo "Token length: ${#token}"
+
+          if [[ "$token" == *.*.* ]]; then
+            echo "WARNING: token looks like a JWT (three dot-separated segments)"
+          else
+            echo "Token does not look like a JWT."
+          fi
+
+          if [[ "$token" == token\ * ]]; then
+            echo "WARNING: token contains a 'token ' prefix"
+          fi
+
+          if [[ "$token" == Bearer\ * || "$token" == bearer\ * ]]; then
+            echo "WARNING: token contains a 'Bearer ' prefix"
+          fi
+
+      ## Uncomment for debugging
       - name: Validate Renovate Forgejo token
         shell: bash
         env:
