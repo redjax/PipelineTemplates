@@ -201,6 +201,28 @@ jobs:
         run: |
           echo "Renovate version: $(renovate --version)"
 
+      ## Uncomment for debugging
+      - name: Validate Renovate Forgejo token
+        shell: bash
+        env:
+          FORGEJO_ENDPOINT: ${{ inputs.forgejo-endpoint }}
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "Testing Forgejo authentication..."
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --header "Authorization: token ${RENOVATE_TOKEN}" \
+            --header "Accept: application/json" \
+            "${FORGEJO_ENDPOINT}/user"
+
+          echo
+          echo "Forgejo authentication succeeded."
+
       - name: Run Renovate
         shell: bash
         env:
