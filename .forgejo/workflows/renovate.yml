@@ -204,7 +204,7 @@ jobs:
       - name: Run Renovate
         shell: bash
         env:
-          RENOVATE_PLATFORM: gitea
+          RENOVATE_PLATFORM: forgejo
           RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
           RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
           RENOVATE_REPOSITORIES: ${{ inputs.repository }}
