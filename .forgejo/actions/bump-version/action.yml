@@ -1,6 +1,6 @@
 ---
 name: Bump Version
-description: Bump a version using semantic commit history.
+description: Bump a version file using semantic commit history.
 
 inputs:
   bump-type:
@@ -9,19 +9,9 @@ inputs:
     default: auto
 
   version-file:
-    description: "Path to the version file, relative to the repository root"
+    description: "Path to the version file relative to the repository root"
     required: false
-    default: .version
-
-  config-file:
-    description: "Path to the bump-my-version configuration file, relative to the repository root"
-    required: false
-    default: .bumpversion.toml
-
-  working-directory:
-    description: "Directory in which bump-my-version and git history should be evaluated"
-    required: false
-    default: .
+    default: ""
 
 outputs:
   current-version:
@@ -36,6 +26,10 @@ outputs:
     description: Selected bump type
     value: ${{ steps.bump.outputs.bump-type }}
 
+  version-file:
+    description: Version file that was modified
+    value: ${{ steps.bump.outputs.version-file }}
+
 runs:
   using: composite
 
@@ -43,8 +37,6 @@ runs:
     - name: Install bump-my-version
       shell: bash
       run: |
-        set -Eeuo pipefail
-
         python3 -m pip install --user bump-my-version
 
     - name: Bump version
@@ -53,44 +45,5 @@ runs:
       env:
         BUMP_TYPE: ${{ inputs.bump-type }}
         VERSION_FILE: ${{ inputs.version-file }}
-        CONFIG_FILE: ${{ inputs.config-file }}
-        WORKING_DIRECTORY: ${{ inputs.working-directory }}
       run: |
-        set -Eeuo pipefail
-
-        REPO_ROOT="${GITHUB_WORKSPACE}"
-        WORKDIR="${REPO_ROOT}/${WORKING_DIRECTORY}"
-
-        if [[ ! -d "${WORKDIR}" ]]; then
-          echo "[ERROR] Working directory does not exist:"
-          echo "  ${WORKDIR}"
-          exit 1
-        fi
-
-        VERSION_PATH="${WORKDIR}/${VERSION_FILE}"
-        CONFIG_PATH="${REPO_ROOT}/${CONFIG_FILE}"
-
-        if [[ ! -f "${VERSION_PATH}" ]]; then
-          echo "[ERROR] Version file not found:"
-          echo "  ${VERSION_PATH}"
-          exit 1
-        fi
-
-        if [[ ! -f "${CONFIG_PATH}" ]]; then
-          echo "[ERROR] bump-my-version config not found:"
-          echo "  ${CONFIG_PATH}"
-          exit 1
-        fi
-
-        echo "[INFO] Repository: ${REPO_ROOT}"
-        echo "[INFO] Working directory: ${WORKDIR}"
-        echo "[INFO] Version file: ${VERSION_PATH}"
-        echo "[INFO] Config file: ${CONFIG_PATH}"
-
-        cd "${WORKDIR}"
-
-        export VERSION_FILE="${VERSION_PATH}"
-        export BUMP_TYPE="${BUMP_TYPE}"
-        export BUMPVERSION_CONFIG_FILE="${CONFIG_PATH}"
-
         "${GITHUB_ACTION_PATH}/scripts/bump-version.sh"

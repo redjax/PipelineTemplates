@@ -1,19 +1,46 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ -z "${BUMP_TYPE:-}" ]]; then
-  echo "[ERROR] BUMP_TYPE is not set" >&2
-  exit 1
-fi
+VERSION_FILE="${VERSION_FILE:-}"
+BUMP_TYPE="${BUMP_TYPE:-auto}"
 
-if [[ -z "${VERSION_FILE:-}" ]]; then
-  echo "[ERROR] VERSION_FILE is not set" >&2
-  exit 1
-fi
+find_version_file() {
+  local candidates=(
+    ".version"
+    "VERSION"
+    "version"
+    "VERSION.txt"
+    "version.txt"
+  )
 
-if [[ -z "${BUMPVERSION_CONFIG_FILE:-}" ]]; then
-  echo "[ERROR] BUMPVERSION_CONFIG_FILE is not set" >&2
-  exit 1
+  local matches=()
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "${candidate}" ]]; then
+      matches+=("${candidate}")
+    fi
+  done
+
+  case "${#matches[@]}" in
+  0)
+    echo "[ERROR] No version file found." >&2
+    echo "[ERROR] Specify VERSION_FILE explicitly." >&2
+    exit 1
+    ;;
+  1)
+    printf '%s\n' "${matches[0]}"
+    ;;
+  *)
+    echo "[ERROR] Multiple version files found:" >&2
+    printf '  %s\n' "${matches[@]}" >&2
+    echo "[ERROR] Specify VERSION_FILE explicitly." >&2
+    exit 1
+    ;;
+  esac
+}
+
+if [[ -z "${VERSION_FILE}" ]]; then
+  VERSION_FILE="$(find_version_file)"
 fi
 
 if [[ ! -f "${VERSION_FILE}" ]]; then
@@ -21,10 +48,7 @@ if [[ ! -f "${VERSION_FILE}" ]]; then
   exit 1
 fi
 
-if [[ ! -f "${BUMPVERSION_CONFIG_FILE}" ]]; then
-  echo "[ERROR] bump-my-version config not found: ${BUMPVERSION_CONFIG_FILE}" >&2
-  exit 1
-fi
+echo "[INFO] Version file: ${VERSION_FILE}"
 
 CURRENT_VERSION="$(tr -d '[:space:]' <"${VERSION_FILE}")"
 
@@ -49,12 +73,8 @@ if [[ "${BUMP_TYPE}" == "auto" ]]; then
     COMMITS="$(git log --pretty=format:%s)"
   fi
 
-  if [[ -z "${COMMITS}" ]]; then
-    echo "[WARN] No commits found; defaulting to patch"
-    BUMP_TYPE="patch"
-
-  elif echo "${COMMITS}" | grep -qiE \
-    'BREAKING[[:space:]]CHANGE|BREAKING|^[a-z]+(\([^)]*\))?!:'; then
+  if echo "${COMMITS}" | grep -qiE \
+    'BREAKING CHANGE|BREAKING|^[a-z]+(\([^)]*\))?!:'; then
 
     BUMP_TYPE="major"
 
@@ -73,43 +93,26 @@ case "${BUMP_TYPE}" in
 major | minor | patch) ;;
 *)
   echo "[ERROR] Invalid bump type: ${BUMP_TYPE}" >&2
-  echo "[ERROR] Expected: auto, major, minor, or patch" >&2
   exit 1
   ;;
 esac
 
 echo "[INFO] Selected bump type: ${BUMP_TYPE}"
-echo "[INFO] Version file: ${VERSION_FILE}"
-echo "[INFO] Config file: ${BUMPVERSION_CONFIG_FILE}"
 
-## Perform the bump.
-bump-my-version bump \
-  --config-file "${BUMPVERSION_CONFIG_FILE}" \
-  "${BUMP_TYPE}"
+bump-my-version bump "${BUMP_TYPE}"
 
 ## Read and validate the new version.
 NEW_VERSION="$(tr -d '[:space:]' <"${VERSION_FILE}")"
-
-if [[ -z "${NEW_VERSION}" ]]; then
-  echo "[ERROR] Version file is empty after bump: ${VERSION_FILE}" >&2
-  exit 1
-fi
 
 if [[ "${CURRENT_VERSION}" == "${NEW_VERSION}" ]]; then
   echo "[ERROR] Version did not change" >&2
   exit 1
 fi
 
+echo "current-version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
+echo "new-version=${NEW_VERSION}" >>"${GITHUB_OUTPUT}"
+echo "bump-type=${BUMP_TYPE}" >>"${GITHUB_OUTPUT}"
+echo "version-file=${VERSION_FILE}" >>"${GITHUB_OUTPUT}"
+
 echo "[INFO] Version:"
 echo "  ${CURRENT_VERSION} -> ${NEW_VERSION}"
-
-## Export Forgejo Actions outputs.
-if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  {
-    echo "current-version=${CURRENT_VERSION}"
-    echo "new-version=${NEW_VERSION}"
-    echo "bump-type=${BUMP_TYPE}"
-  } >>"${GITHUB_OUTPUT}"
-else
-  echo "[WARN] GITHUB_OUTPUT is not set; action outputs will not be available"
-fi
