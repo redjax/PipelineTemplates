@@ -5,30 +5,36 @@ on:
   workflow_call:
     inputs:
       bump-type:
-        description: "Version bump type: auto, major, minor, patch"
+        description: "Version bump type: auto, major, minor, patch."
         required: false
         type: string
         default: "auto"
 
       version-file:
-        description: "Version file"
+        description: "Version file path."
         required: false
         type: string
         default: ".version"
 
+      bumpversion-config:
+        description: "bump-my-version configuration file path."
+        required: false
+        type: string
+        default: ".bumpversion.toml"
+
       base-branch:
-        description: "Base branch"
+        description: "Base branch."
         required: false
         type: string
         default: "main"
 
       forgejo-endpoint:
-        description: "Forgejo API endpoint"
+        description: "Forgejo API endpoint, ending in /api/v1."
         required: true
         type: string
 
       repository:
-        description: "Repository owner/name"
+        description: "Repository owner/name."
         required: true
         type: string
 
@@ -38,10 +44,10 @@ on:
 
 jobs:
   bump:
-    runs-on: ubuntu
+    runs-on: forgejo-go-base
 
     steps:
-      - name: Checkout
+      - name: Checkout base branch
         uses: https://github.com/actions/checkout@v7
         with:
           fetch-depth: 0
@@ -49,16 +55,33 @@ jobs:
 
       - name: Bump version
         id: version
-        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/bump-version@main
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/bump-version@feat/forgejo-go-release-pipelines
         with:
           bump-type: ${{ inputs.bump-type }}
           version-file: ${{ inputs.version-file }}
+          bumpversion-config: ${{ inputs.bumpversion-config }}
 
       - name: Create version bump PR
-        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/create-version-pr@main
+        id: pr
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/create-version-pr@feat/forgejo-go-release-pipelines
         with:
           version: ${{ steps.version.outputs.new-version }}
+          version-file: ${{ inputs.version-file }}
+          bumpversion-config: ${{ inputs.bumpversion-config }}
           base-branch: ${{ inputs.base-branch }}
           forgejo-endpoint: ${{ inputs.forgejo-endpoint }}
           repository: ${{ inputs.repository }}
           token: ${{ secrets.FJ_TOKEN }}
+
+      - name: Version bump summary
+        shell: bash
+        run: |
+          {
+            echo "## Version bump PR"
+            echo
+            echo "- Previous version: \`${{ steps.version.outputs.current-version }}\`"
+            echo "- New version: \`${{ steps.version.outputs.new-version }}\`"
+            echo "- Bump type: \`${{ steps.version.outputs.bump-type }}\`"
+            echo "- Branch: \`${{ steps.pr.outputs.branch }}\`"
+            echo "- Pull request: #${{ steps.pr.outputs.pr-number }}"
+          } >> "${FORGEJO_STEP_SUMMARY}"
