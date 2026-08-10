@@ -1,0 +1,64 @@
+---
+name: Go Version Bump
+
+on:
+  workflow_call:
+    inputs:
+      bump-type:
+        description: "Version bump type: auto, major, minor, patch"
+        required: false
+        type: string
+        default: "auto"
+
+      version-file:
+        description: "Version file"
+        required: false
+        type: string
+        default: ".version"
+
+      base-branch:
+        description: "Base branch"
+        required: false
+        type: string
+        default: "main"
+
+      forgejo-endpoint:
+        description: "Forgejo API endpoint"
+        required: true
+        type: string
+
+      repository:
+        description: "Repository owner/name"
+        required: true
+        type: string
+
+    secrets:
+      FJ_TOKEN:
+        required: true
+
+jobs:
+  bump:
+    runs-on: ubuntu
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.base-branch }}
+
+      - name: Bump version
+        id: version
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/bump-version@main
+        with:
+          bump-type: ${{ inputs.bump-type }}
+          version-file: ${{ inputs.version-file }}
+
+      - name: Create version bump PR
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/create-version-pr@main
+        with:
+          version: ${{ steps.version.outputs.new-version }}
+          base-branch: ${{ inputs.base-branch }}
+          forgejo-endpoint: ${{ inputs.forgejo-endpoint }}
+          repository: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
