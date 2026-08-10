@@ -52,13 +52,15 @@ runs:
         echo "  base: ${BASE_SHA}"
         echo "  head: ${HEAD_SHA}"
 
-        CHANGED="$(git diff \
-          --name-only \
-          "${BASE_SHA}" \
-          "${HEAD_SHA}" \
-          -- \
-          ${PATHS} \
-          | grep -E '(^|/).*\.go$|(^|/)(go\.mod|go\.sum)$' || true)"
+        CHANGED="$(
+          git diff \
+            --name-only \
+            "${BASE_SHA}" \
+            "${HEAD_SHA}" \
+            -- \
+            ${PATHS} \
+            | grep -E '(^|/).*\.go$|(^|/)(go\.mod|go\.sum)$' || true
+        )"
 
         if [[ -n "${CHANGED}" ]]; then
           CHANGED_BOOL="true"
@@ -66,10 +68,12 @@ runs:
           CHANGED_BOOL="false"
         fi
 
-        echo "changed=${CHANGED_BOOL}" >> "${GITHUB_OUTPUT}"
-        echo "files<<EOF" >> "${GITHUB_OUTPUT}"
-        echo "${CHANGED}" >> "${GITHUB_OUTPUT}"
-        echo "EOF"
+        {
+          echo "changed=${CHANGED_BOOL}"
+          echo "files<<EOF"
+          printf '%s\n' "${CHANGED}"
+          echo "EOF"
+        } >> "${GITHUB_OUTPUT}"
 
         echo
         echo "Changed Go files:"
