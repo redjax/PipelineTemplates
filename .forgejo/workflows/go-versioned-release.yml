@@ -350,13 +350,31 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.classify.outputs.release_version }}
           TAG_PREFIX: ${{ inputs.tag-prefix }}
+          USE_COMMIT_SHA: ${{ inputs.use-commit-sha }}
+          RELEASE_VERSION_OVERRIDE: ${{ inputs.release-version }}
         run: |
           set -Eeuo pipefail
 
-          tag="${TAG_PREFIX}${RELEASE_VERSION}"
+          tag_prefix="${TAG_PREFIX}"
+
+          ## A generated commit-SHA release is not a semantic version.
+          ##
+          ## Examples:
+          ##   v + a1b2c3d4e5f6      -> a1b2c3d4e5f6
+          ##   test-v + a1b2c3d4e5f6 -> test-a1b2c3d4e5f6
+          if [[ "${USE_COMMIT_SHA}" == "true" \
+            && -z "${RELEASE_VERSION_OVERRIDE}" ]]; then
+            tag_prefix="${tag_prefix%v}"
+          fi
+
+          tag="${tag_prefix}${RELEASE_VERSION}"
 
           echo "version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+          echo "[INFO] Release version: ${RELEASE_VERSION}"
+          echo "[INFO] Tag prefix: ${tag_prefix}"
+          echo "[INFO] Release tag: ${tag}"
 
       - name: Setup Go
         uses: ./pipelinetemplates/.forgejo/actions/setup-go
