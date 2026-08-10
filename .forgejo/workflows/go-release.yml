@@ -1,0 +1,151 @@
+---
+name: Go Release
+
+on:
+  workflow_call:
+    inputs:
+      version-file:
+        description: "Version file"
+        required: false
+        type: string
+        default: ".version"
+
+      tag-prefix:
+        description: "Git tag prefix"
+        required: false
+        type: string
+        default: "v"
+
+      go-version:
+        description: "Go version"
+        required: false
+        type: string
+        default: "1.26.4"
+
+      goreleaser-version:
+        description: "GoReleaser version"
+        required: false
+        type: string
+        default: "2.17.1"
+
+      forgejo-endpoint:
+        description: "Forgejo API endpoint"
+        required: true
+        type: string
+
+      repository:
+        description: "Repository owner/name"
+        required: true
+        type: string
+
+    secrets:
+      FJ_TOKEN:
+        required: true
+
+jobs:
+  release:
+    runs-on: forgejo-go-base
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          VERSION="$(cat "${{ inputs.version-file }}")"
+          TAG="${{ inputs.tag-prefix }}${VERSION}"
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${TAG}" >> "${GITHUB_OUTPUT}"
+
+          echo "[INFO] Version: ${VERSION}"
+          echo "[INFO] Tag: ${TAG}"
+
+      - name: Check tag
+        id: tagcheck
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TAG="${{ steps.version.outputs.tag }}"
+
+          if git ls-remote \
+            --exit-code \
+            --tags \
+            origin \
+            "refs/tags/${TAG}" >/dev/null 2>&1
+          then
+            echo "[ERROR] Tag ${TAG} already exists"
+            exit 1
+          fi
+
+          echo "[INFO] Tag ${TAG} does not exist"
+
+      - name: Create tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          git config user.name "forgejo-actions"
+          git config user.email "forgejo-actions@localhost"
+
+          git tag \
+            --annotate \
+            "${TAG}" \
+            --message "Release v${VERSION}"
+
+          git push origin "${TAG}"
+
+          echo "[INFO] Created tag ${TAG}"
+
+      - name: Build release artifacts
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/goreleaser-build@main
+        with:
+          go-version: ${{ inputs.go-version }}
+          goreleaser-version: ${{ inputs.goreleaser-version }}
+          snapshot: "false"
+          skip-publish: "true"
+          working-directory: "."
+          enable-cache: "true"
+
+      - name: Verify artifacts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -d "./dist" ]]; then
+            echo "[ERROR] dist directory does not exist"
+            exit 1
+          fi
+
+          if ! find ./dist -type f | grep -q .; then
+            echo "[ERROR] dist contains no files"
+            exit 1
+          fi
+
+          echo "[INFO] Release artifacts:"
+          find ./dist -type f -printf '%P\n'
+
+      - name: Create Forgejo release
+        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/tag-release@main
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ steps.version.outputs.tag }}
+          create-tag: "false"
+          create-release: "true"
+          release-name: Release ${{ steps.version.outputs.tag }}
+          release-body: |
+            Automated release for version ${{ steps.version.outputs.version }}.
+          artifact-path: "./dist"
+          overwrite-assets: "false"
