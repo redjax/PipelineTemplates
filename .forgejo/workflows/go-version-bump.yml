@@ -11,7 +11,7 @@ on:
         default: "auto"
 
       version-file:
-        description: "Version file path."
+        description: "Version file path relative to repository root."
         required: false
         type: string
         default: ".version"
@@ -23,18 +23,24 @@ on:
         default: ".bumpversion.toml"
 
       base-branch:
-        description: "Base branch."
+        description: "Base branch for the version-bump PR."
+        required: false
+        type: string
+        default: "main"
+
+      pipelinetemplates-ref:
+        description: "PipelineTemplates mirror revision."
         required: false
         type: string
         default: "main"
 
       forgejo-endpoint:
-        description: "Forgejo API endpoint, ending in /api/v1."
+        description: "Forgejo API endpoint ending in /api/v1."
         required: true
         type: string
 
       repository:
-        description: "Repository owner/name."
+        description: "Repository in owner/name form."
         required: true
         type: string
 
@@ -44,18 +50,37 @@ on:
 
 jobs:
   bump:
-    runs-on: forgejo-go-base
+    runs-on: forgejo-runner-base
 
     steps:
-      - name: Checkout base branch
+      - name: Checkout application repository
         uses: https://github.com/actions/checkout@v7
         with:
           fetch-depth: 0
           ref: ${{ inputs.base-branch }}
 
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
       - name: Bump version
         id: version
-        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/bump-version@feat/forgejo-go-release-pipelines
+        uses: ./pipelinetemplates/.forgejo/actions/bump-version
         with:
           bump-type: ${{ inputs.bump-type }}
           version-file: ${{ inputs.version-file }}
@@ -63,7 +88,7 @@ jobs:
 
       - name: Create version bump PR
         id: pr
-        uses: https://github.com/redjax/PipelineTemplates/.forgejo/actions/create-version-pr@feat/forgejo-go-release-pipelines
+        uses: ./pipelinetemplates/.forgejo/actions/create-version-pr
         with:
           version: ${{ steps.version.outputs.new-version }}
           version-file: ${{ inputs.version-file }}
@@ -73,7 +98,7 @@ jobs:
           repository: ${{ inputs.repository }}
           token: ${{ secrets.FJ_TOKEN }}
 
-      - name: Version bump summary
+      - name: Write summary
         shell: bash
         run: |
           {
@@ -84,4 +109,4 @@ jobs:
             echo "- Bump type: \`${{ steps.version.outputs.bump-type }}\`"
             echo "- Branch: \`${{ steps.pr.outputs.branch }}\`"
             echo "- Pull request: #${{ steps.pr.outputs.pr-number }}"
-          } >> "${FORGEJO_STEP_SUMMARY}"
+          } >> "${GITHUB_STEP_SUMMARY}"
