@@ -1,0 +1,216 @@
+---
+##########################################################################
+# Orchestrator workflow for building & releasing Go apps on Forgejo.     #
+#                                                                        #
+# Consuming repositories call this workflow with inputs, and the         #
+# pipeline uses Forgejo Actions to manage versioning, building, tagging, #
+# and releasing a Go application/package.                                #
+##########################################################################
+
+---
+name: Go Release Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      versioned:
+        description: "Whether this repository releases from a version file."
+        required: false
+        type: boolean
+        default: true
+
+      version-file:
+        description: "Version file path, relative to repository root."
+        required: false
+        type: string
+        default: ".version"
+
+      bumpversion-config:
+        description: "bump-my-version configuration path."
+        required: false
+        type: string
+        default: ".bumpversion.toml"
+
+      bump-type:
+        description: "auto, major, minor, or patch."
+        required: false
+        type: string
+        default: "auto"
+
+      base-branch:
+        description: "Release branch."
+        required: false
+        type: string
+        default: "main"
+
+      tag-prefix:
+        description: "Git tag prefix."
+        required: false
+        type: string
+        default: "v"
+
+      go-version:
+        required: false
+        type: string
+        default: "1.26.4"
+
+      build-package:
+        required: false
+        type: string
+        default: "."
+
+      module-dir:
+        required: false
+        type: string
+        default: "."
+
+      binary-name:
+        required: true
+        type: string
+
+      platforms:
+        required: false
+        type: string
+        default: "linux/amd64"
+
+      output-dir:
+        required: false
+        type: string
+        default: "dist"
+
+      use-goreleaser:
+        description: "Use GoReleaser instead of go-build."
+        required: false
+        type: boolean
+        default: false
+
+      goreleaser-config:
+        required: false
+        type: string
+        default: ".goreleaser.yml"
+
+      change-paths:
+        required: false
+        type: string
+        default: "go.mod go.sum cmd internal pkg"
+
+      forgejo-endpoint:
+        required: true
+        type: string
+
+      repository:
+        required: true
+        type: string
+
+    secrets:
+      FJ_TOKEN:
+        required: true
+
+jobs:
+  classify:
+    runs-on: forgejo-runner-base
+    outputs:
+      go_changed: ${{ steps.go.outputs.changed }}
+      version_changed: ${{ steps.version.outputs.changed }}
+      should_bump: ${{ steps.decide.outputs.should_bump }}
+      should_release: ${{ steps.decide.outputs.should_release }}
+      release_version: ${{ steps.decide.outputs.release_version }}
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect Go changes
+        id: go
+        uses: ./pipelinetemplates/.forgejo/actions/detect-go-changes
+        with:
+          base-sha: ${{ github.event.before }}
+          head-sha: ${{ github.sha }}
+          paths: ${{ inputs.change-paths }}
+
+      - name: Detect version-file changes
+        id: version
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          VERSION_FILE: ${{ inputs.version-file }}
+        run: |
+          set -Eeuo pipefail
+
+          if git diff --quiet "${BASE_SHA}" "${HEAD_SHA}" -- "${VERSION_FILE}"; then
+            changed=false
+          else
+            changed=true
+          fi
+
+          echo "changed=${changed}" >> "${GITHUB_OUTPUT}"
+
+      - name: Decide release path
+        id: decide
+        shell: bash
+        env:
+          VERSIONED: ${{ inputs.versioned }}
+          GO_CHANGED: ${{ steps.go.outputs.changed }}
+          VERSION_CHANGED: ${{ steps.version.outputs.changed }}
+          VERSION_FILE: ${{ inputs.version-file }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          should_bump=false
+          should_release=false
+          release_version=""
+
+          if [[ "${VERSIONED}" == "true" ]]; then
+            if [[ "${GO_CHANGED}" == "true" && "${VERSION_CHANGED}" != "true" ]]; then
+              should_bump=true
+            elif [[ "${VERSION_CHANGED}" == "true" ]]; then
+              should_release=true
+              release_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+            fi
+          elif [[ "${GO_CHANGED}" == "true" ]]; then
+            should_release=true
+            release_version="$(git rev-parse --short=12 "${HEAD_SHA}")"
+          fi
+
+          echo "should_bump=${should_bump}" >> "${GITHUB_OUTPUT}"
+          echo "should_release=${should_release}" >> "${GITHUB_OUTPUT}"
+          echo "release_version=${release_version}" >> "${GITHUB_OUTPUT}"
+
+  bump-version:
+    needs: classify
+    if: needs.classify.outputs.should_bump == 'true'
+    uses: redjax/pipelinetemplates/.forgejo/workflows/go-version-bump.yml@main
+    with:
+      bump-type: ${{ inputs.bump-type }}
+      version-file: ${{ inputs.version-file }}
+      bumpversion-config: ${{ inputs.bumpversion-config }}
+      base-branch: ${{ inputs.base-branch }}
+      forgejo-endpoint: ${{ inputs.forgejo-endpoint }}
+      repository: ${{ inputs.repository }}
+    secrets:
+      FJ_TOKEN: ${{ secrets.FJ_TOKEN }}
+
+  release:
+    needs: classify
+    if: needs.classify.outputs.should_release == 'true'
+    uses: redjax/pipelinetemplates/.forgejo/workflows/go-release.yml@main
+    with:
+      versioned: ${{ inputs.versioned }}
+      release-version: ${{ needs.classify.outputs.release_version }}
+      tag-prefix: ${{ inputs.tag-prefix }}
+      go-version: ${{ inputs.go-version }}
+      build-package: ${{ inputs.build-package }}
+      module-dir: ${{ inputs.module-dir }}
+      binary-name: ${{ inputs.binary-name }}
+      platforms: ${{ inputs.platforms }}
+      output-dir: ${{ inputs.output-dir }}
+      use-goreleaser: ${{ inputs.use-goreleaser }}
+      goreleaser-config: ${{ inputs.goreleaser-config }}
+      forgejo-endpoint: ${{ inputs.forgejo-endpoint }}
+      repository: ${{ inputs.repository }}
+    secrets:
+      FJ_TOKEN: ${{ secrets.FJ_TOKEN }}
