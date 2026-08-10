@@ -46,10 +46,13 @@ runs:
 
         python3 -m pip install \
           --user \
+          --break-system-packages \
           --disable-pip-version-check \
           bump-my-version
 
         echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+        "${HOME}/.local/bin/bump-my-version" --version
 
     - name: Bump version
       id: bump
