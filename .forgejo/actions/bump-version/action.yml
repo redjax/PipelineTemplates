@@ -4,30 +4,35 @@ description: Bump a version file using semantic commit history.
 
 inputs:
   bump-type:
-    description: "Bump type: auto, major, minor, or patch"
+    description: "Bump type: auto, major, minor, or patch."
     required: false
-    default: auto
+    default: "auto"
 
   version-file:
-    description: "Path to the version file relative to the repository root"
+    description: "Version file path relative to the repository root."
     required: false
-    default: ""
+    default: ".version"
+
+  bumpversion-config:
+    description: "Optional bump-my-version configuration file path."
+    required: false
+    default: ".bumpversion.toml"
 
 outputs:
   current-version:
-    description: Previous version
+    description: "Previous version."
     value: ${{ steps.bump.outputs.current-version }}
 
   new-version:
-    description: New version
+    description: "New version."
     value: ${{ steps.bump.outputs.new-version }}
 
   bump-type:
-    description: Selected bump type
+    description: "Selected bump type."
     value: ${{ steps.bump.outputs.bump-type }}
 
   version-file:
-    description: Version file that was modified
+    description: "Version file that was modified."
     value: ${{ steps.bump.outputs.version-file }}
 
 runs:
@@ -37,7 +42,14 @@ runs:
     - name: Install bump-my-version
       shell: bash
       run: |
-        python3 -m pip install --user bump-my-version
+        set -Eeuo pipefail
+
+        python3 -m pip install \
+          --user \
+          --disable-pip-version-check \
+          bump-my-version
+
+        echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
 
     - name: Bump version
       id: bump
@@ -45,5 +57,6 @@ runs:
       env:
         BUMP_TYPE: ${{ inputs.bump-type }}
         VERSION_FILE: ${{ inputs.version-file }}
+        BUMPVERSION_CONFIG: ${{ inputs.bumpversion-config }}
       run: |
-        "${GITHUB_ACTION_PATH}/scripts/bump-version.sh"
+        bash "${GITHUB_ACTION_PATH}/scripts/bump-version.sh"

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 VERSION_FILE="${VERSION_FILE:-}"
 BUMP_TYPE="${BUMP_TYPE:-auto}"
+BUMPVERSION_CONFIG="${BUMPVERSION_CONFIG:-}"
 
 find_version_file() {
   local candidates=(
@@ -48,7 +49,18 @@ if [[ ! -f "${VERSION_FILE}" ]]; then
   exit 1
 fi
 
+if [[ -n "${BUMPVERSION_CONFIG}" && ! -f "${BUMPVERSION_CONFIG}" ]]; then
+  echo "[ERROR] bump-my-version config not found: ${BUMPVERSION_CONFIG}" >&2
+  exit 1
+fi
+
 echo "[INFO] Version file: ${VERSION_FILE}"
+
+if [[ -n "${BUMPVERSION_CONFIG}" ]]; then
+  echo "[INFO] bump-my-version config: ${BUMPVERSION_CONFIG}"
+else
+  echo "[INFO] No explicit bump-my-version config supplied"
+fi
 
 CURRENT_VERSION="$(tr -d '[:space:]' <"${VERSION_FILE}")"
 
@@ -99,20 +111,28 @@ esac
 
 echo "[INFO] Selected bump type: ${BUMP_TYPE}"
 
-bump-my-version bump "${BUMP_TYPE}"
+args=(bump)
+
+if [[ -n "${BUMPVERSION_CONFIG}" ]]; then
+  args+=(--config-file "${BUMPVERSION_CONFIG}")
+fi
+
+args+=("${BUMP_TYPE}")
+
+bump-my-version "${args[@]}"
 
 ## Read and validate the new version.
 NEW_VERSION="$(tr -d '[:space:]' <"${VERSION_FILE}")"
 
 if [[ "${CURRENT_VERSION}" == "${NEW_VERSION}" ]]; then
-  echo "[ERROR] Version did not change" >&2
+  echo "[ERROR] Version did not change." >&2
   exit 1
 fi
 
-echo "current-version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
-echo "new-version=${NEW_VERSION}" >>"${GITHUB_OUTPUT}"
-echo "bump-type=${BUMP_TYPE}" >>"${GITHUB_OUTPUT}"
-echo "version-file=${VERSION_FILE}" >>"${GITHUB_OUTPUT}"
+echo "current-version=${CURRENT_VERSION}" >>"${FORGEJO_OUTPUT}"
+echo "new-version=${NEW_VERSION}" >>"${FORGEJO_OUTPUT}"
+echo "bump-type=${BUMP_TYPE}" >>"${FORGEJO_OUTPUT}"
+echo "version-file=${VERSION_FILE}" >>"${FORGEJO_OUTPUT}"
 
 echo "[INFO] Version:"
 echo "  ${CURRENT_VERSION} -> ${NEW_VERSION}"

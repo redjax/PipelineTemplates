@@ -2,12 +2,14 @@
 set -Eeuo pipefail
 
 : "${VERSION:?VERSION is required}"
+: "${VERSION_FILE:?VERSION_FILE is required}"
 : "${BASE_BRANCH:?BASE_BRANCH is required}"
 : "${BRANCH_PREFIX:?BRANCH_PREFIX is required}"
 : "${API_URL:?API_URL is required}"
 : "${REPOSITORY:?REPOSITORY is required}"
 : "${TOKEN:?TOKEN is required}"
 
+BUMPVERSION_CONFIG="${BUMPVERSION_CONFIG:-}"
 BRANCH="${BRANCH_PREFIX}${VERSION}"
 
 ## Normalize the API URL.
@@ -19,7 +21,18 @@ if [[ "${API_URL}" != */api/v1 ]]; then
   exit 1
 fi
 
+if [[ ! -f "${VERSION_FILE}" ]]; then
+  echo "[ERROR] Version file not found: ${VERSION_FILE}"
+  exit 1
+fi
+
+if [[ -n "${BUMPVERSION_CONFIG}" && ! -f "${BUMPVERSION_CONFIG}" ]]; then
+  echo "[ERROR] bump-my-version config not found: ${BUMPVERSION_CONFIG}"
+  exit 1
+fi
+
 echo "[INFO] Version: ${VERSION}"
+echo "[INFO] Version file: ${VERSION_FILE}"
 echo "[INFO] Base branch: ${BASE_BRANCH}"
 echo "[INFO] Version branch: ${BRANCH}"
 echo "[INFO] Repository: ${REPOSITORY}"
@@ -31,28 +44,23 @@ git config user.email "${GIT_USER_EMAIL:-forgejo-actions@localhost}"
 ## Make sure we are starting from the latest base branch.
 echo "[INFO] Fetching ${BASE_BRANCH}"
 
-git fetch origin \
-  "${BASE_BRANCH}:${BASE_BRANCH}" \
-  --tags
+git fetch origin "${BASE_BRANCH}" --tags
 
-git checkout "${BASE_BRANCH}"
+git checkout -B "${BASE_BRANCH}" "origin/${BASE_BRANCH}"
 git reset --hard "origin/${BASE_BRANCH}"
 
-## Create or reset the version bump branch.
-if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
-  echo "[INFO] Local branch already exists: ${BRANCH}"
-  git branch -D "${BRANCH}"
+echo "[INFO] Creating version bump branch"
+
+git checkout -B "${BRANCH}"
+
+git add -- "${VERSION_FILE}"
+
+if [[ -n "${BUMPVERSION_CONFIG}" && -f "${BUMPVERSION_CONFIG}" ]]; then
+  git add -- "${BUMPVERSION_CONFIG}"
 fi
 
-git checkout -b "${BRANCH}"
-
-## Stage version-related files.
-#
-#  This intentionally stages only the files associated with the version bump.
-git add .version .bumpversion.toml
-
 if git diff --cached --quiet; then
-  echo "[ERROR] No version files changed"
+  echo "[ERROR] No version-related files changed."
   exit 1
 fi
 
@@ -64,14 +72,12 @@ git commit \
 echo "[INFO] Pushing branch: ${BRANCH}"
 
 git push \
+  --force-with-lease \
   --set-upstream \
   origin \
   "${BRANCH}"
 
-echo "[INFO] Branch pushed: ${BRANCH}"
-
-## Look for an existing open PR from this branch.
-echo "[INFO] Checking for existing pull request"
+echo "[INFO] Checking for an existing pull request"
 
 EXISTING_PR="$(
   curl \
@@ -110,17 +116,17 @@ else
         --arg head "${BRANCH}" \
         --arg base "${BASE_BRANCH}" \
         '{
-                    title: $title,
-                    body: $body,
-                    head: $head,
-                    base: $base
-                }')"
+          title: $title,
+          body: $body,
+          head: $head,
+          base: $base
+        }')"
   )"
 
   PR_NUMBER="$(echo "${RESPONSE}" | jq -r '.number')"
 
   if [[ -z "${PR_NUMBER}" || "${PR_NUMBER}" == "null" ]]; then
-    echo "[ERROR] Failed to create pull request"
+    echo "[ERROR] Failed to create pull request."
     echo "${RESPONSE}"
     exit 1
   fi
@@ -128,9 +134,8 @@ else
   echo "[INFO] Created PR #${PR_NUMBER}"
 fi
 
-## Return action outputs.
-echo "branch=${BRANCH}" >>"${GITHUB_OUTPUT}"
-echo "pr-number=${PR_NUMBER}" >>"${GITHUB_OUTPUT}"
+echo "branch=${BRANCH}" >>"${FORGEJO_OUTPUT}"
+echo "pr-number=${PR_NUMBER}" >>"${FORGEJO_OUTPUT}"
 
 echo "[INFO] Version bump PR ready:"
 echo "  Branch: ${BRANCH}"
