@@ -180,7 +180,11 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if [[ "${BASE_SHA}" =~ ^0+$ ]]; then
+          if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+            BASE_SHA="$(git rev-parse "${HEAD_SHA}^" 2>/dev/null || true)"
+          fi
+
+          if [[ -z "${BASE_SHA}" ]]; then
             BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
           fi
 
@@ -307,6 +311,20 @@ jobs:
           version: ${{ inputs.go-version }}
           enable-cache: true
 
+      ## GoReleaser needs a Git tag before it can perform a normal non-snapshot release build.
+      - name: Create tag for GoReleaser
+        if: inputs.use-goreleaser == true
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ steps.release.outputs.tag }}
+          tag-message: "Release ${{ steps.release.outputs.tag }}"
+          create-tag: "true"
+          create-release: "false"
+          target-commitish: ${{ github.sha }}
+
       - name: Build with go-build
         if: inputs.use-goreleaser == false
         uses: ./pipelinetemplates/.forgejo/actions/go-build
@@ -353,7 +371,12 @@ jobs:
             exit 1
           fi
 
-      - name: Package release archives
+          echo "[INFO] Build artifacts:"
+          find "${build_dir}" -type f -printf '%P\n' | sort
+
+      ## go build creates raw binaries in dist/.  Package them into release archives for Forgejo.
+      - name: Package go-build release archives
+        if: inputs.use-goreleaser == false
         shell: bash
         env:
           MODULE_DIR: ${{ inputs.module-dir }}
@@ -364,7 +387,9 @@ jobs:
           set -Eeuo pipefail
 
           build_dir="${MODULE_DIR%/}/${OUTPUT_DIR}"
-          asset_dir="release-assets"
+          build_dir="$(cd "${build_dir}" && pwd)"
+
+          asset_dir="$(pwd)/release-assets"
           archive_base="${BINARY_NAME}_${RELEASE_VERSION}"
 
           rm -rf "${asset_dir}"
@@ -379,13 +404,86 @@ jobs:
 
           (
             cd "${build_dir}"
+
             zip \
               --recurse-paths \
-              "../../${asset_dir}/${archive_base}.zip" \
+              "${asset_dir}/${archive_base}.zip" \
               .
           )
 
-      - name: Create tag and Forgejo release
+          echo "[INFO] go-build release assets:"
+          find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      ## Copy release-ready assets into the common "release-assets" directory.
+      - name: Collect GoReleaser release assets
+        if: inputs.use-goreleaser == true
+        shell: bash
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: |
+          set -Eeuo pipefail
+
+          goreleaser_dist="${MODULE_DIR%/}/${OUTPUT_DIR}"
+          goreleaser_dist="$(cd "${goreleaser_dist}" && pwd)"
+
+          asset_dir="$(pwd)/release-assets"
+
+          rm -rf "${asset_dir}"
+          mkdir -p "${asset_dir}"
+
+          while IFS= read -r -d '' file; do
+            cp -- "${file}" "${asset_dir}/"
+          done < <(
+            find "${goreleaser_dist}" \
+              -type f \
+              \( \
+                -name '*.tar.gz' \
+                -o -name '*.tgz' \
+                -o -name '*.tar.xz' \
+                -o -name '*.zip' \
+                -o -name '*.deb' \
+                -o -name '*.rpm' \
+                -o -name 'checksums.txt' \
+                -o -name '*checksums*.txt' \
+                -o -name '*.sbom.json' \
+              \) \
+              -print0
+          )
+
+          if ! find "${asset_dir}" -maxdepth 1 -type f -print -quit | grep -q .; then
+            echo "[ERROR] No GoReleaser release assets were found."
+            echo "[ERROR] Expected archives beneath: ${goreleaser_dist}"
+            echo
+            echo "[INFO] GoReleaser dist contents:"
+            find "${goreleaser_dist}" -type f -printf '%P\n' | sort
+            exit 1
+          fi
+
+          echo "[INFO] GoReleaser release assets:"
+          find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -d "release-assets" ]]; then
+            echo "[ERROR] release-assets directory does not exist."
+            exit 1
+          fi
+
+          if ! find release-assets -maxdepth 1 -type f -print -quit | grep -q .; then
+            echo "[ERROR] release-assets contains no files."
+            exit 1
+          fi
+
+          echo "[INFO] Assets to upload to Forgejo:"
+          find release-assets -maxdepth 1 -type f -printf '%f\n' | sort
+
+      ## Create tag and release.
+      - name: Create go-build tag and Forgejo release
+        if: inputs.use-goreleaser == false
         uses: ./pipelinetemplates/.forgejo/actions/tag-release
         with:
           url: ${{ inputs.forgejo-endpoint }}
@@ -394,6 +492,24 @@ jobs:
           tag-name: ${{ steps.release.outputs.tag }}
           tag-message: "Release ${{ steps.release.outputs.tag }}"
           create-tag: "true"
+          create-release: "true"
+          release-name: "Release ${{ steps.release.outputs.tag }}"
+          release-body: |
+            Automated release for version ${{ steps.release.outputs.version }}.
+          artifact-path: "release-assets"
+          overwrite-assets: "false"
+          target-commitish: ${{ github.sha }}
+
+      ## Create the Forgejo release and attach the GoReleaser-generated assets.
+      - name: Create GoReleaser Forgejo release
+        if: inputs.use-goreleaser == true
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ steps.release.outputs.tag }}
+          create-tag: "false"
           create-release: "true"
           release-name: "Release ${{ steps.release.outputs.tag }}"
           release-body: |

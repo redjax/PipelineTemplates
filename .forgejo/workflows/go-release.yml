@@ -202,7 +202,8 @@ jobs:
           echo "[INFO] Build artifacts:"
           find "${build_dir}" -type f -printf '%P\n' | sort
 
-      - name: Package release archives
+      - name: Package go-build release archives
+        if: inputs.use-goreleaser == false
         shell: bash
         env:
           MODULE_DIR: ${{ inputs.module-dir }}
@@ -213,7 +214,9 @@ jobs:
           set -Eeuo pipefail
 
           build_dir="${MODULE_DIR%/}/${OUTPUT_DIR}"
-          asset_dir="release-assets"
+          build_dir="$(cd "${build_dir}" && pwd)"
+
+          asset_dir="$(pwd)/release-assets"
           archive_base="${BINARY_NAME}_${RELEASE_VERSION}"
 
           rm -rf "${asset_dir}"
@@ -228,13 +231,14 @@ jobs:
 
           (
             cd "${build_dir}"
+
             zip \
               --recurse-paths \
-              "../../${asset_dir}/${archive_base}.zip" \
+              "${asset_dir}/${archive_base}.zip" \
               .
           )
 
-          echo "[INFO] Release archives:"
+          echo "[INFO] go-build release assets:"
           find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
 
       - name: Create tag and Forgejo release
