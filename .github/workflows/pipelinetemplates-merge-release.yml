@@ -77,11 +77,6 @@ jobs:
           DRY_RUN: ${{ inputs.dry_run }}
           OUTPUT_FILE: .changed-components.txt
         run: |
-          if [[ -z "${BASE_REF}" || "${BASE_REF}" == "0000000000000000000000000000000000000000" ]]; then
-            echo "[ERROR] Missing valid BASE_REF for push event"
-            exit 1
-          fi
-
           ./shared/scripts/bash/versioning/release-components.sh
 
       - name: Create or update bump PR
