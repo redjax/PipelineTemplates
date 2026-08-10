@@ -10,6 +10,12 @@ on:
         type: boolean
         default: true
 
+      force-release:
+        description: "Release even when no relevant files changed."
+        required: false
+        type: boolean
+        default: false
+
       version-file:
         description: "Version file path relative to repository root."
         required: false
@@ -195,6 +201,7 @@ jobs:
           VERSION_CHANGED: ${{ steps.version.outputs.changed }}
           VERSION_FILE: ${{ inputs.version-file }}
           HEAD_SHA: ${{ github.sha }}
+          FORCE_RELEASE: ${{ inputs.force-release }}
         run: |
           set -Eeuo pipefail
 
@@ -207,11 +214,12 @@ jobs:
               should_bump=true
             fi
 
-            if [[ "${VERSION_CHANGED}" == "true" ]]; then
+            if [[ "${VERSION_CHANGED}" == "true" || "${FORCE_RELEASE}" == "true" ]]; then
               should_release=true
               release_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
             fi
-          elif [[ "${GO_CHANGED}" == "true" ]]; then
+
+          elif [[ "${GO_CHANGED}" == "true" || "${FORCE_RELEASE}" == "true" ]]; then
             should_release=true
             release_version="$(git rev-parse --short=12 "${HEAD_SHA}")"
           fi
