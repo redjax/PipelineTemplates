@@ -1,47 +1,51 @@
+---
 name: Create Version Bump PR
 description: Create or update a version bump branch and pull request.
 
 inputs:
   version:
-    description: New version
+    description: "New version."
     required: true
 
   version-file:
-    required: true
+    description: "Version file path relative to the repository root."
+    required: false
+    default: ".version"
 
   bumpversion-config:
+    description: "Optional bump-my-version config file to commit."
     required: false
-    default: ""
+    default: ".bumpversion.toml"
 
   base-branch:
-    description: Target branch
+    description: "Target branch."
     required: false
-    default: main
+    default: "main"
 
   branch-prefix:
-    description: Version bump branch prefix
+    description: "Version bump branch prefix."
     required: false
-    default: chore/bump-version-
+    default: "chore/bump-version-"
 
   forgejo-endpoint:
-    description: Forgejo API endpoint ending in /api/v1
+    description: "Forgejo API endpoint ending in /api/v1."
     required: true
 
   repository:
-    description: Repository owner/name
+    description: "Repository owner/name."
     required: true
 
   token:
-    description: Forgejo token
+    description: "Forgejo token."
     required: true
 
 outputs:
   branch:
-    description: Version bump branch
+    description: "Version bump branch."
     value: ${{ steps.pr.outputs.branch }}
 
   pr-number:
-    description: Pull request number
+    description: "Pull request number."
     value: ${{ steps.pr.outputs.pr-number }}
 
 runs:
@@ -53,86 +57,12 @@ runs:
       shell: bash
       env:
         VERSION: ${{ inputs.version }}
+        VERSION_FILE: ${{ inputs.version-file }}
+        BUMPVERSION_CONFIG: ${{ inputs.bumpversion-config }}
         BASE_BRANCH: ${{ inputs.base-branch }}
         BRANCH_PREFIX: ${{ inputs.branch-prefix }}
         API_URL: ${{ inputs.forgejo-endpoint }}
         REPOSITORY: ${{ inputs.repository }}
         TOKEN: ${{ inputs.token }}
       run: |
-        set -Eeuo pipefail
-
-        BRANCH="${BRANCH_PREFIX}${VERSION}"
-
-        git config user.name "forgejo-actions"
-        git config user.email "forgejo-actions@localhost"
-
-        git checkout -b "${BRANCH}"
-
-        git add .version .bumpversion.toml
-
-        if git diff --cached --quiet; then
-          echo "[ERROR] No version files changed"
-          exit 1
-        fi
-
-        git commit \
-          -m "chore: bump version to ${VERSION}"
-
-        git push origin "${BRANCH}"
-
-        echo "[INFO] Branch pushed: ${BRANCH}"
-
-        EXISTING_PR="$(
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --header "Authorization: token ${TOKEN}" \
-            --header "Accept: application/json" \
-            "${API_URL}/repos/${REPOSITORY}/pulls?state=open" |
-          jq -r \
-            --arg branch "${BRANCH}" \
-            '.[] | select(.head.ref == $branch) | .number' |
-          head -n1
-        )"
-
-        if [[ -n "${EXISTING_PR}" && "${EXISTING_PR}" != "null" ]]; then
-          PR_NUMBER="${EXISTING_PR}"
-          echo "[INFO] Existing PR: #${PR_NUMBER}"
-        else
-          RESPONSE="$(
-            curl \
-              --fail \
-              --silent \
-              --show-error \
-              --request POST \
-              --header "Authorization: token ${TOKEN}" \
-              --header "Accept: application/json" \
-              --header "Content-Type: application/json" \
-              "${API_URL}/repos/${REPOSITORY}/pulls" \
-              --data "$(jq -n \
-                --arg title "chore: bump version to ${VERSION}" \
-                --arg body "Automated version bump to ${VERSION}." \
-                --arg head "${BRANCH}" \
-                --arg base "${BASE_BRANCH}" \
-                '{
-                  title: $title,
-                  body: $body,
-                  head: $head,
-                  base: $base
-                }')"
-          )"
-
-          PR_NUMBER="$(echo "${RESPONSE}" | jq -r '.number')"
-
-          if [[ -z "${PR_NUMBER}" || "${PR_NUMBER}" == "null" ]]; then
-            echo "[ERROR] Failed to create PR"
-            echo "${RESPONSE}"
-            exit 1
-          fi
-
-          echo "[INFO] Created PR #${PR_NUMBER}"
-        fi
-
-        echo "branch=${BRANCH}" >> "${GITHUB_OUTPUT}"
-        echo "pr-number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+        bash "${GITHUB_ACTION_PATH}/scripts/create-version-pr.sh"
