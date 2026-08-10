@@ -1,0 +1,68 @@
+---
+name: Create Version Bump PR
+description: Create or update a version bump branch and pull request.
+
+inputs:
+  version:
+    description: "New version."
+    required: true
+
+  version-file:
+    description: "Version file path relative to the repository root."
+    required: false
+    default: ".version"
+
+  bumpversion-config:
+    description: "Optional bump-my-version config file to commit."
+    required: false
+    default: ".bumpversion.toml"
+
+  base-branch:
+    description: "Target branch."
+    required: false
+    default: "main"
+
+  branch-prefix:
+    description: "Version bump branch prefix."
+    required: false
+    default: "chore/bump-version-"
+
+  forgejo-endpoint:
+    description: "Forgejo API endpoint ending in /api/v1."
+    required: true
+
+  repository:
+    description: "Repository owner/name."
+    required: true
+
+  token:
+    description: "Forgejo token."
+    required: true
+
+outputs:
+  branch:
+    description: "Version bump branch."
+    value: ${{ steps.pr.outputs.branch }}
+
+  pr-number:
+    description: "Pull request number."
+    value: ${{ steps.pr.outputs.pr-number }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Create version bump PR
+      id: pr
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        VERSION_FILE: ${{ inputs.version-file }}
+        BUMPVERSION_CONFIG: ${{ inputs.bumpversion-config }}
+        BASE_BRANCH: ${{ inputs.base-branch }}
+        BRANCH_PREFIX: ${{ inputs.branch-prefix }}
+        API_URL: ${{ inputs.forgejo-endpoint }}
+        REPOSITORY: ${{ inputs.repository }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        bash "${GITHUB_ACTION_PATH}/scripts/create-version-pr.sh"

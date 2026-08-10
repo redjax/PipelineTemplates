@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 function fail() {
   echo "[ERROR] $*" >&2
@@ -16,65 +16,77 @@ require_env FJ_REPO
 require_env FJ_TOKEN
 require_env TAG_NAME
 
+command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "${tmp_dir}"' EXIT
+
+## Normalize Forgejo URL. Remove /v1/api.
 API_URL="${FJ_URL%/}"
-RELEASES_URL="${API_URL}/api/v1/repos/${FJ_REPO}/releases"
+API_URL="${API_URL%/api/v1}"
+
+REPO_URL="${API_URL}/api/v1/repos/${FJ_REPO}"
+RELEASES_URL="${REPO_URL}/releases"
 TAG_URL="${RELEASES_URL}/tags/${TAG_NAME}"
 
 echo "[DEBUG] FJ_URL=${FJ_URL}"
+echo "[DEBUG] API_URL=${API_URL}"
 echo "[DEBUG] FJ_REPO=${FJ_REPO}"
 echo "[DEBUG] TAG_NAME=${TAG_NAME}"
+echo "[DEBUG] REPO_URL=${REPO_URL}"
 echo "[DEBUG] RELEASES_URL=${RELEASES_URL}"
 echo "[DEBUG] TAG_URL=${TAG_URL}"
 
-## Initial repository probe
-repo_probe="$(
-  curl -sS \
-    -H "Authorization: token ${FJ_TOKEN}" \
-    "${API_URL}/api/v1/repos/${FJ_REPO}"
-)"
-echo "[DEBUG] repo probe: ${repo_probe}"
-
+repo_probe_file="${tmp_dir}/repo-probe.json"
 repo_status="$(
-  curl -sS -o /tmp/repo_probe.json -w "%{http_code}" \
-    -H "Authorization: token ${FJ_TOKEN}" \
-    "${API_URL}/api/v1/repos/${FJ_REPO}"
+  curl \
+    --silent \
+    --show-error \
+    --output "${repo_probe_file}" \
+    --write-out "%{http_code}" \
+    --header "Authorization: token ${FJ_TOKEN}" \
+    --header "Accept: application/json" \
+    "${REPO_URL}"
 )"
 
-if [[ "$repo_status" != "200" ]]; then
+echo "[DEBUG] Repo probe HTTP status=${repo_status}"
+
+if [[ "${repo_status}" != "200" ]]; then
+  echo "[DEBUG] Repo probe response:"
+  cat "${repo_probe_file}" >&2 || true
   fail "Repo probe failed with HTTP ${repo_status}"
 fi
 
-echo "[DEBUG] repo probe status=${repo_status}"
-cat /tmp/repo_probe.json
-
-release_name="${RELEASE_NAME:-$TAG_NAME}"
+release_name="${RELEASE_NAME:-${TAG_NAME}}"
 draft="${DRAFT:-false}"
 prerelease="${PRERELEASE:-false}"
 target_commitish="${TARGET_COMMITISH:-}"
 
-body_file="$(mktemp)"
-trap 'rm -f "$body_file" "$payload"' EXIT
+body_file="${tmp_dir}/release-body.txt"
+payload_file="${tmp_dir}/release-payload.json"
+response_file="${tmp_dir}/release-response.json"
 
-: >"$body_file"
+: >"${body_file}"
+
 if [[ -n "${RELEASE_NOTES_PATH:-}" ]]; then
-  [[ -f "${RELEASE_NOTES_PATH}" ]] || fail "release notes file not found: ${RELEASE_NOTES_PATH}"
-  cat "${RELEASE_NOTES_PATH}" >"$body_file"
+  [[ -f "${RELEASE_NOTES_PATH}" ]] ||
+    fail "Release notes file not found: ${RELEASE_NOTES_PATH}"
+
+  cat "${RELEASE_NOTES_PATH}" >"${body_file}"
 elif [[ -n "${RELEASE_BODY:-}" ]]; then
-  printf '%s' "${RELEASE_BODY}" >"$body_file"
+  printf '%s' "${RELEASE_BODY}" >"${body_file}"
 fi
 
-body_text="$(cat "$body_file")"
+body_text="$(cat "${body_file}")"
 
-payload="$(mktemp)"
 jq -n \
-  --arg tag_name "$TAG_NAME" \
-  --arg name "$release_name" \
-  --arg body "$body_text" \
-  --arg draft "$draft" \
-  --arg prerelease "$prerelease" \
-  --arg target_commitish "$target_commitish" \
+  --arg tag_name "${TAG_NAME}" \
+  --arg name "${release_name}" \
+  --arg body "${body_text}" \
+  --arg draft "${draft}" \
+  --arg prerelease "${prerelease}" \
+  --arg target_commitish "${target_commitish}" \
   '
   {
     tag_name: $tag_name,
@@ -83,47 +95,74 @@ jq -n \
     draft: ($draft == "true"),
     prerelease: ($prerelease == "true")
   }
-  + (if $target_commitish != "" then {target_commitish: $target_commitish} else {} end)
-  ' >"$payload"
+  + (
+    if $target_commitish != ""
+    then { target_commitish: $target_commitish }
+    else {}
+    end
+  )
+  ' >"${payload_file}"
 
-response="$(mktemp)"
-http_code="$(
-  curl -sS \
-    -H "Authorization: token ${FJ_TOKEN}" \
-    -o "$response" \
-    -w "%{http_code}" \
+tag_lookup_file="${tmp_dir}/tag-lookup.json"
+tag_lookup_status="$(
+  curl \
+    --silent \
+    --show-error \
+    --output "${tag_lookup_file}" \
+    --write-out "%{http_code}" \
+    --header "Authorization: token ${FJ_TOKEN}" \
+    --header "Accept: application/json" \
     "${TAG_URL}"
 )"
 
-echo "[DEBUG] TAG lookup HTTP status=${http_code}"
+echo "[DEBUG] Tag lookup HTTP status=${tag_lookup_status}"
 
-if [[ "$http_code" == "200" ]]; then
-  existing_id="$(jq -r '.id // empty' "$response")"
+if [[ "${tag_lookup_status}" == "200" ]]; then
+  existing_id="$(jq -r '.id // empty' "${tag_lookup_file}")"
 else
   existing_id=""
 fi
 
 if [[ -n "${existing_id}" ]]; then
-  curl -fsS -X PATCH \
-    -H "Authorization: token ${FJ_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d @"${payload}" \
-    "${RELEASES_URL}/${existing_id}" >/tmp/release.json
+  echo "[INFO] Updating existing release ID: ${existing_id}"
+
+  curl \
+    --fail-with-body \
+    --silent \
+    --show-error \
+    --request PATCH \
+    --header "Authorization: token ${FJ_TOKEN}" \
+    --header "Accept: application/json" \
+    --header "Content-Type: application/json" \
+    --data @"${payload_file}" \
+    --output "${response_file}" \
+    "${RELEASES_URL}/${existing_id}"
 else
-  curl -fsS -X POST \
-    -H "Authorization: token ${FJ_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d @"${payload}" \
-    "${RELEASES_URL}" >/tmp/release.json
+  echo "[INFO] Creating release for tag: ${TAG_NAME}"
+
+  curl \
+    --fail-with-body \
+    --silent \
+    --show-error \
+    --request POST \
+    --header "Authorization: token ${FJ_TOKEN}" \
+    --header "Accept: application/json" \
+    --header "Content-Type: application/json" \
+    --data @"${payload_file}" \
+    --output "${response_file}" \
+    "${RELEASES_URL}"
 fi
 
-release_id="$(jq -r '.id // empty' /tmp/release.json)"
-release_url="$(jq -r '.html_url // empty' /tmp/release.json)"
+release_id="$(jq -r '.id // empty' "${response_file}")"
+release_url="$(jq -r '.html_url // empty' "${response_file}")"
 
-[[ -n "${release_id}" ]] || fail "Release id missing from response"
-[[ -n "${release_url}" ]] || fail "Release url missing from response"
+[[ -n "${release_id}" ]] ||
+  fail "Release ID missing from Forgejo response"
 
-echo "release-id=${release_id}" >>"$GITHUB_OUTPUT"
-echo "release-url=${release_url}" >>"$GITHUB_OUTPUT"
+[[ -n "${release_url}" ]] ||
+  fail "Release URL missing from Forgejo response"
+
+echo "release-id=${release_id}" >>"${GITHUB_OUTPUT}"
+echo "release-url=${release_url}" >>"${GITHUB_OUTPUT}"
 
 echo "[INFO] Release ready: ${release_url}"
