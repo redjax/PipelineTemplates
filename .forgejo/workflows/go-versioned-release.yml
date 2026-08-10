@@ -94,10 +94,10 @@ on:
         default: "1.26.4"
 
       platforms:
-        description: "Comma-separated GOOS/GOARCH targets."
+        description: "JSON array of GOOS/GOARCH targets for go-build matrix jobs."
         required: false
         type: string
-        default: "linux/amd64"
+        default: '["linux/amd64"]'
 
       build-tags:
         description: "Optional Go build tags."
@@ -264,15 +264,6 @@ jobs:
             git rev-parse --short=12 "${HEAD_SHA}"
           }
 
-          echo "[INFO] Pipeline decision inputs:"
-          echo "  versioned:                ${VERSIONED}"
-          echo "  Go files changed:         ${GO_CHANGED}"
-          echo "  Version file changed:     ${VERSION_CHANGED}"
-          echo "  Force release:            ${FORCE_RELEASE}"
-          echo "  Version override:         ${RELEASE_VERSION_OVERRIDE:-<none>}"
-          echo "  Use commit SHA:           ${USE_COMMIT_SHA}"
-          echo "  Head SHA:                 ${HEAD_SHA}"
-
           if [[ "${VERSIONED}" == "true" ]]; then
             if [[ "${GO_CHANGED}" == "true" && "${VERSION_CHANGED}" != "true" ]]; then
               should_bump=true
@@ -287,11 +278,12 @@ jobs:
             release_version="$(resolve_release_version)"
           fi
 
-          echo
           echo "[INFO] Pipeline decision:"
-          echo "  should bump:              ${should_bump}"
-          echo "  should release:           ${should_release}"
-          echo "  release version:          ${release_version:-<none>}"
+          echo "  Go files changed:  ${GO_CHANGED}"
+          echo "  Version changed:   ${VERSION_CHANGED}"
+          echo "  Should bump:       ${should_bump}"
+          echo "  Should release:    ${should_release}"
+          echo "  Release version:   ${release_version:-<none>}"
 
           echo "should_bump=${should_bump}" >> "${GITHUB_OUTPUT}"
           echo "should_release=${should_release}" >> "${GITHUB_OUTPUT}"
@@ -337,10 +329,57 @@ jobs:
           repository: ${{ inputs.repository }}
           token: ${{ secrets.FJ_TOKEN }}
 
-  release:
+  release-metadata:
     needs: classify
     if: needs.classify.outputs.should_release == 'true'
+    runs-on: forgejo-runner-base
+
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
+
+    steps:
+      - name: Set release metadata
+        id: release
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.classify.outputs.release_version }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
+          USE_COMMIT_SHA: ${{ inputs.use-commit-sha }}
+          RELEASE_VERSION_OVERRIDE: ${{ inputs.release-version }}
+        run: |
+          set -Eeuo pipefail
+
+          tag_prefix="${TAG_PREFIX}"
+
+          ## Remove a trailing "v" when generating a commit-SHA release.
+          ##
+          ## v + a1b2c3d4e5f6      -> a1b2c3d4e5f6
+          ## test-v + a1b2c3d4e5f6 -> test-a1b2c3d4e5f6
+          if [[ "${USE_COMMIT_SHA}" == "true" \
+            && -z "${RELEASE_VERSION_OVERRIDE}" ]]; then
+            tag_prefix="${tag_prefix%v}"
+          fi
+
+          tag="${tag_prefix}${RELEASE_VERSION}"
+
+          echo "version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+          echo "[INFO] Release version: ${RELEASE_VERSION}"
+          echo "[INFO] Release tag: ${tag}"
+
+  build-go:
+    needs:
+      - classify
+      - release-metadata
+    if: needs.classify.outputs.should_release == 'true' && inputs.use-goreleaser == false
     runs-on: forgejo-go-base
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platforms) }}
 
     steps:
       - name: Checkout application repository
@@ -356,37 +395,18 @@ jobs:
           path: pipelinetemplates
           fetch-depth: 0
 
-      - name: Set release metadata
-        id: release
+      - name: Set platform metadata
+        id: platform
         shell: bash
         env:
-          RELEASE_VERSION: ${{ needs.classify.outputs.release_version }}
-          TAG_PREFIX: ${{ inputs.tag-prefix }}
-          USE_COMMIT_SHA: ${{ inputs.use-commit-sha }}
-          RELEASE_VERSION_OVERRIDE: ${{ inputs.release-version }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -Eeuo pipefail
 
-          tag_prefix="${TAG_PREFIX}"
+          platform_slug="${PLATFORM//\//-}"
 
-          ## A generated commit-SHA release is not a semantic version.
-          ##
-          ## Examples:
-          ##   v + a1b2c3d4e5f6      -> a1b2c3d4e5f6
-          ##   test-v + a1b2c3d4e5f6 -> test-a1b2c3d4e5f6
-          if [[ "${USE_COMMIT_SHA}" == "true" \
-            && -z "${RELEASE_VERSION_OVERRIDE}" ]]; then
-            tag_prefix="${tag_prefix%v}"
-          fi
-
-          tag="${tag_prefix}${RELEASE_VERSION}"
-
-          echo "version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
-
-          echo "[INFO] Release version: ${RELEASE_VERSION}"
-          echo "[INFO] Tag prefix: ${tag_prefix}"
-          echo "[INFO] Release tag: ${tag}"
+          echo "platform=${PLATFORM}" >> "${GITHUB_OUTPUT}"
+          echo "slug=${platform_slug}" >> "${GITHUB_OUTPUT}"
 
       - name: Setup Go
         uses: ./pipelinetemplates/.forgejo/actions/setup-go
@@ -394,59 +414,19 @@ jobs:
           version: ${{ inputs.go-version }}
           enable-cache: true
 
-      ## GoReleaser needs a Git tag before it can perform a normal non-snapshot release build.
-      - name: Create tag for GoReleaser
-        id: goreleaser-tag
-        if: inputs.use-goreleaser == true
-        uses: ./pipelinetemplates/.forgejo/actions/tag-release
-        with:
-          url: ${{ inputs.forgejo-endpoint }}
-          repo: ${{ inputs.repository }}
-          token: ${{ secrets.FJ_TOKEN }}
-          tag-name: ${{ steps.release.outputs.tag }}
-          tag-message: "Release ${{ steps.release.outputs.tag }}"
-          create-tag: "true"
-          create-release: "false"
-          target-commitish: ${{ github.sha }}
-
-      - name: Build with go-build
-        if: inputs.use-goreleaser == false
+      - name: Build ${{ matrix.platform }}
         uses: ./pipelinetemplates/.forgejo/actions/go-build
         with:
           module-dir: ${{ inputs.module-dir }}
           build-package: ${{ inputs.build-package }}
           binary-name: ${{ inputs.binary-name }}
-          platforms: ${{ inputs.platforms }}
+          platforms: ${{ matrix.platform }}
           build-tags: ${{ inputs.build-tags }}
           ldflags: ${{ inputs.ldflags }}
           output-dir: ${{ inputs.output-dir }}
           upload-artifacts: "false"
 
-      - name: Build with GoReleaser
-        if: inputs.use-goreleaser == true
-        uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
-        with:
-          go-version: ${{ inputs.go-version }}
-          goreleaser-version: ${{ inputs.goreleaser-version }}
-          goreleaser-config: ${{ inputs.goreleaser-config }}
-          snapshot: "false"
-          clean: "true"
-          skip-publish: "true"
-          working-directory: "."
-          upload-artifacts: "false"
-
-      ## Remove the tag created by this run when the GoReleaser build fails.
-      - name: Remove failed GoReleaser tag
-        if: ${{ failure() && inputs.use-goreleaser == true && steps.goreleaser-tag.outcome == 'success' }}
-        uses: ./pipelinetemplates/.forgejo/actions/tag-release
-        with:
-          tag-name: ${{ steps.release.outputs.tag }}
-          delete-tag: "true"
-          expected-target: ${{ github.sha }}
-          create-tag: "false"
-          create-release: "false"
-
-      - name: Verify build artifacts
+      - name: Verify ${{ matrix.platform }} build output
         shell: bash
         env:
           MODULE_DIR: ${{ inputs.module-dir }}
@@ -466,18 +446,16 @@ jobs:
             exit 1
           fi
 
-          echo "[INFO] Build artifacts:"
           find "${build_dir}" -type f -printf '%P\n' | sort
 
-      ## go build creates raw binaries in dist/.  Package them into release archives for Forgejo.
-      - name: Package go-build release archives
-        if: inputs.use-goreleaser == false
+      - name: Package ${{ matrix.platform }} release archives
         shell: bash
         env:
           MODULE_DIR: ${{ inputs.module-dir }}
           OUTPUT_DIR: ${{ inputs.output-dir }}
           BINARY_NAME: ${{ inputs.binary-name }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_VERSION: ${{ needs.release-metadata.outputs.version }}
+          PLATFORM_SLUG: ${{ steps.platform.outputs.slug }}
         run: |
           set -Eeuo pipefail
 
@@ -485,7 +463,7 @@ jobs:
           build_dir="$(cd "${build_dir}" && pwd)"
 
           asset_dir="$(pwd)/release-assets"
-          archive_base="${BINARY_NAME}-${RELEASE_VERSION}"
+          archive_base="${BINARY_NAME}-${RELEASE_VERSION}-${PLATFORM_SLUG}"
 
           rm -rf "${asset_dir}"
           mkdir -p "${asset_dir}"
@@ -506,12 +484,170 @@ jobs:
               .
           )
 
-          echo "[INFO] go-build release assets:"
+          echo "[INFO] Platform release assets:"
           find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
 
-      ## Copy release-ready assets into the common "release-assets" directory.
+      - name: Upload ${{ matrix.platform }} release assets
+        uses: forgejo/upload-artifact@v3
+        with:
+          name: release-assets-${{ steps.platform.outputs.slug }}
+          path: release-assets/
+          retention-days: 1
+          if-no-files-found: error
+
+  publish-go:
+    needs:
+      - classify
+      - release-metadata
+      - build-go
+    if: needs.classify.outputs.should_release == 'true' && inputs.use-goreleaser == false
+    runs-on: forgejo-runner-base
+
+    steps:
+      - name: Checkout application repository
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Download matrix build assets
+        uses: forgejo/download-artifact@v3
+        with:
+          path: downloaded-assets
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          rm -rf release-assets
+          mkdir -p release-assets
+
+          while IFS= read -r -d '' file; do
+            cp -- "${file}" release-assets/
+          done < <(
+            find downloaded-assets \
+              -type f \
+              -print0
+          )
+
+          if ! find release-assets -type f -print -quit | grep -q .; then
+            echo "[ERROR] No matrix build assets were downloaded."
+            exit 1
+          fi
+
+          echo "[INFO] Assets to upload:"
+          find release-assets -type f -printf '%P\n' | sort
+
+      - name: Create tag and Forgejo release
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ needs.release-metadata.outputs.tag }}
+          tag-message: "Release ${{ needs.release-metadata.outputs.tag }}"
+          create-tag: "true"
+          create-release: "true"
+          release-name: "Release ${{ needs.release-metadata.outputs.tag }}"
+          release-body: |
+            Automated release for version ${{ needs.release-metadata.outputs.version }}.
+          artifact-path: release-assets
+          overwrite-assets: "false"
+          target-commitish: ${{ github.sha }}
+
+  goreleaser-release:
+    needs:
+      - classify
+      - release-metadata
+    if: needs.classify.outputs.should_release == 'true' && inputs.use-goreleaser == true
+    runs-on: forgejo-go-base
+
+    steps:
+      - name: Checkout application repository
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: true
+
+      - name: Create tag for GoReleaser
+        id: goreleaser-tag
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ needs.release-metadata.outputs.tag }}
+          tag-message: "Release ${{ needs.release-metadata.outputs.tag }}"
+          create-tag: "true"
+          create-release: "false"
+          target-commitish: ${{ github.sha }}
+
+      - name: Build with GoReleaser
+        uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
+        with:
+          go-version: ${{ inputs.go-version }}
+          goreleaser-version: ${{ inputs.goreleaser-version }}
+          goreleaser-config: ${{ inputs.goreleaser-config }}
+          snapshot: "false"
+          clean: "true"
+          skip-publish: "true"
+          working-directory: ${{ inputs.module-dir }}
+          upload-artifacts: "false"
+
+      - name: Remove failed GoReleaser tag
+        if: ${{ failure() && steps.goreleaser-tag.outcome == 'success' }}
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          tag-name: ${{ needs.release-metadata.outputs.tag }}
+          delete-tag: "true"
+          expected-target: ${{ github.sha }}
+          create-tag: "false"
+          create-release: "false"
+
+      - name: Verify GoReleaser build artifacts
+        shell: bash
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: |
+          set -Eeuo pipefail
+
+          goreleaser_dist="${MODULE_DIR%/}/${OUTPUT_DIR}"
+
+          if [[ ! -d "${goreleaser_dist}" ]]; then
+            echo "[ERROR] GoReleaser output directory does not exist: ${goreleaser_dist}"
+            exit 1
+          fi
+
+          if ! find "${goreleaser_dist}" -type f -print -quit | grep -q .; then
+            echo "[ERROR] GoReleaser output directory contains no files: ${goreleaser_dist}"
+            exit 1
+          fi
+
+          find "${goreleaser_dist}" -type f -printf '%P\n' | sort
+
       - name: Collect GoReleaser release assets
-        if: inputs.use-goreleaser == true
         shell: bash
         env:
           MODULE_DIR: ${{ inputs.module-dir }}
@@ -522,13 +658,11 @@ jobs:
           goreleaser_dist="${MODULE_DIR%/}/${OUTPUT_DIR}"
           goreleaser_dist="$(cd "${goreleaser_dist}" && pwd)"
 
-          asset_dir="$(pwd)/release-assets"
-
-          rm -rf "${asset_dir}"
-          mkdir -p "${asset_dir}"
+          rm -rf release-assets
+          mkdir -p release-assets
 
           while IFS= read -r -d '' file; do
-            cp -- "${file}" "${asset_dir}/"
+            cp -- "${file}" release-assets/
           done < <(
             find "${goreleaser_dist}" \
               -type f \
@@ -546,69 +680,28 @@ jobs:
               -print0
           )
 
-          if ! find "${asset_dir}" -maxdepth 1 -type f -print -quit | grep -q .; then
+          if ! find release-assets -type f -print -quit | grep -q .; then
             echo "[ERROR] No GoReleaser release assets were found."
-            echo "[ERROR] Expected archives beneath: ${goreleaser_dist}"
-            echo
             echo "[INFO] GoReleaser dist contents:"
             find "${goreleaser_dist}" -type f -printf '%P\n' | sort
             exit 1
           fi
 
           echo "[INFO] GoReleaser release assets:"
-          find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
+          find release-assets -type f -printf '%f\n' | sort
 
-      - name: Verify release assets
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          if [[ ! -d "release-assets" ]]; then
-            echo "[ERROR] release-assets directory does not exist."
-            exit 1
-          fi
-
-          if ! find release-assets -maxdepth 1 -type f -print -quit | grep -q .; then
-            echo "[ERROR] release-assets contains no files."
-            exit 1
-          fi
-
-          echo "[INFO] Assets to upload to Forgejo:"
-          find release-assets -maxdepth 1 -type f -printf '%f\n' | sort
-
-      ## Create tag and release.
-      - name: Create go-build tag and Forgejo release
-        if: inputs.use-goreleaser == false
-        uses: ./pipelinetemplates/.forgejo/actions/tag-release
-        with:
-          url: ${{ inputs.forgejo-endpoint }}
-          repo: ${{ inputs.repository }}
-          token: ${{ secrets.FJ_TOKEN }}
-          tag-name: ${{ steps.release.outputs.tag }}
-          tag-message: "Release ${{ steps.release.outputs.tag }}"
-          create-tag: "true"
-          create-release: "true"
-          release-name: "Release ${{ steps.release.outputs.tag }}"
-          release-body: |
-            Automated release for version ${{ steps.release.outputs.version }}.
-          artifact-path: "release-assets"
-          overwrite-assets: "false"
-          target-commitish: ${{ github.sha }}
-
-      ## Create the Forgejo release and attach the GoReleaser-generated assets.
       - name: Create GoReleaser Forgejo release
-        if: inputs.use-goreleaser == true
         uses: ./pipelinetemplates/.forgejo/actions/tag-release
         with:
           url: ${{ inputs.forgejo-endpoint }}
           repo: ${{ inputs.repository }}
           token: ${{ secrets.FJ_TOKEN }}
-          tag-name: ${{ steps.release.outputs.tag }}
+          tag-name: ${{ needs.release-metadata.outputs.tag }}
           create-tag: "false"
           create-release: "true"
-          release-name: "Release ${{ steps.release.outputs.tag }}"
+          release-name: "Release ${{ needs.release-metadata.outputs.tag }}"
           release-body: |
-            Automated release for version ${{ steps.release.outputs.version }}.
-          artifact-path: "release-assets"
+            Automated release for version ${{ needs.release-metadata.outputs.version }}.
+          artifact-path: release-assets
           overwrite-assets: "false"
           target-commitish: ${{ github.sha }}
