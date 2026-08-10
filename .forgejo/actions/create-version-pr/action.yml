@@ -6,6 +6,13 @@ inputs:
     description: New version
     required: true
 
+  version-file:
+    required: true
+
+  bumpversion-config:
+    required: false
+    default: ""
+
   base-branch:
     description: Target branch
     required: false
