@@ -10,6 +10,18 @@ on:
         type: boolean
         default: true
 
+      release-version:
+        description: "Optional explicit release version override."
+        required: false
+        type: string
+        default: ""
+
+      use-commit-sha:
+        description: "Use the current commit short SHA when no release-version override is provided."
+        required: false
+        type: boolean
+        default: false
+
       force-release:
         description: "Release even when no relevant files changed."
         required: false
@@ -206,12 +218,48 @@ jobs:
           VERSION_FILE: ${{ inputs.version-file }}
           HEAD_SHA: ${{ github.sha }}
           FORCE_RELEASE: ${{ inputs.force-release }}
+          RELEASE_VERSION_OVERRIDE: ${{ inputs.release-version }}
+          USE_COMMIT_SHA: ${{ inputs.use-commit-sha }}
         run: |
           set -Eeuo pipefail
 
           should_bump=false
           should_release=false
           release_version=""
+
+          resolve_release_version() {
+            if [[ -n "${RELEASE_VERSION_OVERRIDE}" ]]; then
+              printf '%s\n' "${RELEASE_VERSION_OVERRIDE}"
+              return 0
+            fi
+
+            if [[ "${USE_COMMIT_SHA}" == "true" ]]; then
+              git rev-parse --short=12 "${HEAD_SHA}"
+              return 0
+            fi
+
+            if [[ "${VERSIONED}" == "true" ]]; then
+              [[ -f "${VERSION_FILE}" ]] \
+                || {
+                  echo "[ERROR] Version file not found: ${VERSION_FILE}" >&2
+                  exit 1
+                }
+
+              tr -d '[:space:]' < "${VERSION_FILE}"
+              return 0
+            fi
+
+            git rev-parse --short=12 "${HEAD_SHA}"
+          }
+
+          echo "[INFO] Pipeline decision inputs:"
+          echo "  versioned:                ${VERSIONED}"
+          echo "  Go files changed:         ${GO_CHANGED}"
+          echo "  Version file changed:     ${VERSION_CHANGED}"
+          echo "  Force release:            ${FORCE_RELEASE}"
+          echo "  Version override:         ${RELEASE_VERSION_OVERRIDE:-<none>}"
+          echo "  Use commit SHA:           ${USE_COMMIT_SHA}"
+          echo "  Head SHA:                 ${HEAD_SHA}"
 
           if [[ "${VERSIONED}" == "true" ]]; then
             if [[ "${GO_CHANGED}" == "true" && "${VERSION_CHANGED}" != "true" ]]; then
@@ -220,13 +268,18 @@ jobs:
 
             if [[ "${VERSION_CHANGED}" == "true" || "${FORCE_RELEASE}" == "true" ]]; then
               should_release=true
-              release_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+              release_version="$(resolve_release_version)"
             fi
-
           elif [[ "${GO_CHANGED}" == "true" || "${FORCE_RELEASE}" == "true" ]]; then
             should_release=true
-            release_version="$(git rev-parse --short=12 "${HEAD_SHA}")"
+            release_version="$(resolve_release_version)"
           fi
+
+          echo
+          echo "[INFO] Pipeline decision:"
+          echo "  should bump:              ${should_bump}"
+          echo "  should release:           ${should_release}"
+          echo "  release version:          ${release_version:-<none>}"
 
           echo "should_bump=${should_bump}" >> "${GITHUB_OUTPUT}"
           echo "should_release=${should_release}" >> "${GITHUB_OUTPUT}"
@@ -352,7 +405,7 @@ jobs:
           working-directory: "."
           upload-artifacts: "false"
 
-      ## Remove tag if it already exists, i.e. from previous GoReleaser pipeline that failed and left a "dangling" tag.
+      ## Remove the tag created by this run when the GoReleaser build fails.
       - name: Remove failed GoReleaser tag
         if: ${{ failure() && inputs.use-goreleaser == true && steps.goreleaser-tag.outcome == 'success' }}
         uses: ./pipelinetemplates/.forgejo/actions/tag-release
@@ -402,7 +455,7 @@ jobs:
           build_dir="$(cd "${build_dir}" && pwd)"
 
           asset_dir="$(pwd)/release-assets"
-          archive_base="${BINARY_NAME}_${RELEASE_VERSION}"
+          archive_base="${BINARY_NAME}-${RELEASE_VERSION}"
 
           rm -rf "${asset_dir}"
           mkdir -p "${asset_dir}"
