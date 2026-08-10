@@ -313,6 +313,7 @@ jobs:
 
       ## GoReleaser needs a Git tag before it can perform a normal non-snapshot release build.
       - name: Create tag for GoReleaser
+        id: goreleaser-tag
         if: inputs.use-goreleaser == true
         uses: ./pipelinetemplates/.forgejo/actions/tag-release
         with:
@@ -350,6 +351,17 @@ jobs:
           skip-publish: "true"
           working-directory: "."
           upload-artifacts: "false"
+
+      ## Remove tag if it already exists, i.e. from previous GoReleaser pipeline that failed and left a "dangling" tag.
+      - name: Remove failed GoReleaser tag
+        if: ${{ failure() && inputs.use-goreleaser == true && steps.goreleaser-tag.outcome == 'success' }}
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          tag-name: ${{ steps.release.outputs.tag }}
+          delete-tag: "true"
+          expected-target: ${{ github.sha }}
+          create-tag: "false"
+          create-release: "false"
 
       - name: Verify build artifacts
         shell: bash
