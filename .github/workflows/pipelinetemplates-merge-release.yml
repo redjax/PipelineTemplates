@@ -74,6 +74,7 @@ jobs:
       - name: Apply version bumps
         env:
           BASE_REF: ${{ github.event.before }}
+          DRY_RUN: ${{ inputs.dry_run }}
           OUTPUT_FILE: .changed-components.txt
         run: |
           if [[ -z "${BASE_REF}" || "${BASE_REF}" == "0000000000000000000000000000000000000000" ]]; then
