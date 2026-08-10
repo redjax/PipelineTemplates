@@ -41,17 +41,15 @@ echo "[INFO] Forgejo API: ${API_URL}"
 git config user.name "${GIT_USER_NAME:-forgejo-actions}"
 git config user.email "${GIT_USER_EMAIL:-forgejo-actions@localhost}"
 
-## Make sure we are starting from the latest base branch.
+## Create the bump branch from the latest base branch while preserving
+#  the version-file changes created by the bump-version action.
 echo "[INFO] Fetching ${BASE_BRANCH}"
 
 git fetch origin "${BASE_BRANCH}" --tags
 
-git checkout -B "${BASE_BRANCH}" "origin/${BASE_BRANCH}"
-git reset --hard "origin/${BASE_BRANCH}"
-
 echo "[INFO] Creating version bump branch"
 
-git checkout -B "${BRANCH}"
+git checkout -B "${BRANCH}" "origin/${BASE_BRANCH}"
 
 git add -- "${VERSION_FILE}"
 
