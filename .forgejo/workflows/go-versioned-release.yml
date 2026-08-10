@@ -1,4 +1,16 @@
 ---
+########################################################
+# Orchestrator pipeline for releasing Go applications. #
+#                                                      #
+# Can release versioned and unversioned programs, apps #
+# at the root of a repo or in a subdirectory, use      #
+# standard go build or goreleaser, and create tags and #
+# releases with .tar.gz and .zip archives attached.    #
+#                                                      #
+# Call from a consuming repository to build that       #
+# repository's app.                                    #
+########################################################
+
 name: Go Versioned Release
 
 on:
