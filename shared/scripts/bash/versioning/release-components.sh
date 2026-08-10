@@ -127,7 +127,11 @@ for component in "${CHANGED_COMPONENTS[@]}"; do
     continue
   fi
 
-  bump-my-version bump "$bump" --config-file "$component/.bumpversion.toml" >/dev/null
+  bump-my-version bump \
+    "$bump" \
+    --config-file "$component/.bumpversion.toml" \
+    --allow-dirty \
+    >/dev/null
 
   new_version="$(tr -d '[:space:]' <"$version_file")"
   echo "[INFO] Bumped ${component} -> ${new_version}"
