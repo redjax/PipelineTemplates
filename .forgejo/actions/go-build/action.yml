@@ -14,7 +14,7 @@ inputs:
     description: "Name for binary file."
     required: true
   platforms:
-    description: "Comma-separated list of GOOS/GOARCH targets."
+    description: "Comma-separated GOOS/GOARCH[/GOARM] build targets."
     required: false
     default: "linux/amd64"
   build-tags:
