@@ -11,15 +11,13 @@ set -euo pipefail
 #   TRIVY_VERSION       Release version, no leading v   #
 #   TRIVY_INSTALL_DIR   Destination directory           #
 #   TRIVY_FORCE_INSTALL Reinstall even when present     #
-#                                                       #
 #########################################################
 
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${_DIR}/../_util/is-installed.sh"
-source "${_DIR}/../_util/install-github-release.sh"
 
-TRIVY_VERSION="${TRIVY_VERSION:-0.68.1}"
+TRIVY_VERSION="${TRIVY_VERSION:-0.73.0}"
 TRIVY_INSTALL_DIR="${TRIVY_INSTALL_DIR:-${HOME}/.local/bin}"
 TRIVY_FORCE_INSTALL="${TRIVY_FORCE_INSTALL:-false}"
 
@@ -30,8 +28,17 @@ function fail() {
 
 function validate_version() {
   if [[ ! "${TRIVY_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    fail "TRIVY_VERSION must be a semantic version without a leading 'v'. Example: 0.68.1"
+    fail "TRIVY_VERSION must be a semantic version without a leading 'v'. Example: 0.73.0"
   fi
+}
+
+function validate_boolean() {
+  case "${TRIVY_FORCE_INSTALL}" in
+  true | false) ;;
+  *)
+    fail "TRIVY_FORCE_INSTALL must be either 'true' or 'false'."
+    ;;
+  esac
 }
 
 function get_platform_asset_suffix() {
@@ -69,6 +76,11 @@ function installed_version() {
 
 function trivy_is_installed() {
   local binary=""
+  local version=""
+
+  if [[ "${TRIVY_FORCE_INSTALL}" == "true" ]]; then
+    return 1
+  fi
 
   if [[ -x "${TRIVY_INSTALL_DIR}/trivy" ]]; then
     binary="${TRIVY_INSTALL_DIR}/trivy"
@@ -78,44 +90,78 @@ function trivy_is_installed() {
     return 1
   fi
 
-  if [[ "${TRIVY_FORCE_INSTALL}" == "true" ]]; then
+  version="$(installed_version "${binary}")"
+
+  if [[ "${version}" != "${TRIVY_VERSION}" ]]; then
+    echo "[INFO] Trivy ${version:-unknown} is installed, but v${TRIVY_VERSION} was requested."
     return 1
   fi
 
-  echo "[INFO] Trivy is already installed: ${binary}"
+  echo "[INFO] Trivy v${TRIVY_VERSION} is already installed: ${binary}"
   "${binary}" --version
 
   return 0
 }
 
-function ensure_cosign() {
-  if is_installed cosign; then
+function calculate_sha256() {
+  local file_path="${1}"
+
+  if is_installed sha256sum; then
+    sha256sum "${file_path}" | awk '{ print $1 }'
     return 0
   fi
 
-  echo "[INFO] Installing cosign for Trivy signature verification"
-
-  install_github_binary \
-    sigstore/cosign \
-    cosign
-
-  if ! is_installed cosign; then
-    fail "cosign installation failed; cannot verify the Trivy release artifact."
+  if is_installed shasum; then
+    shasum --algorithm 256 "${file_path}" | awk '{ print $1 }'
+    return 0
   fi
+
+  fail "Neither sha256sum nor shasum is installed; cannot verify the Trivy archive."
+}
+
+function verify_archive_checksum() {
+  local archive_path="${1}"
+  local asset_name="${2}"
+  local checksums_path="${3}"
+  local expected_checksum=""
+  local actual_checksum=""
+
+  expected_checksum="$(
+    awk \
+      -v asset_name="${asset_name}" \
+      '$NF == asset_name { print $1; exit }' \
+      "${checksums_path}"
+  )"
+
+  if [[ -z "${expected_checksum}" ]]; then
+    fail "No checksum was found for ${asset_name} in ${checksums_path}."
+  fi
+
+  actual_checksum="$(calculate_sha256 "${archive_path}")"
+
+  if [[ "${actual_checksum}" != "${expected_checksum}" ]]; then
+    fail "Checksum validation failed for ${asset_name}."
+  fi
+
+  echo "[INFO] Trivy archive checksum verified"
 }
 
 function download_and_verify_trivy() {
   local asset_suffix
   local asset_name
-  local bundle_name
+  local checksums_name
   local release_url
   local temporary_directory
+  local archive_path
+  local checksums_path
 
   asset_suffix="$(get_platform_asset_suffix)"
   asset_name="trivy_${TRIVY_VERSION}_${asset_suffix}.tar.gz"
-  bundle_name="${asset_name}.sigstore.json"
+  checksums_name="trivy_${TRIVY_VERSION}_checksums.txt"
   release_url="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
   temporary_directory="$(mktemp --directory)"
+  archive_path="${temporary_directory}/${asset_name}"
+  checksums_path="${temporary_directory}/${checksums_name}"
 
   trap 'rm --force --recursive "${temporary_directory}"' RETURN
 
@@ -127,35 +173,30 @@ function download_and_verify_trivy() {
     --retry 3 \
     --silent \
     --show-error \
-    --output "${temporary_directory}/${asset_name}" \
+    --output "${archive_path}" \
     "${release_url}/${asset_name}"
 
-  echo "[INFO] Downloading Trivy Sigstore verification bundle"
-  echo "[INFO] Bundle URL: ${release_url}/${bundle_name}"
+  echo "[INFO] Downloading Trivy checksum manifest"
+  echo "[INFO] Checksums URL: ${release_url}/${checksums_name}"
 
   curl --fail \
     --location \
     --retry 3 \
     --silent \
     --show-error \
-    --output "${temporary_directory}/${bundle_name}" \
-    "${release_url}/${bundle_name}"
+    --output "${checksums_path}" \
+    "${release_url}/${checksums_name}"
 
-  ensure_cosign
-
-  echo "[INFO] Verifying Trivy release signature"
-
-  cosign verify-blob \
-    "${temporary_directory}/${asset_name}" \
-    --bundle "${temporary_directory}/${bundle_name}" \
-    --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-    --certificate-identity="https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v${TRIVY_VERSION}"
+  verify_archive_checksum \
+    "${archive_path}" \
+    "${asset_name}" \
+    "${checksums_path}"
 
   mkdir --parents "${TRIVY_INSTALL_DIR}"
 
   tar --extract \
     --gzip \
-    --file "${temporary_directory}/${asset_name}" \
+    --file "${archive_path}" \
     --directory "${temporary_directory}" \
     trivy
 
@@ -173,6 +214,7 @@ function add_to_github_path() {
 
 function main() {
   validate_version
+  validate_boolean
 
   if trivy_is_installed; then
     return 0
