@@ -45,6 +45,14 @@ on:
         type: boolean
         default: false
 
+      allow-no-package-sources:
+        description: >
+          Treat an OSV-Scanner "No package sources found" result as a successful
+          no-op instead of a scan failure.
+        required: false
+        type: boolean
+        default: false
+
       verbosity:
         description: >
           OSV-Scanner logging verbosity.
@@ -176,6 +184,7 @@ jobs:
           NO_RESOLVE: ${{ inputs.no-resolve }}
           VERBOSITY: ${{ inputs.verbosity }}
           ADDITIONAL_ARGS_FILE: ${{ steps.additional-args.outputs.path }}
+          ALLOW_NO_PACKAGE_SOURCES: ${{ inputs.allow-no-package-sources }}
         run: |
           set +e
 
@@ -202,6 +211,10 @@ jobs:
 
           if [[ "${NO_RESOLVE}" == "true" ]]; then
             command+=(--no-resolve)
+          fi
+
+          if [[ "${ALLOW_NO_PACKAGE_SOURCES}" == "true" ]]; then
+            command+=(--allow-no-package-sources)
           fi
 
           "${command[@]}"
