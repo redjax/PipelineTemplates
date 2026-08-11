@@ -1,0 +1,92 @@
+---
+##################################################################
+# Run OSV-Scanner against a consuming repository's dependencies. #
+##################################################################
+
+name: OSV vulnerability scan
+
+on:
+  workflow_call:
+    inputs:
+      scan-args:
+        description: >
+          Arguments passed to OSV-Scanner, one argument per line.
+          Do not provide --format or --output; this workflow owns SARIF output.
+        required: false
+        type: string
+        default: |-
+          --recursive
+          ./
+
+      fail-on-vulnerabilities:
+        description: >
+          Fail the workflow when OSV-Scanner finds known vulnerabilities.
+        required: false
+        type: boolean
+        default: true
+
+      sarif-category:
+        description: >
+          GitHub Code Scanning category for this scan. Use a distinct category
+          when running multiple OSV scans in one repository.
+        required: false
+        type: string
+        default: osv-scanner
+
+      artifact-retention-days:
+        description: "Days to retain the downloadable SARIF report."
+        required: false
+        type: number
+        default: 30
+
+jobs:
+  osv-scan:
+    name: OSV dependency vulnerability scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Run OSV-Scanner
+        id: osv-scan
+        continue-on-error: true
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+        with:
+          scan-args: |-
+            --output=osv-results.sarif
+            --format=sarif
+            ${{ inputs.scan-args }}
+
+      - name: Upload SARIF results to GitHub Security
+        if: always() && hashFiles('osv-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: osv-results.sarif
+          category: ${{ inputs.sarif-category }}
+          wait-for-processing: true
+
+      - name: Upload OSV scan result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: osv-scan-results
+          path: osv-results.sarif
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Fail if vulnerabilities were found
+        if: >
+          always() &&
+          inputs.fail-on-vulnerabilities &&
+          steps.osv-scan.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error title=Known dependency vulnerabilities detected::OSV-Scanner reported one or more known vulnerabilities."
+          echo "Review GitHub Code Scanning or download the osv-scan-results artifact."
+          exit 1
