@@ -207,13 +207,13 @@ jobs:
           fi
 
       - name: Check out calling repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 1
           path: repository
 
       - name: Check out PipelineTemplates scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
