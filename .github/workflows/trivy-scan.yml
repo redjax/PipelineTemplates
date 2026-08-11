@@ -95,6 +95,14 @@ on:
         type: number
         default: 30
 
+      pipelinetemplates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or commit SHA to check out for shared
+          CI/CD scripts.
+        required: false
+        type: string
+        default: main
+
     outputs:
       finding-count:
         description: >-
@@ -204,28 +212,11 @@ jobs:
           fetch-depth: 1
           path: repository
 
-      - name: Resolve PipelineTemplates revision
-        id: templates-ref
-        shell: bash
-        env:
-          WORKFLOW_REF: ${{ github.workflow_ref }}
-        run: |
-          set -euo pipefail
-
-          template_ref="${WORKFLOW_REF##*@}"
-
-          if [[ -z "${template_ref}" || "${template_ref}" == "${WORKFLOW_REF}" ]]; then
-            echo "::error title=Unable to resolve template ref::Could not determine the ref used to invoke this reusable workflow."
-            exit 1
-          fi
-
-          echo "ref=${template_ref}" >> "${GITHUB_OUTPUT}"
-
       - name: Check out PipelineTemplates scripts
         uses: actions/checkout@v4
         with:
           repository: redjax/PipelineTemplates
-          ref: ${{ steps.templates-ref.outputs.ref }}
+          ref: ${{ inputs.pipelinetemplates-ref }}
           path: pipeline-templates
           fetch-depth: 1
 
