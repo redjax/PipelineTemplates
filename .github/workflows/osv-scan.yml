@@ -1,0 +1,241 @@
+---
+###################################################################
+# Run OSV-Scanner against a consuming repository's dependencies. #
+###################################################################
+
+name: OSV vulnerability scan
+
+on:
+  workflow_call:
+    inputs:
+      osv-scanner-version:
+        description: >
+          OSV-Scanner release version to install, without a leading "v".
+          Example: "2.5.0". Check latest version at https://github.com/google/osv-scanner/releases
+        required: false
+        type: string
+        default: "2.5.0"
+
+      source:
+        description: >
+          Source path to scan, relative to the consuming repository root.
+        required: false
+        type: string
+        default: "."
+
+      recursive:
+        description: >
+          Recursively scan the source path for supported manifests and lockfiles.
+        required: false
+        type: boolean
+        default: true
+
+      config-path:
+        description: >
+          Optional OSV-Scanner config file path, relative to the consuming
+          repository root.
+        required: false
+        type: string
+        default: ""
+
+      no-resolve:
+        description: >
+          Disable transitive dependency resolution.
+        required: false
+        type: boolean
+        default: false
+
+      verbosity:
+        description: >
+          OSV-Scanner logging verbosity.
+        required: false
+        type: string
+        default: "info"
+
+      additional-args:
+        description: >
+          Optional additional OSV-Scanner arguments, one complete argument per
+          line. Do not provide --format or --output-file; this workflow owns
+          SARIF output.
+        required: false
+        type: string
+        default: ""
+
+      fail-on-vulnerabilities:
+        description: >
+          Fail the workflow after reports are uploaded when OSV-Scanner finds
+          known vulnerabilities.
+        required: false
+        type: boolean
+        default: true
+
+      sarif-category:
+        description: >
+          GitHub Code Scanning category for the uploaded result.
+        required: false
+        type: string
+        default: "osv-scanner"
+
+      artifact-retention-days:
+        description: "Days to retain the SARIF artifact."
+        required: false
+        type: number
+        default: 30
+
+      pipeline-templates-ref:
+        description: >
+          Git ref in redjax/PipelineTemplates from which to retrieve the shared
+          scan script. Use the same branch/tag/SHA as the reusable workflow.
+        required: false
+        type: string
+        default: "main"
+
+jobs:
+  osv-scan:
+    name: OSV dependency vulnerability scan
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v7
+
+      - name: Checkout PipelineTemplates scan script
+        uses: actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipeline-templates-ref }}
+          path: .pipeline-templates
+          sparse-checkout: |
+            shared/scripts/ci-cd/security/osv-scan.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Install OSV-Scanner
+        timeout-minutes: 3
+        shell: bash
+        env:
+          OSV_SCANNER_VERSION: ${{ inputs.osv-scanner-version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${OSV_SCANNER_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Invalid OSV-Scanner version::Use a version without a leading 'v', such as 2.5.0."
+            exit 1
+          fi
+
+          asset="osv-scanner_linux_amd64"
+          url="https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/${asset}"
+          download_path="${RUNNER_TEMP}/${asset}"
+          bin_dir="${RUNNER_TEMP}/bin"
+
+          echo "Downloading OSV-Scanner v${OSV_SCANNER_VERSION}"
+          echo "Download URL: ${url}"
+
+          curl --fail --location --retry 3 \
+            --output "${download_path}" \
+            "${url}"
+
+          mkdir --parents "${bin_dir}"
+
+          install --mode 0755 \
+            "${download_path}" \
+            "${bin_dir}/osv-scanner"
+
+          echo "${bin_dir}" >> "${GITHUB_PATH}"
+          export PATH="${bin_dir}:${PATH}"
+
+          echo "Installed OSV-Scanner:"
+          osv-scanner --version
+
+      - name: Write additional OSV-Scanner arguments
+        id: additional-args
+        shell: bash
+        env:
+          ADDITIONAL_ARGS: ${{ inputs.additional-args }}
+        run: |
+          set -euo pipefail
+
+          args_file="${RUNNER_TEMP}/osv-scanner-additional-args.txt"
+          printf '%s\n' "${ADDITIONAL_ARGS}" > "${args_file}"
+
+          echo "path=${args_file}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run OSV-Scanner
+        id: osv-scan
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        env:
+          SOURCE: ${{ inputs.source }}
+          RECURSIVE: ${{ inputs.recursive }}
+          CONFIG_PATH: ${{ inputs.config-path }}
+          NO_RESOLVE: ${{ inputs.no-resolve }}
+          VERBOSITY: ${{ inputs.verbosity }}
+          ADDITIONAL_ARGS_FILE: ${{ steps.additional-args.outputs.path }}
+        run: |
+          set +e
+
+          script=".pipeline-templates/shared/scripts/ci-cd/security/osv-scan.sh"
+
+          command=(
+            bash "${script}"
+            --source "${SOURCE}"
+            --output-file "osv-results.sarif"
+            --format "sarif"
+            --verbosity "${VERBOSITY}"
+            --additional-args-file "${ADDITIONAL_ARGS_FILE}"
+          )
+
+          if [[ "${RECURSIVE}" == "true" ]]; then
+            command+=(--recursive)
+          else
+            command+=(--no-recursive)
+          fi
+
+          if [[ -n "${CONFIG_PATH}" ]]; then
+            command+=(--config-path "${CONFIG_PATH}")
+          fi
+
+          if [[ "${NO_RESOLVE}" == "true" ]]; then
+            command+=(--no-resolve)
+          fi
+
+          "${command[@]}"
+          scan_exit_code=$?
+
+          echo "exit_code=${scan_exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "OSV-Scanner exit code: ${scan_exit_code}"
+
+          exit 0
+
+      - name: Upload SARIF results to GitHub Security
+        if: always() && hashFiles('osv-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: osv-results.sarif
+          category: ${{ inputs.sarif-category }}
+          wait-for-processing: true
+
+      - name: Upload OSV scan result
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: osv-scan-results
+          path: osv-results.sarif
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Fail if vulnerabilities were found
+        if: >
+          always() &&
+          inputs.fail-on-vulnerabilities &&
+          steps.osv-scan.outputs.exit_code != '0'
+        shell: bash
+        run: |
+          echo "::error title=Known dependency vulnerabilities detected::OSV-Scanner reported a non-zero exit code."
+          echo "Review GitHub Code Scanning or download the osv-scan-results artifact."
+          exit 1
