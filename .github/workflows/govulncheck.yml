@@ -72,7 +72,7 @@ on:
       pipeline-templates-ref:
         description: >
           Git ref in redjax/PipelineTemplates from which to retrieve the shared
-          scan script. Use the same branch, tag, or SHA as this workflow.
+          scan script. This should match the ref used to call this workflow.
         required: false
         type: string
         default: "main"
@@ -81,6 +81,9 @@ jobs:
   govulncheck:
     name: Go vulnerability scan
     runs-on: ubuntu-latest
+
+    outputs:
+      sarif-matrix: ${{ steps.sarif-matrix.outputs.matrix }}
 
     permissions:
       actions: read
@@ -177,6 +180,55 @@ jobs:
           # Report upload and policy enforcement occur in later steps.
           exit 0
 
+      - name: Build SARIF upload matrix
+        id: sarif-matrix
+        if: always()
+        shell: bash
+        env:
+          SARIF_CATEGORY: ${{ inputs.sarif-category }}
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          sarif_reports=(govulncheck-reports/sarif/*.sarif)
+
+          if [[ ${#sarif_reports[@]} -eq 0 ]]; then
+            echo 'matrix={"include":[]}' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          matrix="$(
+            jq \
+              --compact-output \
+              --null-input \
+              --arg category_prefix "${SARIF_CATEGORY}" \
+              --args "${sarif_reports[@]}" \
+              '
+                {
+                  include: [
+                    $ARGS.positional[]
+                    | {
+                        sarif_file: .,
+                        category: (
+                          $category_prefix +
+                          "-" +
+                          (
+                            split("/")
+                            | last
+                            | sub("\\.sarif$"; "")
+                          )
+                        )
+                      }
+                  ]
+                }
+              '
+          )"
+
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+          echo "SARIF upload matrix:"
+          echo "${matrix}" | jq .
+
       - name: Display Govulncheck reports
         if: always()
         shell: bash
@@ -195,14 +247,6 @@ jobs:
             cat "${report}"
             echo "::endgroup::"
           done
-
-      - name: Upload SARIF to GitHub Security
-        if: always() && hashFiles('govulncheck-reports/govulncheck.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: govulncheck-reports/govulncheck.sarif
-          category: ${{ inputs.sarif-category }}
-          wait-for-processing: true
 
       - name: Upload Govulncheck reports
         if: always()
@@ -236,3 +280,38 @@ jobs:
           echo "::error title=Reachable Go vulnerabilities detected::govulncheck reported reachable known vulnerabilities in one or more Go modules."
           echo "Review GitHub Code Scanning or download the govulncheck-reports artifact."
           exit 1
+
+  upload-sarif:
+    name: Upload Govulncheck SARIF
+    needs: govulncheck
+
+    ## Run after the scan job even when scan policy intentionally failed.
+    #  Skip when no module generated a SARIF report.
+    if: >
+      always() &&
+      needs.govulncheck.outputs.sarif-matrix != '' &&
+      needs.govulncheck.outputs.sarif-matrix != '{"include":[]}'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.govulncheck.outputs.sarif-matrix) }}
+
+    steps:
+      - name: Download Govulncheck reports
+        uses: actions/download-artifact@v7
+        with:
+          name: govulncheck-reports
+          path: govulncheck-reports
+
+      - name: Upload module SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ matrix.sarif_file }}
+          category: ${{ matrix.category }}
+          wait-for-processing: true
