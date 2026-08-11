@@ -9,8 +9,10 @@ The consuming repository controls scan scope, OSV-Scanner configuration, depende
 ## Table of Contents <!-- omit in toc -->
 
 - [Responsibilities](#responsibilities)
+- [When to use this workflow](#when-to-use-this-workflow)
 - [Inputs](#inputs)
 - [Additional arguments](#additional-arguments)
+- [No package sources](#no-package-sources)
 - [Example use](#example-use)
 
 ## Responsibilities
@@ -24,6 +26,28 @@ The consuming repository controls scan scope, OSV-Scanner configuration, depende
 - Upload the SARIF report as a workflow artifact.
 - Optionally fail when OSV-Scanner reports known vulnerabilities.
 
+## When to use this workflow
+
+Use this workflow for repositories containing dependency metadata that OSV-Scanner can recognize, including package manifests, lockfiles, or SBOM files.
+
+Typical examples include:
+
+- Go repositories containing `go.mod` and `go.sum`.
+- Node.js repositories containing `package-lock.json`, `npm-shrinkwrap.json`, or other supported package metadata.
+- Python repositories containing supported requirements or lock files.
+- Java repositories containing Maven or Gradle dependency metadata.
+- Repositories containing a supported SBOM.
+
+Do not normally use this workflow for repositories containing only pipeline YAML, documentation, shell scripts, templates, and examples without dependency metadata.
+
+A repository without recognized package sources causes OSV-Scanner to report:
+
+```text
+No package sources found
+```
+
+By default, this is treated as a scan failure. Set `allow-no-package-sources` only when that outcome is intentional.
+
 ## Inputs
 
 - `osv-scanner-version`: OSV-Scanner CLI release version to install, without a leading `v`.
@@ -31,6 +55,7 @@ The consuming repository controls scan scope, OSV-Scanner configuration, depende
 - `recursive`: Whether to recursively search the source path for supported dependency files.
 - `config-path`: Optional OSV-Scanner configuration file path.
 - `no-resolve`: Whether to disable transitive dependency resolution.
+- `allow-no-package-sources`: Treat OSV-Scanner's `No package sources found` result as a successful no-op.
 - `verbosity`: OSV-Scanner log verbosity.
 - `additional-args`: Optional newline-delimited arguments passed to OSV-Scanner.
 - `fail-on-vulnerabilities`: Whether the workflow fails after reports upload when OSV-Scanner returns a non-zero result.
@@ -58,6 +83,27 @@ additional-args: |-
 ```
 
 Repository-specific OSV-Scanner configuration should remain in the consuming repository and be passed with `config-path`.
+
+## No package sources
+
+The default behavior is:
+
+```yaml
+allow-no-package-sources: false
+```
+
+This is appropriate for application repositories. A missing dependency source may indicate that the configured scan path is wrong, that the repository is unexpectedly missing its lockfile, or that the workflow is not applicable.
+
+For a repository that intentionally has no supported dependency metadata, use:
+
+```yaml
+allow-no-package-sources: true
+```
+
+This allows the workflow to succeed when OSV-Scanner reports no package sources, while preserving normal vulnerability detection if supported dependency metadata is added later.
+
+> [!NOTE]
+> Use this sparingly. Prefer not calling the OSV workflow at all when a repository has no dependencies to scan. The scan will still occur, but it will never find any results and just wastes runner minutes/pipeline runtime.
 
 ## Example use
 
@@ -122,6 +168,25 @@ jobs:
       osv-scanner-version: "2.5.0"
       source: "apps/go-example"
       recursive: true
+      fail-on-vulnerabilities: true
+      pipeline-templates-ref: "main"
+```
+
+This permits a successful no-op when no supported package source exists:
+
+```yaml
+jobs:
+  osv-scan:
+    uses: redjax/PipelineTemplates/.github/workflows/osv-scan.yml@main
+    with:
+      osv-scanner-version: "2.5.0"
+      source: "."
+      recursive: true
+
+      ## Use only when this repository intentionally has no supported
+      #  package manifest, lockfile, SBOM, or dependency metadata.
+      allow-no-package-sources: true
+
       fail-on-vulnerabilities: true
       pipeline-templates-ref: "main"
 ```
