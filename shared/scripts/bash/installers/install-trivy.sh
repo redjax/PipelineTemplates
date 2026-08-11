@@ -147,63 +147,65 @@ function verify_archive_checksum() {
 }
 
 function download_and_verify_trivy() {
-  local asset_suffix
-  local asset_name
-  local checksums_name
-  local release_url
-  local temporary_directory
-  local archive_path
-  local checksums_path
+  (
+    local asset_suffix
+    local asset_name
+    local checksums_name
+    local release_url
+    local temporary_directory
+    local archive_path
+    local checksums_path
 
-  asset_suffix="$(get_platform_asset_suffix)"
-  asset_name="trivy_${TRIVY_VERSION}_${asset_suffix}.tar.gz"
-  checksums_name="trivy_${TRIVY_VERSION}_checksums.txt"
-  release_url="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
-  temporary_directory="$(mktemp --directory)"
-  archive_path="${temporary_directory}/${asset_name}"
-  checksums_path="${temporary_directory}/${checksums_name}"
+    asset_suffix="$(get_platform_asset_suffix)"
+    asset_name="trivy_${TRIVY_VERSION}_${asset_suffix}.tar.gz"
+    checksums_name="trivy_${TRIVY_VERSION}_checksums.txt"
+    release_url="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+    temporary_directory="$(mktemp --directory)"
+    archive_path="${temporary_directory}/${asset_name}"
+    checksums_path="${temporary_directory}/${checksums_name}"
 
-  trap 'rm --force --recursive "${temporary_directory}"' RETURN
+    trap 'rm --force --recursive "${temporary_directory:-}"' EXIT
 
-  echo "[INFO] Downloading Trivy v${TRIVY_VERSION}"
-  echo "[INFO] Asset URL: ${release_url}/${asset_name}"
+    echo "[INFO] Downloading Trivy v${TRIVY_VERSION}"
+    echo "[INFO] Asset URL: ${release_url}/${asset_name}"
 
-  curl --fail \
-    --location \
-    --retry 3 \
-    --silent \
-    --show-error \
-    --output "${archive_path}" \
-    "${release_url}/${asset_name}"
+    curl --fail \
+      --location \
+      --retry 3 \
+      --silent \
+      --show-error \
+      --output "${archive_path}" \
+      "${release_url}/${asset_name}"
 
-  echo "[INFO] Downloading Trivy checksum manifest"
-  echo "[INFO] Checksums URL: ${release_url}/${checksums_name}"
+    echo "[INFO] Downloading Trivy checksum manifest"
+    echo "[INFO] Checksums URL: ${release_url}/${checksums_name}"
 
-  curl --fail \
-    --location \
-    --retry 3 \
-    --silent \
-    --show-error \
-    --output "${checksums_path}" \
-    "${release_url}/${checksums_name}"
+    curl --fail \
+      --location \
+      --retry 3 \
+      --silent \
+      --show-error \
+      --output "${checksums_path}" \
+      "${release_url}/${checksums_name}"
 
-  verify_archive_checksum \
-    "${archive_path}" \
-    "${asset_name}" \
-    "${checksums_path}"
+    verify_archive_checksum \
+      "${archive_path}" \
+      "${asset_name}" \
+      "${checksums_path}"
 
-  mkdir --parents "${TRIVY_INSTALL_DIR}"
+    mkdir --parents "${TRIVY_INSTALL_DIR}"
 
-  tar --extract \
-    --gzip \
-    --file "${archive_path}" \
-    --directory "${temporary_directory}" \
-    trivy
+    tar --extract \
+      --gzip \
+      --file "${archive_path}" \
+      --directory "${temporary_directory}" \
+      trivy
 
-  install \
-    --mode 0755 \
-    "${temporary_directory}/trivy" \
-    "${TRIVY_INSTALL_DIR}/trivy"
+    install \
+      --mode 0755 \
+      "${temporary_directory}/trivy" \
+      "${TRIVY_INSTALL_DIR}/trivy"
+  )
 }
 
 function add_to_github_path() {
