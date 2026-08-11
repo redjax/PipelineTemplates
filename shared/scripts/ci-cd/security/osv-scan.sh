@@ -132,10 +132,8 @@ fi
 mkdir --parents "$(dirname "${output_file}")"
 
 args=(
-  scan
-  source
   "--format=${output_format}"
-  "--output-file=${output_file}"
+  "--output=${output_file}"
   "--verbosity=${verbosity}"
 )
 

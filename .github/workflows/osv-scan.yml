@@ -123,29 +123,32 @@ jobs:
           set -euo pipefail
 
           if [[ ! "${OSV_SCANNER_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error title=Invalid OSV-Scanner version::Use a version without a leading 'v', such as 2.4.0."
+            echo "::error title=Invalid OSV-Scanner version::Use a version without a leading 'v', such as 2.5.0."
             exit 1
           fi
 
-          asset="osv-scanner_${OSV_SCANNER_VERSION}_linux_amd64"
+          asset="osv-scanner_linux_amd64"
           url="https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/${asset}"
-          binary_path="${RUNNER_TEMP}/${asset}"
+          download_path="${RUNNER_TEMP}/${asset}"
           bin_dir="${RUNNER_TEMP}/bin"
 
           echo "Downloading OSV-Scanner v${OSV_SCANNER_VERSION}"
+          echo "Download URL: ${url}"
+
           curl --fail --location --retry 3 \
-            --output "${binary_path}" \
+            --output "${download_path}" \
             "${url}"
 
           mkdir --parents "${bin_dir}"
 
           install --mode 0755 \
-            "${binary_path}" \
+            "${download_path}" \
             "${bin_dir}/osv-scanner"
 
           echo "${bin_dir}" >> "${GITHUB_PATH}"
           export PATH="${bin_dir}:${PATH}"
 
+          echo "Installed OSV-Scanner:"
           osv-scanner --version
 
       - name: Write additional OSV-Scanner arguments
@@ -179,7 +182,7 @@ jobs:
           script=".pipeline-templates/shared/scripts/ci-cd/security/osv-scan.sh"
 
           command=(
-            "${script}"
+            bash "${script}"
             --source "${SOURCE}"
             --output-file "osv-results.sarif"
             --format "sarif"
