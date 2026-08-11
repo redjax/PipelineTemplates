@@ -7,9 +7,10 @@
 
 ## Pages
 
-| Page                                            | Description                                                                                  |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| [ci-cd](./ci-cd/)                               | Documentation about the "meta" pipelines that manage this repository and keep it up to date. |
-| [ci-cd/github-actions](./ci-cd/github-actions/) | Documentation for the Github Actions and reusable workflows in this repository.              |
-| [development](./development/)                   | Documentation for developing & testing new pipeline components.                              |
-| [versioning](./versioning/)                     | Documentation about how pipeline components are versioned in this repository.                |
+| Page                                              | Description                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [ci-cd](./ci-cd/)                                 | Documentation about the "meta" pipelines that manage this repository and keep it up to date. |
+| [ci-cd/github-actions](./ci-cd/github-actions/)   | Documentation for the Github Actions and reusable workflows in this repository.              |
+| [ci-cd/forgejo-actions](./ci-cd/forgejo-actions/) | Documentation for the Forgejo Actions and reusable workflows in this repository.             |
+| [development](./development/)                     | Documentation for developing & testing new pipeline components.                              |
+| [versioning](./versioning/)                       | Documentation about how pipeline components are versioned in this repository.                |
