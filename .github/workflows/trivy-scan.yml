@@ -1,0 +1,328 @@
+---
+#######################################################################
+# Scan a repository with the Trivy scanner                            #
+#                                                                     #
+# The pipeline installs and runs a Trivy scan using the defaults.     #
+# A consuming repository can pass a Trivy configuration file to       #
+# override the defaults.                                              #
+#                                                                     #
+# Inputs control the scan behavior, and a SARIF report is uploaded    #
+# at the end of the pipeline's execution.                             #
+#                                                                     #
+# This pipeline should be suitable for microservice repos, monorepos, #
+# and can scan a variety of languages and filetypes.                  #
+#######################################################################
+
+name: Trivy Scan
+
+on:
+  workflow_call:
+    inputs:
+      trivy-version:
+        description: >-
+          Trivy version to install, without a leading "v".
+        required: false
+        type: string
+        default: "0.73.0"
+
+      scan-type:
+        description: >-
+          Target type: filesystem or image.
+        required: false
+        type: string
+        default: filesystem
+
+      scan-path:
+        description: >-
+          Repository-relative path to scan when scan-type is filesystem.
+        required: false
+        type: string
+        default: "."
+
+      image-ref:
+        description: >-
+          Image name, tag, or digest to scan when scan-type is image.
+        required: false
+        type: string
+        default: ""
+
+      scanners:
+        description: >-
+          Comma-separated Trivy scanners to enable.
+        required: false
+        type: string
+        default: "vuln,secret,misconfig"
+
+      severity:
+        description: >-
+          Comma-separated severity levels to include in reports.
+        required: false
+        type: string
+        default: "HIGH,CRITICAL"
+
+      ignore-unfixed:
+        description: >-
+          Exclude vulnerabilities that do not currently have a fix.
+        required: false
+        type: boolean
+        default: true
+
+      config-path:
+        description: >-
+          Optional repository-relative Trivy configuration file path.
+        required: false
+        type: string
+        default: ""
+
+      skip-dirs:
+        description: >-
+          Optional comma-separated directories to exclude from scanning.
+        required: false
+        type: string
+        default: ""
+
+      fail-on-findings:
+        description: >-
+          Fail after reports are published if the scan has findings.
+        required: false
+        type: boolean
+        default: false
+
+      artifact-retention-days:
+        description: >-
+          Number of days to retain Trivy report artifacts.
+        required: false
+        type: number
+        default: 30
+
+      pipelinetemplates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or commit SHA to check out for shared
+          CI/CD scripts.
+        required: false
+        type: string
+        default: main
+
+    outputs:
+      finding-count:
+        description: >-
+          Number of findings in the Trivy JSON report.
+        value: ${{ jobs.trivy.outputs.finding-count }}
+
+      has-findings:
+        description: >-
+          Whether the Trivy JSON report contains one or more findings.
+        value: ${{ jobs.trivy.outputs.has-findings }}
+
+      json-report:
+        description: >-
+          Path to the generated JSON report on the workflow runner.
+        value: ${{ jobs.trivy.outputs.json-report }}
+
+      sarif-report:
+        description: >-
+          Path to the generated SARIF report on the workflow runner.
+        value: ${{ jobs.trivy.outputs.sarif-report }}
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Trivy ${{ inputs.scan-type }} scan
+    runs-on: ubuntu-latest
+
+    outputs:
+      finding-count: ${{ steps.findings.outputs.count }}
+      has-findings: ${{ steps.findings.outputs.has-findings }}
+      json-report: ${{ steps.paths.outputs.json-report }}
+      sarif-report: ${{ steps.paths.outputs.sarif-report }}
+
+    steps:
+      - name: Validate reusable-workflow inputs
+        shell: bash
+        env:
+          TRIVY_VERSION: ${{ inputs.trivy-version }}
+          SCAN_TYPE: ${{ inputs.scan-type }}
+          SCAN_PATH: ${{ inputs.scan-path }}
+          IMAGE_REF: ${{ inputs.image-ref }}
+          SCANNERS: ${{ inputs.scanners }}
+          SEVERITY: ${{ inputs.severity }}
+          IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${TRIVY_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Invalid Trivy version::Use a semantic version without a leading 'v', such as 0.73.0."
+            exit 1
+          fi
+
+          case "${SCAN_TYPE}" in
+            filesystem|image)
+              ;;
+            *)
+              echo "::error title=Invalid scan type::scan-type must be either 'filesystem' or 'image'."
+              exit 1
+              ;;
+          esac
+
+          case "${IGNORE_UNFIXED}" in
+            true|false)
+              ;;
+            *)
+              echo "::error title=Invalid ignore-unfixed value::ignore-unfixed must be true or false."
+              exit 1
+              ;;
+          esac
+
+          case "${FAIL_ON_FINDINGS}" in
+            true|false)
+              ;;
+            *)
+              echo "::error title=Invalid fail-on-findings value::fail-on-findings must be true or false."
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "${SCANNERS}" ]]; then
+            echo "::error title=Missing scanners::scanners cannot be empty."
+            exit 1
+          fi
+
+          if [[ -z "${SEVERITY}" ]]; then
+            echo "::error title=Missing severity::severity cannot be empty."
+            exit 1
+          fi
+
+          if [[ "${SCAN_TYPE}" == "filesystem" && -z "${SCAN_PATH}" ]]; then
+            echo "::error title=Missing scan path::scan-path cannot be empty for a filesystem scan."
+            exit 1
+          fi
+
+          if [[ "${SCAN_TYPE}" == "image" && -z "${IMAGE_REF}" ]]; then
+            echo "::error title=Missing image reference::image-ref is required when scan-type is image."
+            exit 1
+          fi
+
+      - name: Check out calling repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: repository
+
+      - name: Check out PipelineTemplates scripts
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipeline-templates
+          fetch-depth: 1
+
+      - name: Define Trivy paths
+        id: paths
+        shell: bash
+        env:
+          SCAN_TYPE: ${{ inputs.scan-type }}
+        run: |
+          set -euo pipefail
+
+          report_dir="${RUNNER_TEMP}/trivy-reports"
+          json_report="${report_dir}/trivy-${SCAN_TYPE}-results.json"
+          sarif_report="${report_dir}/trivy-${SCAN_TYPE}-results.sarif"
+
+          echo "report-dir=${report_dir}" >> "${GITHUB_OUTPUT}"
+          echo "json-report=${json_report}" >> "${GITHUB_OUTPUT}"
+          echo "sarif-report=${sarif_report}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run Trivy scan
+        id: trivy
+        shell: bash
+        working-directory: repository
+        env:
+          TRIVY_VERSION: ${{ inputs.trivy-version }}
+          TRIVY_INSTALL_DIR: ${{ runner.temp }}/trivy-bin
+          TRIVY_SCAN_TYPE: ${{ inputs.scan-type }}
+          TRIVY_SCAN_PATH: ${{ inputs.scan-path }}
+          TRIVY_IMAGE_REF: ${{ inputs.image-ref }}
+          TRIVY_SCANNERS: ${{ inputs.scanners }}
+          TRIVY_SEVERITY: ${{ inputs.severity }}
+          TRIVY_IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
+          TRIVY_CONFIG_PATH: ${{ inputs.config-path }}
+          TRIVY_SKIP_DIRS: ${{ inputs.skip-dirs }}
+          TRIVY_REPORT_DIR: ${{ steps.paths.outputs.report-dir }}
+          TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
+          TRIVY_FAIL_ON_FINDINGS: "false"
+        run: |
+          set -euo pipefail
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/security/trivy-scan.sh"
+
+      - name: Read scan findings
+        id: findings
+        if: success()
+        shell: bash
+        env:
+          JSON_REPORT: ${{ steps.paths.outputs.json-report }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${JSON_REPORT}" ]]; then
+            echo "::error title=Trivy report missing::Expected JSON report was not created: ${JSON_REPORT}"
+            exit 1
+          fi
+
+          finding_count="$(
+            jq '
+              [
+                .Results[]?
+                | (.Vulnerabilities // [])[],
+                  (.Misconfigurations // [])[],
+                  (.Secrets // [])[]
+              ]
+              | length
+            ' "${JSON_REPORT}"
+          )"
+
+          if [[ "${finding_count}" -gt 0 ]]; then
+            has_findings=true
+
+            echo "::warning title=Trivy findings detected::Trivy reported ${finding_count} finding(s)."
+          else
+            has_findings=false
+
+            echo "::notice title=No Trivy findings::Trivy completed successfully with no findings matching the configured scanners and severity policy."
+          fi
+
+          echo "count=${finding_count}" >> "${GITHUB_OUTPUT}"
+          echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
+
+      - name: Upload Trivy reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: trivy-${{ inputs.scan-type }}-scan-results
+          path: ${{ steps.paths.outputs.report-dir }}/
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Upload Trivy SARIF results
+        if: success() && steps.findings.outputs.has-findings == 'true'
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.paths.outputs.sarif-report }}
+          category: trivy-${{ inputs.scan-type }}
+
+      - name: Enforce findings policy
+        if: success() && inputs.fail-on-findings && steps.findings.outputs.has-findings == 'true'
+        shell: bash
+        env:
+          FINDING_COUNT: ${{ steps.findings.outputs.count }}
+        run: |
+          set -euo pipefail
+
+          echo "::error title=Trivy policy failed::Trivy reported ${FINDING_COUNT} finding(s)."
+          exit 1
