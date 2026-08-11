@@ -33,15 +33,6 @@ on:
         type: string
         default: ""
 
-      query-suite:
-        description: >
-          Optional path to a custom CodeQL query suite (e.g.,
-          "codeql-custom/go-security.qls") in the caller repository.
-          When set, this overrides the default query selection.
-        required: false
-        type: string
-        default: ""
-
       run-build:
         description: >
           Whether to run a build phase between CodeQL init and analyze.
@@ -109,8 +100,6 @@ jobs:
           ## If languages is empty, let CodeQL infer.
           languages: ${{ inputs.languages }}
           queries: ${{ inputs.queries }}
-          ## Use a custom query suite only when provided.
-          query-suite: ${{ inputs.query-suite }}
 
       - name: Run build for traced analysis
         if: inputs.run-build
