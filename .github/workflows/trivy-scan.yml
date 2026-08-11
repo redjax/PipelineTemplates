@@ -23,7 +23,7 @@ on:
           Trivy version to install, without a leading "v".
         required: false
         type: string
-        default: "0.68.1"
+        default: "0.73.0"
 
       scan-type:
         description: >-
@@ -155,7 +155,7 @@ jobs:
           set -euo pipefail
 
           if [[ ! "${TRIVY_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error title=Invalid Trivy version::Use a semantic version without a leading 'v', such as 0.68.1."
+            echo "::error title=Invalid Trivy version::Use a semantic version without a leading 'v', such as 0.73.0."
             exit 1
           fi
 
