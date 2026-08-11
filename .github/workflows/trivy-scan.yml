@@ -245,7 +245,7 @@ jobs:
           echo "json-report=${json_report}" >> "${GITHUB_OUTPUT}"
           echo "sarif-report=${sarif_report}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared Trivy scan
+      - name: Run Trivy scan
         id: trivy
         shell: bash
         working-directory: repository

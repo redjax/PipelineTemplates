@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-source "${_DIR}/../_util/is-installed.sh"
-
 #########################################################
 # Install Trivy                                         #
 #                                                       #
@@ -17,6 +13,11 @@ source "${_DIR}/../_util/is-installed.sh"
 #   TRIVY_FORCE_INSTALL Reinstall even when present     #
 #                                                       #
 #########################################################
+
+_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+source "${_DIR}/../_util/is-installed.sh"
+source "${_DIR}/../_util/install-github-release.sh"
 
 TRIVY_VERSION="${TRIVY_VERSION:-0.68.1}"
 TRIVY_INSTALL_DIR="${TRIVY_INSTALL_DIR:-${HOME}/.local/bin}"
@@ -87,23 +88,39 @@ function trivy_is_installed() {
   return 0
 }
 
+function ensure_cosign() {
+  if is_installed cosign; then
+    return 0
+  fi
+
+  echo "[INFO] Installing cosign for Trivy signature verification"
+
+  install_github_binary \
+    sigstore/cosign \
+    cosign
+
+  if ! is_installed cosign; then
+    fail "cosign installation failed; cannot verify the Trivy release artifact."
+  fi
+}
+
 function download_and_verify_trivy() {
   local asset_suffix
   local asset_name
-  local checksums_name
+  local bundle_name
   local release_url
   local temporary_directory
 
   asset_suffix="$(get_platform_asset_suffix)"
   asset_name="trivy_${TRIVY_VERSION}_${asset_suffix}.tar.gz"
-  checksums_name="trivy_${TRIVY_VERSION}_checksums.txt"
+  bundle_name="${asset_name}.sigstore.json"
   release_url="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
   temporary_directory="$(mktemp --directory)"
 
   trap 'rm --force --recursive "${temporary_directory}"' RETURN
 
   echo "[INFO] Downloading Trivy v${TRIVY_VERSION}"
-  echo "[INFO] Asset: ${asset_name}"
+  echo "[INFO] Asset URL: ${release_url}/${asset_name}"
 
   curl --fail \
     --location \
@@ -113,20 +130,26 @@ function download_and_verify_trivy() {
     --output "${temporary_directory}/${asset_name}" \
     "${release_url}/${asset_name}"
 
+  echo "[INFO] Downloading Trivy Sigstore verification bundle"
+  echo "[INFO] Bundle URL: ${release_url}/${bundle_name}"
+
   curl --fail \
     --location \
     --retry 3 \
     --silent \
     --show-error \
-    --output "${temporary_directory}/${checksums_name}" \
-    "${release_url}/${checksums_name}"
+    --output "${temporary_directory}/${bundle_name}" \
+    "${release_url}/${bundle_name}"
 
-  (
-    cd "${temporary_directory}"
+  ensure_cosign
 
-    grep --fixed-strings " ${asset_name}" "${checksums_name}" |
-      sha256sum --check --strict
-  )
+  echo "[INFO] Verifying Trivy release signature"
+
+  cosign verify-blob \
+    "${temporary_directory}/${asset_name}" \
+    --bundle "${temporary_directory}/${bundle_name}" \
+    --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+    --certificate-identity="https://github.com/aquasecurity/trivy/.github/workflows/reusable-release.yaml@refs/tags/v${TRIVY_VERSION}"
 
   mkdir --parents "${TRIVY_INSTALL_DIR}"
 
