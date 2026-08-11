@@ -50,7 +50,6 @@ exclude_module_paths_file=""
 package_pattern="./..."
 reports_directory="govulncheck-reports"
 summary_file=""
-sarif_version="2.1.0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -88,11 +87,6 @@ done
 
 if ! command -v govulncheck >/dev/null 2>&1; then
   echo "ERROR: govulncheck was not found in PATH." >&2
-  exit 2
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq was not found in PATH." >&2
   exit 2
 fi
 
@@ -270,45 +264,6 @@ while IFS= read -r module_directory; do
 
   echo "::endgroup::"
 done <"${modules_file}"
-
-shopt -s nullglob
-sarif_reports=("${reports_directory}"/sarif/*.sarif)
-
-if [[ ${#sarif_reports[@]} -gt 0 ]]; then
-  valid_sarif_reports=()
-
-  for sarif_report in "${sarif_reports[@]}"; do
-    if jq --exit-status . "${sarif_report}" >/dev/null 2>&1; then
-      valid_sarif_reports+=("${sarif_report}")
-    else
-      echo "::warning title=Invalid SARIF report::Skipping invalid SARIF file '${sarif_report}'."
-      error_module_count=$((error_module_count + 1))
-    fi
-  done
-
-  if [[ ${#valid_sarif_reports[@]} -gt 0 ]]; then
-    if ! jq \
-      --slurp \
-      --arg sarif_version "${sarif_version}" \
-      '
-        {
-          version: $sarif_version,
-          "$schema": (
-            "https://json.schemastore.org/sarif-" +
-            $sarif_version +
-            ".json"
-          ),
-          runs: [.[].runs[]]
-        }
-      ' \
-      "${valid_sarif_reports[@]}" \
-      >"${reports_directory}/govulncheck.sarif"; then
-      error_module_count=$((error_module_count + 1))
-      echo "::warning title=SARIF merge failed::Could not combine Govulncheck SARIF reports."
-      rm --force "${reports_directory}/govulncheck.sarif"
-    fi
-  fi
-fi
 
 has_vulnerabilities=false
 has_errors=false
