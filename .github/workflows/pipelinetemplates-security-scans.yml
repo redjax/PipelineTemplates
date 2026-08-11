@@ -72,3 +72,46 @@ jobs:
 
       ## Uncomment if PipelineTemplates provides a baseline report.
       # baseline-path: ".gitleaks-baseline.json"
+
+  trivy:
+    name: Trivy security scan
+    uses: ./.github/workflows/trivy-scan.yml
+    with:
+      ## Use shared scripts from the central PipelineTemplates main branch.
+      ##
+      ## Set this to a feature branch when validating changes to shared scripts,
+      ## or a release tag/commit SHA for stable and reproducible consumption.
+      pipelinetemplates-ref: main
+
+      ## Pin the scanner version. Do not use "latest".
+      trivy-version: "0.73.0"
+
+      ## Scan the complete repository filesystem, including workflow files,
+      ## shell scripts, dependency manifests, and configuration/IaC content.
+      scan-type: filesystem
+      scan-path: "."
+
+      ## Perform vulnerability, secret-pattern, and misconfiguration scanning.
+      ##
+      ## Gitleaks remains the primary secret scanning control, while Trivy
+      ## provides additional secret-pattern coverage alongside its vulnerability
+      ## and misconfiguration scanners.
+      scanners: "vuln,secret,misconfig"
+
+      ## Restrict the policy report to actionable high-priority findings.
+      severity: "HIGH,CRITICAL"
+
+      ## Do not block on findings with no available remediation.
+      ignore-unfixed: true
+
+      ## No repository-specific Trivy configuration is currently required.
+      # config-path: ".trivy.yaml"
+
+      ## Uncomment only when generated/vendored content requires exclusion.
+      # skip-dirs: ".git,node_modules,vendor,dist,build"
+
+      ## Upload JSON and SARIF reports first, then fail when matching findings
+      ## are detected.
+      fail-on-findings: true
+
+      artifact-retention-days: 30
