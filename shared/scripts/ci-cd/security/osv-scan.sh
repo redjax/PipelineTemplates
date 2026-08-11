@@ -133,7 +133,7 @@ mkdir --parents "$(dirname "${output_file}")"
 
 args=(
   "--format=${output_format}"
-  "--output=${output_file}"
+  "--output-file=${output_file}"
   "--verbosity=${verbosity}"
 )
 
