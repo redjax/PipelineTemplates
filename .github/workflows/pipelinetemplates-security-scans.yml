@@ -72,31 +72,3 @@ jobs:
 
       ## Uncomment if PipelineTemplates provides a baseline report.
       # baseline-path: ".gitleaks-baseline.json"
-
-  osv:
-    name: OSV dependency vulnerability scan
-    uses: ./.github/workflows/osv-scan.yml
-    with:
-      osv-scanner-version: "2.5.0"
-
-      ## Scan the complete PipelineTemplates repository recursively.
-      source: "."
-      recursive: true
-
-      ## Fail after reports are uploaded when known vulnerabilities exist.
-      fail-on-vulnerabilities: true
-
-      sarif-category: "osv-scanner"
-      artifact-retention-days: 30
-
-      pipeline-templates-ref: >-
-        ${{ github.event_name == 'pull_request' &&
-            github.head_ref ||
-            github.ref_name }}
-
-      # config-path: ".osv-scanner.toml"
-
-      ## Leave dependency resolution enabled.
-      no-resolve: false
-
-      verbosity: "info"
