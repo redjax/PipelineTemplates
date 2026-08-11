@@ -135,6 +135,11 @@ if [[ -n "${exclude_module_paths_file}" ]]; then
       >"${excludes_file}"
 fi
 
+## Normalize explicitly supplied module paths, if any.
+#
+#  The reusable workflow always creates a temporary file, even when the caller
+#  does not provide module-paths. Therefore, an empty or whitespace-only file
+#  must mean "use automatic discovery", not "scan no modules".
 if [[ -n "${module_paths_file}" ]]; then
   sed \
     -e 's/\r$//' \
@@ -146,7 +151,11 @@ if [[ -n "${module_paths_file}" ]]; then
     sed 's|^$|.|' |
     sort --unique \
       >"${modules_file}"
-else
+fi
+
+## Use automatic discovery when module-paths was omitted or resolves to no
+#  usable module directories.
+if [[ ! -s "${modules_file}" ]]; then
   find . \
     -type f \
     -name go.mod \
@@ -159,6 +168,9 @@ else
     sort --unique \
       >"${modules_file}"
 fi
+
+echo "Discovered Go modules:"
+sed 's/^/  - /' "${modules_file}"
 
 module_count=0
 vulnerability_module_count=0
