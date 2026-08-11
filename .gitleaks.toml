@@ -6,4 +6,5 @@ description = "Intentional fake secret fixtures in Concourse examples"
 
 paths = [
     '''^\.concourse/go/go-build/examples/vars/example\.go\.secrets\.yml$''',
+    '''^\.concourse/maint/renovate/examples/vars/example\.renovate\.secrets\.yml$''',
 ]
