@@ -1,0 +1,155 @@
+---
+#########################################################################
+# CodeQL Analysis                                                       #
+# https://codeql.github.com/                                            #
+#                                                                       #
+# The consuming repository defines a pipeline stub with input overrides #
+# for the languages in that repository, the queries to run, and any     #
+# build commands CodeQL should run during the analysis.                 #
+#########################################################################
+
+name: CodeQL analysis
+
+on:
+  workflow_call:
+    inputs:
+      languages:
+        description: >
+          Comma-separated list of languages to analyze (e.g., "go,python").
+          When empty, CodeQL will try to infer languages from the repository
+          (recommended for mixed-language repos).
+        required: false
+        type: string
+        default: ""
+
+      queries:
+        description: >
+          Optional CodeQL queries packs or additions.
+          Examples:
+            - "" (use CodeQL's default queries)
+            - "+security-extended"
+            - "+security-and-quality"
+        required: false
+        type: string
+        default: ""
+
+      query-suite:
+        description: >
+          Optional path to a custom CodeQL query suite (e.g.,
+          "codeql-custom/go-security.qls") in the caller repository.
+          When set, this overrides the default query selection.
+        required: false
+        type: string
+        default: ""
+
+      run-build:
+        description: >
+          Whether to run a build phase between CodeQL init and analyze.
+          Set true for languages where CodeQL benefits from a traced build
+          (e.g., Go, Java, C#, JavaScript/TypeScript).
+        required: false
+        type: boolean
+        default: false
+
+      build-commands:
+        description: >
+          Newline-delimited shell commands to build or test the project.
+          Executed between CodeQL init and analyze when run-build is true.
+          Example:
+            go test ./...
+            go build ./...
+        required: false
+        type: string
+        default: ""
+
+      upload-sarif:
+        description: >
+          Whether to upload SARIF results to GitHub Code Scanning.
+          Normally true; set false only for test or experimental runs.
+        required: false
+        type: boolean
+        default: true
+
+      fail-on-error:
+        description: >
+          Fail the workflow if CodeQL initialization or analysis encounters
+          an error. CodeQL findings themselves are handled in the Code
+          Scanning UI, not by this flag.
+        required: false
+        type: boolean
+        default: true
+
+      category:
+        description: >
+          Optional Code Scanning category label for this CodeQL run.
+          When empty, CodeQL's default category is used.
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  analyze:
+    name: CodeQL analysis
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        id: init
+        uses: github/codeql-action/init@v4
+        timeout-minutes: 10
+        with:
+          ## If languages is empty, let CodeQL infer.
+          languages: ${{ inputs.languages }}
+          queries: ${{ inputs.queries }}
+          ## Use a custom query suite only when provided.
+          query-suite: ${{ inputs.query-suite }}
+
+      - name: Run build for traced analysis
+        if: inputs.run-build
+        shell: bash
+        env:
+          BUILD_COMMANDS: ${{ inputs.build-commands }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${BUILD_COMMANDS//[[:space:]]/}" ]]; then
+            echo "::error title=Missing build commands::run-build is true but build-commands input is empty."
+            exit 1
+          fi
+
+          echo "Running CodeQL traced build commands:"
+          printf '%s\n' "${BUILD_COMMANDS}"
+
+          while IFS= read -r line; do
+            cmd="${line#"${line%%[![:space:]]*}"}"
+            cmd="${cmd%"${cmd##*[![:space:]]}"}"
+
+            [[ -z "${cmd}" ]] && continue
+            [[ "${cmd}" == \#* ]] && continue
+
+            echo "+ ${cmd}"
+            eval "${cmd}"
+          done <<< "${BUILD_COMMANDS}"
+
+      - name: Perform CodeQL analysis
+        id: analyze
+        uses: github/codeql-action/analyze@v4
+        timeout-minutes: 20
+        with:
+          upload: ${{ inputs.upload-sarif }}
+          category: ${{ inputs.category }}
+
+      - name: Fail if CodeQL encountered an error
+        if: inputs.fail-on-error && failure()
+        shell: bash
+        run: |
+          echo "::error title=CodeQL analysis failed::CodeQL encountered an error during initialization or analysis."
+          exit 1
