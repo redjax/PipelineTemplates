@@ -68,7 +68,7 @@ jobs:
       artifact-retention-days: 30
 
       ## Use local PipelineTemplates/.gitleaks.toml config if it exists
-      # config-path: ".gitleaks.toml"
+      config-path: ".gitleaks.toml"
 
       ## Uncomment if PipelineTemplates provides a baseline report.
       # baseline-path: ".gitleaks-baseline.json"
