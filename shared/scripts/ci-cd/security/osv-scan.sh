@@ -37,6 +37,9 @@ Options:
   --no-resolve
       Do not resolve transitive dependencies.
 
+  --allow-no-package-sources
+      Treat OSV-Scanner's "No package sources found" result as a successful no-op.
+
   --verbosity <level>
       OSV-Scanner log verbosity. Default: info.
 
@@ -56,6 +59,7 @@ output_format="sarif"
 recursive=true
 config_path=""
 no_resolve=false
+allow_no_package_sources=false
 verbosity="info"
 additional_args_file=""
 
@@ -79,6 +83,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --no-recursive)
     recursive=false
+    shift
+    ;;
+  --allow-no-package-sources)
+    allow_no_package_sources=true
     shift
     ;;
   --config-path)
@@ -133,7 +141,7 @@ mkdir --parents "$(dirname "${output_file}")"
 
 args=(
   "--format=${output_format}"
-  "--output=${output_file}"
+  "--output-file=${output_file}"
   "--verbosity=${verbosity}"
 )
 
@@ -175,8 +183,31 @@ fi
 
 args+=("${source_path}")
 
+scan_log="${output_file}.log"
+
 echo "Running OSV-Scanner:"
 printf '  %q' osv-scanner "${args[@]}"
 echo
 
-osv-scanner "${args[@]}"
+set +e
+
+osv-scanner "${args[@]}" 2>&1 | tee "${scan_log}"
+scan_exit_code="${PIPESTATUS[0]}"
+
+set -e
+
+if [[ "${scan_exit_code}" == "128" ]] &&
+  grep --fixed-strings --quiet \
+    "No package sources found" \
+    "${scan_log}"; then
+
+  if [[ "${allow_no_package_sources}" == "true" ]]; then
+    echo "::notice title=No package sources found::OSV-Scanner found no supported dependency manifest, lockfile, SBOM, or package source. Treating this scan as a successful no-op."
+    exit 0
+  fi
+
+  echo "::error title=No package sources found::OSV-Scanner found no supported dependency manifest, lockfile, SBOM, or package source."
+  exit "${scan_exit_code}"
+fi
+
+exit "${scan_exit_code}"

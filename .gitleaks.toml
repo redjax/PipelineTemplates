@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional fake secret fixtures in Concourse examples"
+
+paths = [
+    '''^\.concourse/go/go-build/examples/vars/example\.go\.secrets\.yml$''',
+]
