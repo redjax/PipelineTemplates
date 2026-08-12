@@ -1,0 +1,341 @@
+---
+name: ShellCheck and shellfmt
+
+on:
+  workflow_call:
+    inputs:
+      pipelinetemplates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or commit SHA containing shared scripts
+          and central default configuration.
+        required: false
+        type: string
+        default: main
+
+      tools:
+        description: >-
+          Tools to run: shellcheck, shellfmt, or both.
+        required: false
+        type: string
+        default: both
+
+      scan-path:
+        description: >-
+          Repository-relative file or directory containing shell scripts.
+        required: false
+        type: string
+        default: "."
+
+      shellcheck-version:
+        description: >-
+          ShellCheck release version to install, without a leading v.
+        required: false
+        type: string
+        default: "0.10.0"
+
+      shellfmt-version:
+        description: >-
+          shellfmt release version to install, without a leading v.
+        required: false
+        type: string
+        default: "3.10.0"
+
+      include-patterns:
+        description: >-
+          Comma-separated file patterns for shell scripts.
+        required: false
+        type: string
+        default: "*.sh,*.bash,*.bats"
+
+      exclude-paths:
+        description: >-
+          Optional comma-separated paths excluded from scanning.
+        required: false
+        type: string
+        default: ".git,node_modules,vendor,dist,build,.terraform"
+
+      shellcheck-config-path:
+        description: >-
+          Optional repository-relative ShellCheck configuration file. When empty,
+          the central default is used if enabled.
+        required: false
+        type: string
+        default: ""
+
+      use-default-shellcheck-config:
+        description: >-
+          Use PipelineTemplates config/shellcheck/.shellcheckrc when no caller
+          ShellCheck configuration file is provided.
+        required: false
+        type: boolean
+        default: true
+
+      shellfmt-config-path:
+        description: >-
+          Optional repository-relative shellfmt options file. When empty, the
+          central default is used if enabled.
+        required: false
+        type: string
+        default: ""
+
+      use-default-shellfmt-config:
+        description: >-
+          Use PipelineTemplates config/shellfmt/options when no caller shellfmt
+          options file is provided.
+        required: false
+        type: boolean
+        default: true
+
+      fail-on-findings:
+        description: >-
+          Fail after reports are uploaded when ShellCheck findings or shellfmt
+          formatting differences are detected.
+        required: false
+        type: boolean
+        default: true
+
+      artifact-retention-days:
+        description: >-
+          Number of days to retain ShellCheck and shellfmt report artifacts.
+        required: false
+        type: number
+        default: 30
+
+    outputs:
+      shellcheck-finding-count:
+        description: ShellCheck findings reported by the scan.
+        value: ${{ jobs.shell-quality.outputs.shellcheck-finding-count }}
+
+      shellfmt-unformatted-file-count:
+        description: Files with shellfmt formatting differences.
+        value: ${{ jobs.shell-quality.outputs.shellfmt-unformatted-file-count }}
+
+      has-findings:
+        description: Whether either selected tool reported findings.
+        value: ${{ jobs.shell-quality.outputs.has-findings }}
+
+permissions:
+  contents: read
+
+jobs:
+  shell-quality:
+    name: Shell quality
+    runs-on: ubuntu-latest
+
+    outputs:
+      shellcheck-finding-count: ${{ steps.results.outputs.shellcheck-finding-count }}
+      shellfmt-unformatted-file-count: ${{ steps.results.outputs.shellfmt-unformatted-file-count }}
+      has-findings: ${{ steps.results.outputs.has-findings }}
+
+    steps:
+      - name: Validate workflow inputs
+        shell: bash
+        env:
+          TOOLS: ${{ inputs.tools }}
+        run: |
+          set -euo pipefail
+
+          case "${TOOLS}" in
+            shellcheck|shellfmt|both)
+              ;;
+            *)
+              echo "::error title=Invalid tool selection::tools must be shellcheck, shellfmt, or both."
+              exit 1
+              ;;
+          esac
+
+      - name: Check out calling repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: repository
+
+      - name: Check out PipelineTemplates scripts
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          fetch-depth: 1
+          path: pipeline-templates
+
+      - name: Resolve configuration files
+        id: config
+        shell: bash
+        env:
+          TOOLS: ${{ inputs.tools }}
+          CALLER_ROOT: ${{ github.workspace }}/repository
+          TEMPLATE_ROOT: ${{ github.workspace }}/pipeline-templates
+          SHELLCHECK_CONFIG_PATH: ${{ inputs.shellcheck-config-path }}
+          USE_DEFAULT_SHELLCHECK_CONFIG: ${{ inputs.use-default-shellcheck-config }}
+          SHELLFMT_CONFIG_PATH: ${{ inputs.shellfmt-config-path }}
+          USE_DEFAULT_SHELLFMT_CONFIG: ${{ inputs.use-default-shellfmt-config }}
+        run: |
+          set -euo pipefail
+
+          shellcheck_config=""
+          shellfmt_config=""
+
+          if [[ "${TOOLS}" == "shellcheck" || "${TOOLS}" == "both" ]]; then
+            if [[ -n "${SHELLCHECK_CONFIG_PATH}" ]]; then
+              shellcheck_config="${CALLER_ROOT}/${SHELLCHECK_CONFIG_PATH}"
+
+              if [[ ! -f "${shellcheck_config}" ]]; then
+                echo "::error title=ShellCheck config not found::${SHELLCHECK_CONFIG_PATH}"
+                exit 1
+              fi
+            elif [[ "${USE_DEFAULT_SHELLCHECK_CONFIG}" == "true" ]]; then
+              shellcheck_config="${TEMPLATE_ROOT}/config/shellcheck/.shellcheckrc"
+
+              if [[ ! -f "${shellcheck_config}" ]]; then
+                echo "::error title=Default ShellCheck config not found::${shellcheck_config}"
+                exit 1
+              fi
+            fi
+          fi
+
+          if [[ "${TOOLS}" == "shellfmt" || "${TOOLS}" == "both" ]]; then
+            if [[ -n "${SHELLFMT_CONFIG_PATH}" ]]; then
+              shellfmt_config="${CALLER_ROOT}/${SHELLFMT_CONFIG_PATH}"
+
+              if [[ ! -f "${shellfmt_config}" ]]; then
+                echo "::error title=shellfmt config not found::${SHELLFMT_CONFIG_PATH}"
+                exit 1
+              fi
+            elif [[ "${USE_DEFAULT_SHELLFMT_CONFIG}" == "true" ]]; then
+              shellfmt_config="${TEMPLATE_ROOT}/config/shellfmt/options"
+
+              if [[ ! -f "${shellfmt_config}" ]]; then
+                echo "::error title=Default shellfmt config not found::${shellfmt_config}"
+                exit 1
+              fi
+            fi
+          fi
+
+          echo "shellcheck-config=${shellcheck_config}" >> "${GITHUB_OUTPUT}"
+          echo "shellfmt-config=${shellfmt_config}" >> "${GITHUB_OUTPUT}"
+
+      - name: Define report paths
+        id: paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          report_dir="${RUNNER_TEMP}/shell-quality-reports"
+
+          echo "report-dir=${report_dir}" >> "${GITHUB_OUTPUT}"
+          echo "shellcheck-report=${report_dir}/shellcheck.txt" >> "${GITHUB_OUTPUT}"
+          echo "shellfmt-report=${report_dir}/shellfmt.diff" >> "${GITHUB_OUTPUT}"
+
+      - name: Run ShellCheck
+        id: shellcheck
+        if: inputs.tools == 'shellcheck' || inputs.tools == 'both'
+        shell: bash
+        working-directory: repository
+        env:
+          SHELLCHECK_VERSION: ${{ inputs.shellcheck-version }}
+          SHELLCHECK_INSTALL_DIR: ${{ runner.temp }}/shellcheck-bin
+          SHELLCHECK_CONFIG_PATH: ${{ steps.config.outputs.shellcheck-config }}
+          SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
+          SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
+          SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SHELLCHECK_REPORT_PATH: ${{ steps.paths.outputs.shellcheck-report }}
+          SHELLCHECK_FAIL_ON_FINDINGS: "false"
+        run: |
+          set -euo pipefail
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
+      - name: Run shellfmt
+        id: shellfmt
+        if: inputs.tools == 'shellfmt' || inputs.tools == 'both'
+        shell: bash
+        working-directory: repository
+        env:
+          SHELLFMT_VERSION: ${{ inputs.shellfmt-version }}
+          SHELLFMT_INSTALL_DIR: ${{ runner.temp }}/shellfmt-bin
+          SHELLFMT_CONFIG_PATH: ${{ steps.config.outputs.shellfmt-config }}
+          SHELLFMT_SCAN_PATH: ${{ inputs.scan-path }}
+          SHELLFMT_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
+          SHELLFMT_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SHELLFMT_REPORT_PATH: ${{ steps.paths.outputs.shellfmt-report }}
+          SHELLFMT_FAIL_ON_FINDINGS: "false"
+        run: |
+          set -euo pipefail
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellfmt.sh"
+
+      - name: Read scan results
+        id: results
+        if: always()
+        shell: bash
+        env:
+          TOOLS: ${{ inputs.tools }}
+          SHELLCHECK_REPORT: ${{ steps.paths.outputs.shellcheck-report }}
+          SHELLFMT_REPORT: ${{ steps.paths.outputs.shellfmt-report }}
+        run: |
+          set -euo pipefail
+
+          shellcheck_finding_count=0
+          shellfmt_unformatted_file_count=0
+
+          if [[ "${TOOLS}" == "shellcheck" || "${TOOLS}" == "both" ]]; then
+            if [[ -f "${SHELLCHECK_REPORT}" ]]; then
+              shellcheck_finding_count="$(
+                grep \
+                  --extended-regexp \
+                  --count \
+                  'SC[0-9]+' \
+                  "${SHELLCHECK_REPORT}" \
+                  || true
+              )"
+            fi
+          fi
+
+          if [[ "${TOOLS}" == "shellfmt" || "${TOOLS}" == "both" ]]; then
+            if [[ -f "${SHELLFMT_REPORT}" ]]; then
+              shellfmt_unformatted_file_count="$(
+                grep \
+                  --fixed-strings \
+                  --count \
+                  '--- ' \
+                  "${SHELLFMT_REPORT}" \
+                  || true
+              )"
+            fi
+          fi
+
+          has_findings=false
+
+          if [[ "${shellcheck_finding_count}" -gt 0 || "${shellfmt_unformatted_file_count}" -gt 0 ]]; then
+            has_findings=true
+          fi
+
+          echo "shellcheck-finding-count=${shellcheck_finding_count}" >> "${GITHUB_OUTPUT}"
+          echo "shellfmt-unformatted-file-count=${shellfmt_unformatted_file_count}" >> "${GITHUB_OUTPUT}"
+          echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
+
+          echo "ShellCheck findings: ${shellcheck_finding_count}"
+          echo "shellfmt unformatted files: ${shellfmt_unformatted_file_count}"
+
+      - name: Upload shell quality reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shellcheck-shellfmt-results
+          path: ${{ steps.paths.outputs.report-dir }}/
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Enforce findings policy
+        if: success() && inputs.fail-on-findings && steps.results.outputs.has-findings == 'true'
+        shell: bash
+        env:
+          SHELLCHECK_FINDING_COUNT: ${{ steps.results.outputs.shellcheck-finding-count }}
+          SHELLFMT_UNFORMATTED_FILE_COUNT: ${{ steps.results.outputs.shellfmt-unformatted-file-count }}
+        run: |
+          set -euo pipefail
+
+          echo "::error title=Shell quality policy failed::ShellCheck findings: ${SHELLCHECK_FINDING_COUNT}; shellfmt unformatted files: ${SHELLFMT_UNFORMATTED_FILE_COUNT}."
+          exit 1
