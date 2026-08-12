@@ -14,8 +14,39 @@ function require_env() {
 }
 
 function validate_inputs() {
+  local create_tag="${CREATE_TAG:-false}"
+  local delete_tag="${DELETE_TAG:-false}"
+  local create_release="${CREATE_RELEASE:-false}"
+
   [[ -n "${TAG_NAME:-}" ]] || fail "TAG_NAME is required"
-  [[ "${CREATE_TAG:-false}" == "true" || "${CREATE_RELEASE:-false}" == "true" ]] || fail "At least one of CREATE_TAG or CREATE_RELEASE must be true"
+
+  for value in \
+    "${create_tag}" \
+    "${delete_tag}" \
+    "${create_release}"; do
+    case "${value}" in
+    true | false) ;;
+    *)
+      fail "Boolean inputs must be either true or false"
+      ;;
+    esac
+  done
+
+  if [[ 
+    "${create_tag}" != "true" &&
+    "${delete_tag}" != "true" &&
+    "${create_release}" != "true" ]] \
+    ; then
+    fail "At least one of CREATE_TAG, DELETE_TAG, or CREATE_RELEASE must be true"
+  fi
+
+  if [[ "${create_tag}" == "true" && "${delete_tag}" == "true" ]]; then
+    fail "CREATE_TAG and DELETE_TAG cannot both be true"
+  fi
+
+  if [[ "${delete_tag}" == "true" && "${create_release}" == "true" ]]; then
+    fail "DELETE_TAG and CREATE_RELEASE cannot both be true"
+  fi
 }
 
 function resolve_release_notes() {
