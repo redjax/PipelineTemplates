@@ -27,6 +27,36 @@ on:
         required: false
         type: string
         default: "."
+      include-patterns:
+        description: Comma-separated shell file patterns to include.
+        required: false
+        type: string
+        default: "*.sh,*.bash,*.bats"
+      exclude-paths:
+        description: Comma-separated files or directories to exclude.
+        required: false
+        type: string
+        default: ".git,node_modules,vendor,dist,build,.terraform"
+      shellcheck-config-path:
+        description: Optional repository-relative ShellCheck configuration path.
+        required: false
+        type: string
+        default: ""
+      use-default-shellcheck-config:
+        description: Use the PipelineTemplates default ShellCheck configuration.
+        required: false
+        type: boolean
+        default: true
+      shellfmt-config-path:
+        description: Optional repository-relative shellfmt options-file path.
+        required: false
+        type: string
+        default: ""
+      use-default-shellfmt-config:
+        description: Use the PipelineTemplates default shellfmt configuration.
+        required: false
+        type: boolean
+        default: true
       shellcheck-version:
         required: false
         type: string
@@ -60,9 +90,14 @@ on:
         required: false
         type: number
         default: 30
-
-permissions:
-  contents: read
+      shellcheck-artifact-name:
+        required: false
+        type: string
+        default: shellcheck-results
+      shellfmt-artifact-name:
+        required: false
+        type: string
+        default: shellfmt-results
 
 jobs:
   validate:
@@ -89,8 +124,12 @@ jobs:
       scan-path: ${{ inputs.scan-path }}
       shellcheck-version: ${{ inputs.shellcheck-version }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
-      artifact-name: shellcheck-results
+      artifact-name: ${{ inputs.shellcheck-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
+      include-patterns: ${{ inputs.include-patterns }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      shellcheck-config-path: ${{ inputs.shellcheck-config-path }}
+      use-default-shellcheck-config: ${{ inputs.use-default-shellcheck-config }}
 
   shellfmt:
     needs: validate
@@ -102,7 +141,11 @@ jobs:
       shellfmt-version: ${{ inputs.shellfmt-version }}
       mode: ${{ inputs.shellfmt-mode }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
-      artifact-name: shellfmt-results
+      artifact-name: ${{ inputs.shellfmt-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
       commit-changes: ${{ inputs.shellfmt-commit-changes }}
       commit-message: ${{ inputs.shellfmt-commit-message }}
+      include-patterns: ${{ inputs.include-patterns }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      shellfmt-config-path: ${{ inputs.shellfmt-config-path }}
+      use-default-shellfmt-config: ${{ inputs.use-default-shellfmt-config }}
