@@ -189,7 +189,7 @@ function main() {
 
   command=(
     "${SHELLFMT_BIN}"
-    --diff
+    -d
     "${SHELLFMT_OPTIONS[@]}"
     "${shell_files[@]}"
   )
@@ -214,6 +214,7 @@ function main() {
     grep \
       --fixed-strings \
       --count \
+      -- \
       '--- ' \
       "${SHELLFMT_REPORT_PATH}" ||
       true

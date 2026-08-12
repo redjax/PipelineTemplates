@@ -30,6 +30,9 @@ SHELLCHECK_INCLUDE_PATTERNS="${SHELLCHECK_INCLUDE_PATTERNS:-*.sh,*.bash,*.bats}"
 SHELLCHECK_EXCLUDE_PATHS="${SHELLCHECK_EXCLUDE_PATHS:-.git,node_modules,vendor,dist,build,.terraform}"
 SHELLCHECK_REPORT_PATH="${SHELLCHECK_REPORT_PATH:-./reports/shellcheck/shellcheck.txt}"
 SHELLCHECK_FAIL_ON_FINDINGS="${SHELLCHECK_FAIL_ON_FINDINGS:-false}"
+SHELLCHECK_STAGED_CONFIG_PATH=""
+SHELLCHECK_STAGED_CONFIG_BACKUP=""
+SHELLCHECK_STAGED_CONFIG_CREATED=false
 
 function fail() {
   echo "[ERROR] $*" >&2
@@ -83,6 +86,77 @@ function resolve_shellcheck_binary() {
     bash "${_REPOSITORY_ROOT}/shared/scripts/bash/installers/install-shellcheck.sh"
 
   SHELLCHECK_BIN="${SHELLCHECK_INSTALL_DIR}/shellcheck"
+}
+
+function get_shellcheck_config_directory() {
+  if [[ -d "${SHELLCHECK_SCAN_PATH}" ]]; then
+    (
+      cd "${SHELLCHECK_SCAN_PATH}"
+      pwd
+    )
+
+    return 0
+  fi
+
+  (
+    cd "$(dirname "${SHELLCHECK_SCAN_PATH}")"
+    pwd
+  )
+}
+
+function stage_shellcheck_config() {
+  local config_directory=""
+  local staged_config_path=""
+
+  if [[ -z "${SHELLCHECK_CONFIG_PATH}" ]]; then
+    return 0
+  fi
+
+  config_directory="$(get_shellcheck_config_directory)"
+  staged_config_path="${config_directory}/.shellcheckrc"
+
+  if [[ "${SHELLCHECK_CONFIG_PATH}" == "${staged_config_path}" ]]; then
+    echo "[INFO] ShellCheck configuration already exists in the scan root."
+    return 0
+  fi
+
+  SHELLCHECK_STAGED_CONFIG_PATH="${staged_config_path}"
+
+  if [[ -f "${staged_config_path}" ]]; then
+    SHELLCHECK_STAGED_CONFIG_BACKUP="$(mktemp)"
+
+    cp \
+      "${staged_config_path}" \
+      "${SHELLCHECK_STAGED_CONFIG_BACKUP}"
+  else
+    SHELLCHECK_STAGED_CONFIG_CREATED=true
+  fi
+
+  cp \
+    "${SHELLCHECK_CONFIG_PATH}" \
+    "${staged_config_path}"
+
+  echo "[INFO] Staged ShellCheck configuration in scan root."
+}
+
+function restore_shellcheck_config() {
+  if [[ -z "${SHELLCHECK_STAGED_CONFIG_PATH:-}" ]]; then
+    return 0
+  fi
+
+  if [[ -n "${SHELLCHECK_STAGED_CONFIG_BACKUP:-}" ]]; then
+    cp \
+      "${SHELLCHECK_STAGED_CONFIG_BACKUP}" \
+      "${SHELLCHECK_STAGED_CONFIG_PATH}"
+
+    rm --force "${SHELLCHECK_STAGED_CONFIG_BACKUP}"
+
+    return 0
+  fi
+
+  if [[ "${SHELLCHECK_STAGED_CONFIG_CREATED:-false}" == "true" ]]; then
+    rm --force "${SHELLCHECK_STAGED_CONFIG_PATH}"
+  fi
 }
 
 function path_is_excluded() {
@@ -148,6 +222,9 @@ function main() {
   validate_inputs
   resolve_shellcheck_binary
 
+  trap restore_shellcheck_config EXIT
+  stage_shellcheck_config
+
   mkdir --parents "$(dirname "${SHELLCHECK_REPORT_PATH}")"
 
   while IFS= read -r -d '' file_path; do
@@ -168,13 +245,8 @@ function main() {
   command=(
     "${SHELLCHECK_BIN}"
     --format gcc
+    "${shell_files[@]}"
   )
-
-  if [[ -n "${SHELLCHECK_CONFIG_PATH}" ]]; then
-    command+=(--rcfile "${SHELLCHECK_CONFIG_PATH}")
-  fi
-
-  command+=("${shell_files[@]}")
 
   echo "[INFO] Running ShellCheck against ${#shell_files[@]} file(s)."
 
