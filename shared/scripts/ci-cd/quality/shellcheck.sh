@@ -124,6 +124,8 @@ function find_shell_files() {
       include_pattern="${include_pattern#"${include_pattern%%[![:space:]]*}"}"
       include_pattern="${include_pattern%"${include_pattern##*[![:space:]]}"}"
 
+      # shellcheck disable=SC2053
+      # include_pattern is intentionally a glob, for example: *.sh or *.bash.
       if [[ -n "${include_pattern}" && "$(basename "${file_path}")" == ${include_pattern} ]]; then
         printf '%s\0' "${file_path}"
         break
@@ -137,7 +139,6 @@ function find_shell_files() {
 }
 
 function main() {
-  local report_directory
   local shellcheck_exit_code=0
   local finding_count=0
   local has_findings=false
@@ -148,7 +149,6 @@ function main() {
   resolve_shellcheck_binary
 
   mkdir --parents "$(dirname "${SHELLCHECK_REPORT_PATH}")"
-  report_directory="$(dirname "${SHELLCHECK_REPORT_PATH}")"
 
   while IFS= read -r -d '' file_path; do
     shell_files+=("${file_path}")
