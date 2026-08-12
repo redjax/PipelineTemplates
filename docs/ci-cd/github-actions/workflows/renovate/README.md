@@ -40,6 +40,8 @@ The default Renovate config extends `config:recommended`, adds the `dependencies
 - `runner-image`: Runner label or image to use.
 - `pipelinetemplates-ref`: Branch, tag, or commit to use for the shared workflow checkout.
 - `renovate-author-email`: Email address Renovate uses for git commits.
+- `base-branches`: Comma-separated list of branches Renovate treats as base branches for scanning and PRs (overrides the default branch).
+- `use-base-branch-config`: When `true`, Renovate reads configuration (e.g., `renovate.json`) from the branches specified in `base-branches` instead of only the repository’s default branch.
 
 ## Secrets
 

@@ -77,7 +77,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout caller repo
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
@@ -87,7 +87,7 @@ runs:
       run: git fetch --force --tags
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v7
       with:
         go-version: ${{ inputs.go-version }}
         cache: true

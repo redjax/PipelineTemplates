@@ -1,0 +1,92 @@
+---
+###################################################################
+# Detects changes to Go files and returns a bool to the pipeline. #
+#                                                                 #
+# Accepts a space-separated list of file/dir patterns the script  #
+# should check for changes.                                       #
+#                                                                 #
+# Also accepts a base-sha and head-sha, which the script uses as  #
+# the range of commits to check for changes.                      #
+###################################################################
+
+name: Detect Go Changes
+description: Detect whether Go application files changed between two commits.
+
+inputs:
+  base-sha:
+    description: Base commit SHA
+    required: true
+
+  head-sha:
+    description: Head commit SHA
+    required: true
+
+  paths:
+    description: Space-separated paths to inspect
+    required: false
+    default: "go.mod go.sum cmd internal"
+
+outputs:
+  changed:
+    description: Whether relevant Go files changed
+    value: ${{ steps.detect.outputs.changed }}
+
+  files:
+    description: Changed files
+    value: ${{ steps.detect.outputs.files }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect Go changes
+      id: detect
+      shell: bash
+      env:
+        BASE_SHA: ${{ inputs.base-sha }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        PATHS: ${{ inputs.paths }}
+      run: |
+        set -Eeuo pipefail
+
+        if [[ -z "${BASE_SHA}" || "${BASE_SHA}" =~ ^0+$ ]]; then
+          BASE_SHA="$(git rev-parse "${HEAD_SHA}^" 2>/dev/null || true)"
+        fi
+
+        if [[ -z "${BASE_SHA}" ]]; then
+          BASE_SHA="$(git rev-list --max-parents=0 HEAD)"
+        fi
+
+        echo "[INFO] Comparing:"
+        echo "  base: ${BASE_SHA}"
+        echo "  head: ${HEAD_SHA}"
+
+        CHANGED="$(
+          git diff \
+            --name-only \
+            "${BASE_SHA}" \
+            "${HEAD_SHA}" \
+            -- \
+            ${PATHS} \
+            | grep -E '(^|/).*\.go$|(^|/)(go\.mod|go\.sum)$' || true
+        )"
+
+        if [[ -n "${CHANGED}" ]]; then
+          CHANGED_BOOL="true"
+        else
+          CHANGED_BOOL="false"
+        fi
+
+        {
+          echo "changed=${CHANGED_BOOL}"
+          echo "files<<EOF"
+          printf '%s\n' "${CHANGED}"
+          echo "EOF"
+        } >> "${GITHUB_OUTPUT}"
+
+        echo
+        echo "Changed Go files:"
+        if [[ -n "${CHANGED}" ]]; then
+          echo "${CHANGED}"
+        else
+          echo "None"
+        fi

@@ -79,6 +79,16 @@ on:
         required: false
         type: string
         default: "5534031+redjax@users.noreply.github.com"
+      base-branches:
+        description: "Renovate base branches (comma-separated or single branch)."
+        required: false
+        type: string
+        default: ""
+      use-base-branch-config:
+        description: "Use base branch config for Renovate."
+        required: false
+        type: boolean
+        default: false
     secrets:
       renovate-token:
         required: true
@@ -153,7 +163,7 @@ jobs:
 
       - name: Run Renovate
         ## https://github.com/renovatebot/github-action/tags
-        uses: renovatebot/github-action@v46.1.19
+        uses: renovatebot/github-action@v46.2.2
         env:
           LOG_LEVEL: ${{ inputs.log-level }}
           RENOVATE_PLATFORM: github
@@ -164,5 +174,7 @@ jobs:
           RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
           RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
           GITHUB_COM_TOKEN: ${{ secrets.gh-api-token }}
+          RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
+          RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config && 'true' || '' }}
         with:
           token: ${{ secrets.renovate-token }}

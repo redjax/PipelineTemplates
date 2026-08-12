@@ -1,0 +1,275 @@
+---
+##############################################################################
+# Workflow to run Renovate against a consuming repository.                   #
+#                                                                            #
+# Supports repositories that define their own renovate.json, and provides a  #
+# default if no config file exists.                                          #
+#                                                                            #
+# Requires a Forgejo Actions secret named RENOVATE_TOKEN, which is a Forgejo #
+# PAT with:                                                                  #
+# - Repository: Read and write                                               #
+# - Issues: Read and write                                                   #
+# - Pull requests: Read and write                                            #
+##############################################################################
+
+name: Renovate Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "Renovate mode: extract, lookup, or run."
+        required: false
+        type: string
+        default: "run"
+
+      repository:
+        description: "Target repository to process."
+        required: true
+        type: string
+
+      log-level:
+        description: "Renovate log level."
+        required: false
+        type: string
+        default: "info"
+
+      config-file:
+        description: "Path to consuming repo Renovate config."
+        required: false
+        type: string
+        default: "renovate.json"
+
+      require-config:
+        description: "Renovate config requirement mode."
+        required: false
+        type: string
+        default: "optional"
+
+      autodiscover:
+        description: "Enable Renovate autodiscovery."
+        required: false
+        type: boolean
+        default: false
+
+      pipelinetemplates-ref:
+        description: "PipelineTemplates branch/tag/hash."
+        required: false
+        type: string
+        default: "main"
+
+      renovate-author-email:
+        description: "Renovate git author email."
+        required: false
+        type: string
+        default: "renovate-bot@localhost"
+
+      base-branches:
+        description: "Renovate base branches."
+        required: false
+        type: string
+        default: ""
+
+      use-base-branch-config:
+        description: "Use base branch Renovate config."
+        required: false
+        type: boolean
+        default: false
+
+      forgejo-endpoint:
+        description: "Forgejo API endpoint."
+        required: true
+        type: string
+
+    secrets:
+      RENOVATE_TOKEN:
+        required: true
+
+      GH_COM_TOKEN:
+        required: false
+
+jobs:
+  run-renovate:
+    runs-on: forgejo-renovate
+
+    steps:
+      - name: "[DEBUG] Node environment"
+        run: |
+          echo "PATH=$PATH"
+          which node || true
+          node --version || true
+          which npm || true
+          npm --version || true
+          cat /etc/os-release
+
+      - name: Validate Forgejo endpoint
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "${{ inputs.forgejo-endpoint }}" ]]; then
+            echo "[ERROR] forgejo-endpoint is empty"
+            exit 1
+          fi
+
+          if [[ "${{ inputs.forgejo-endpoint }}" != *"/api/v1" ]]; then
+            echo "[ERROR] forgejo-endpoint must end with /api/v1"
+            echo "Got: ${{ inputs.forgejo-endpoint }}"
+
+            exit 1
+          fi
+
+      - name: Checkout consuming repo
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select Renovate config
+        id: cfg
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          DEFAULT_CONFIG_FILE="pipelinetemplates/config/renovate/default.json"
+          USER_CONFIG_FILE="${{ inputs.config-file }}"
+
+          if [[ -f "${USER_CONFIG_FILE}" ]]; then
+            echo "Using repository Renovate config:"
+            echo "  ${USER_CONFIG_FILE}"
+
+            cp "${USER_CONFIG_FILE}" renovate-config.json
+
+          elif [[ -f "${DEFAULT_CONFIG_FILE}" ]]; then
+            echo "Using PipelineTemplates default Renovate config:"
+            echo "  ${DEFAULT_CONFIG_FILE}"
+
+            cp "${DEFAULT_CONFIG_FILE}" renovate-config.json
+
+          else
+            echo "[ERROR] No Renovate config found."
+            echo "Checked:"
+            echo "  ${USER_CONFIG_FILE}"
+            echo "  ${DEFAULT_CONFIG_FILE}"
+            exit 1
+          fi
+
+          CONFIG_PATH="${PWD}/renovate-config.json"
+
+          echo "config-file=${CONFIG_PATH}" >> "$GITHUB_OUTPUT"
+          echo "require-config=${{ inputs.require-config }}" >> "$GITHUB_OUTPUT"
+
+          echo
+          echo "Selected config:"
+          ls -la "${CONFIG_PATH}"
+
+      - name: Decide Renovate mode
+        id: mode
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          case "${{ inputs.mode }}" in
+            extract)
+              echo "dry-run=extract" >> "$GITHUB_OUTPUT"
+              ;;
+            lookup)
+              echo "dry-run=lookup" >> "$GITHUB_OUTPUT"
+              ;;
+            run)
+              echo "dry-run=false" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "[ERROR] Invalid mode:"
+              echo "${{ inputs.mode }}"
+
+              exit 1
+              ;;
+          esac
+
+      - name: Verify Renovate
+        shell: bash
+        run: |
+          echo "Renovate version: $(renovate --version)"
+
+      ## Uncomment for debugging
+      # - name: Inspect Renovate token format
+      #   shell: bash
+      #   env:
+      #     RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+      #   run: |
+      #     set -Eeuo pipefail
+
+      #     token="${RENOVATE_TOKEN}"
+
+      #     echo "Token length: ${#token}"
+
+      #     if [[ "$token" == *.*.* ]]; then
+      #       echo "WARNING: token looks like a JWT (three dot-separated segments)"
+      #     else
+      #       echo "Token does not look like a JWT."
+      #     fi
+
+      #     if [[ "$token" == token\ * ]]; then
+      #       echo "WARNING: token contains a 'token ' prefix"
+      #     fi
+
+      #     if [[ "$token" == Bearer\ * || "$token" == bearer\ * ]]; then
+      #       echo "WARNING: token contains a 'Bearer ' prefix"
+      #     fi
+
+      ## Uncomment for debugging
+      # - name: Validate Renovate Forgejo token
+      #   shell: bash
+      #   env:
+      #     FORGEJO_ENDPOINT: ${{ inputs.forgejo-endpoint }}
+      #     RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+      #   run: |
+      #     set -Eeuo pipefail
+
+      #     echo "Testing Forgejo authentication..."
+
+      #     curl \
+      #       --fail-with-body \
+      #       --silent \
+      #       --show-error \
+      #       --header "Authorization: token ${RENOVATE_TOKEN}" \
+      #       --header "Accept: application/json" \
+      #       "${FORGEJO_ENDPOINT}/user"
+
+      #     echo
+      #     echo "Forgejo authentication succeeded."
+
+      - name: Run Renovate
+        shell: bash
+        env:
+          RENOVATE_PLATFORM: forgejo
+          RENOVATE_ENDPOINT: ${{ inputs.forgejo-endpoint }}
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_REPOSITORIES: ${{ inputs.repository }}
+          LOG_LEVEL: ${{ inputs.log-level }}
+          RENOVATE_CONFIG_FILE: ${{ steps.cfg.outputs.config-file }}
+          RENOVATE_REQUIRE_CONFIG: ${{ steps.cfg.outputs.require-config }}
+          RENOVATE_DRY_RUN: ${{ steps.mode.outputs.dry-run }}
+          RENOVATE_AUTODISCOVER: ${{ inputs.autodiscover }}
+          RENOVATE_BASE_BRANCHES: ${{ inputs.base-branches }}
+          RENOVATE_USE_BASE_BRANCH_CONFIG: ${{ inputs.use-base-branch-config }}
+          RENOVATE_GIT_AUTHOR: Renovate Bot <${{ inputs.renovate-author-email }}>
+          RENOVATE_GITHUB_COM_TOKEN: ${{ secrets.GH_COM_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "Renovate version:"
+          renovate --version
+
+          echo "Running Renovate"
+          renovate

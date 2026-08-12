@@ -1,0 +1,259 @@
+---
+name: Go Release
+
+on:
+  workflow_call:
+    inputs:
+      release-version:
+        description: "Version or commit short SHA used for the release."
+        required: true
+        type: string
+
+      tag-prefix:
+        description: "Git tag prefix."
+        required: false
+        type: string
+        default: "v"
+
+      module-dir:
+        description: "Path to the Go module root."
+        required: false
+        type: string
+        default: "."
+
+      build-package:
+        description: "Go package to build relative to module-dir."
+        required: false
+        type: string
+        default: "."
+
+      binary-name:
+        description: "Name of the built binary."
+        required: true
+        type: string
+
+      go-version:
+        description: "Go version."
+        required: false
+        type: string
+        default: "1.26.4"
+
+      platforms:
+        description: "Comma-separated GOOS/GOARCH targets."
+        required: false
+        type: string
+        default: "linux/amd64"
+
+      build-tags:
+        description: "Optional Go build tags."
+        required: false
+        type: string
+        default: ""
+
+      ldflags:
+        description: "Optional Go linker flags."
+        required: false
+        type: string
+        default: ""
+
+      output-dir:
+        description: "Output directory relative to module-dir."
+        required: false
+        type: string
+        default: "dist"
+
+      use-goreleaser:
+        description: "Use GoReleaser rather than go-build."
+        required: false
+        type: boolean
+        default: false
+
+      goreleaser-config:
+        description: "GoReleaser configuration path."
+        required: false
+        type: string
+        default: ".goreleaser.yml"
+
+      goreleaser-version:
+        description: "GoReleaser version."
+        required: false
+        type: string
+        default: "latest"
+
+      pipelinetemplates-ref:
+        description: "PipelineTemplates mirror revision."
+        required: false
+        type: string
+        default: "main"
+
+      forgejo-endpoint:
+        description: "Forgejo API endpoint ending in /api/v1."
+        required: true
+        type: string
+
+      repository:
+        description: "Repository in owner/name form."
+        required: true
+        type: string
+
+    secrets:
+      FJ_TOKEN:
+        required: true
+
+jobs:
+  release:
+    runs-on: forgejo-go-base
+
+    steps:
+      - name: Checkout application repository
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
+      - name: Set release metadata
+        id: release
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.release-version }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
+        run: |
+          set -Eeuo pipefail
+
+          tag="${TAG_PREFIX}${RELEASE_VERSION}"
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+
+          echo "Release version: ${RELEASE_VERSION}"
+          echo "Release tag: ${tag}"
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: true
+
+      - name: Build with go-build
+        if: inputs.use-goreleaser == false
+        uses: ./pipelinetemplates/.forgejo/actions/go-build
+        with:
+          module-dir: ${{ inputs.module-dir }}
+          build-package: ${{ inputs.build-package }}
+          binary-name: ${{ inputs.binary-name }}
+          platforms: ${{ inputs.platforms }}
+          build-tags: ${{ inputs.build-tags }}
+          ldflags: ${{ inputs.ldflags }}
+          output-dir: ${{ inputs.output-dir }}
+          artifact-name: ""
+          upload-artifacts: "false"
+
+      - name: Build with GoReleaser
+        if: inputs.use-goreleaser == true
+        uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
+        with:
+          go-version: ${{ inputs.go-version }}
+          goreleaser-config: ${{ inputs.goreleaser-config }}
+          goreleaser-version: ${{ inputs.goreleaser-version }}
+          snapshot: "false"
+          clean: "true"
+          skip-publish: "true"
+          working-directory: "."
+          upload-artifacts: "false"
+
+      - name: Verify build artifacts
+        shell: bash
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+        run: |
+          set -Eeuo pipefail
+
+          build_dir="${MODULE_DIR%/}/${OUTPUT_DIR}"
+
+          if [[ ! -d "${build_dir}" ]]; then
+            echo "[ERROR] Build output directory does not exist: ${build_dir}"
+            exit 1
+          fi
+
+          if ! find "${build_dir}" -type f -print -quit | grep -q .; then
+            echo "[ERROR] Build output directory contains no files: ${build_dir}"
+            exit 1
+          fi
+
+          echo "[INFO] Build artifacts:"
+          find "${build_dir}" -type f -printf '%P\n' | sort
+
+      - name: Package go-build release archives
+        if: inputs.use-goreleaser == false
+        shell: bash
+        env:
+          MODULE_DIR: ${{ inputs.module-dir }}
+          OUTPUT_DIR: ${{ inputs.output-dir }}
+          BINARY_NAME: ${{ inputs.binary-name }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+
+          build_dir="${MODULE_DIR%/}/${OUTPUT_DIR}"
+          build_dir="$(cd "${build_dir}" && pwd)"
+
+          asset_dir="$(pwd)/release-assets"
+          archive_base="${BINARY_NAME}_${RELEASE_VERSION}"
+
+          rm -rf "${asset_dir}"
+          mkdir -p "${asset_dir}"
+
+          tar \
+            --create \
+            --gzip \
+            --file "${asset_dir}/${archive_base}.tar.gz" \
+            --directory "${build_dir}" \
+            .
+
+          (
+            cd "${build_dir}"
+
+            zip \
+              --recurse-paths \
+              "${asset_dir}/${archive_base}.zip" \
+              .
+          )
+
+          echo "[INFO] go-build release assets:"
+          find "${asset_dir}" -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Create tag and Forgejo release
+        uses: ./pipelinetemplates/.forgejo/actions/tag-release
+        with:
+          url: ${{ inputs.forgejo-endpoint }}
+          repo: ${{ inputs.repository }}
+          token: ${{ secrets.FJ_TOKEN }}
+          tag-name: ${{ steps.release.outputs.tag }}
+          tag-message: "Release ${{ steps.release.outputs.tag }}"
+          create-tag: "true"
+          create-release: "true"
+          release-name: "Release ${{ steps.release.outputs.tag }}"
+          release-body: |
+            Automated release for version ${{ steps.release.outputs.version }}.
+          artifact-path: "release-assets"
+          overwrite-assets: "false"
+          target-commitish: ${{ github.sha }}

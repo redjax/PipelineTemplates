@@ -1,0 +1,66 @@
+---
+####################################################
+# Merge a version bump PR in a Forgejo repository. #
+#                                                  #
+# Forgejo does not support automatic merging like  #
+# Github does.                                     #
+#                                                  #
+# Instead, you should call this workflow from a    #
+# consuming repo's pipeline to merge a PR that was #
+# opened by a pipeline in this repository.         #
+####################################################
+
+name: Merge Version Bump PR
+
+on:
+  workflow_call:
+    inputs:
+      pr-number:
+        description: "Pull request number to merge."
+        required: true
+        type: string
+
+      forgejo-endpoint:
+        description: "Forgejo API endpoint ending in /api/v1."
+        required: true
+        type: string
+
+      repository:
+        description: "Repository in owner/name form."
+        required: true
+        type: string
+
+    secrets:
+      FJ_TOKEN:
+        required: true
+
+jobs:
+  merge:
+    runs-on: forgejo-runner-base
+
+    steps:
+      - name: Merge verified version bump PR
+        shell: bash
+        env:
+          FJ_TOKEN: ${{ secrets.FJ_TOKEN }}
+          API_URL: ${{ inputs.forgejo-endpoint }}
+          REPOSITORY: ${{ inputs.repository }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "[INFO] Merging verified version bump PR #${PR_NUMBER}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --request POST \
+            --header "Authorization: token ${FJ_TOKEN}" \
+            --header "Accept: application/json" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "Do": "squash",
+              "delete_branch_after_merge": true
+            }' \
+            "${API_URL}/repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge"

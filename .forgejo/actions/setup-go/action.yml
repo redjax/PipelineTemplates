@@ -1,0 +1,33 @@
+---
+#####################################
+# Installs Go in a pipeline runner. #
+#####################################
+
+name: Setup Go
+description: Install and configure a Go toolchain for Forgejo Actions.
+
+inputs:
+  version:
+    description: Go version to install (for example 1.25.6).
+    required: false
+    default: "1.25.6"
+
+  enable-cache:
+    description: Enable Go build and module caches.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Ensure setup script is executable
+      shell: bash
+      run: chmod +x "${{ github.action_path }}/scripts/setup-go.sh"
+
+    - name: Install Go
+      shell: bash
+      env:
+        GO_VERSION: ${{ inputs.version }}
+        ENABLE_CACHE: ${{ inputs.enable-cache }}
+      run: bash "${{ github.action_path }}/scripts/setup-go.sh"

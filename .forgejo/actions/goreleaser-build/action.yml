@@ -3,6 +3,11 @@ name: "GoReleaser Build"
 description: "Build and release Go apps using GoReleaser (snapshot or release)."
 
 inputs:
+  go-version:
+    description: "Go version used for the build"
+    required: false
+    default: ""
+
   goreleaser-config:
     description: "Path to .goreleaser.yml config file (default: .goreleaser.yml)"
     required: false
@@ -32,11 +37,6 @@ inputs:
     description: "GoReleaser version to use (default: latest)"
     required: false
     default: "latest"
-
-  go-version:
-    description: "Go toolchain version to install (default: 1.25.6)"
-    required: false
-    default: "1.25.6"
 
   working-directory:
     description: "Working directory for the build (default: .)"
@@ -68,42 +68,111 @@ inputs:
     required: false
     default: ""
 
+  upload-artifacts:
+    description: "Upload build artifacts"
+    required: false
+    default: "true"
+
   github-token:
     description: "Token for creating releases (defaults to GITHUB_TOKEN)"
     required: false
     default: ""
 
-  enable-cache:
-    description: "Enable Go module/build caching"
-    required: false
-    default: "true"
-
 runs:
   using: "composite"
   steps:
-    - name: Checkout caller repo
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-
     - name: Fetch all tags
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: git fetch --force --tags
 
-    - name: Setup Go
-      uses: actions/setup-go@v6
-      with:
-        go-version: ${{ inputs.go-version }}
-        cache: ${{ inputs.enable-cache }}
-        cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+    - name: Install GoReleaser
+      shell: bash
+      env:
+        GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
+      run: |
+        set -euo pipefail
 
-    - name: Verify Go installation
+        if command -v goreleaser >/dev/null 2>&1; then
+          echo "GoReleaser already available:"
+          goreleaser --version
+          exit 0
+        fi
+
+        case "$(uname -m)" in
+          x86_64)
+            GORELEASER_ARCH="x86_64"
+            ;;
+          aarch64|arm64)
+            GORELEASER_ARCH="arm64"
+            ;;
+          *)
+            echo "Unsupported architecture: $(uname -m)"
+            exit 1
+            ;;
+        esac
+
+        if [[ "${GORELEASER_VERSION}" == "latest" ]]; then
+          version="$(
+            curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/goreleaser/goreleaser/releases" \
+              | jq -r '
+                  map(select(.prerelease == false and .draft == false))
+                  | sort_by(.published_at)
+                  | reverse
+                  | .[0].tag_name
+                '
+          )"
+        else
+          version="v${GORELEASER_VERSION#v}"
+        fi
+
+        echo "Installing GoReleaser ${version}"
+
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "$tmp"' EXIT
+
+        echo "Downloading GoReleaser:"
+        echo "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_Linux_${GORELEASER_ARCH}.tar.gz"
+
+        curl -fsSL \
+          -o "${tmp}/goreleaser.tar.gz" \
+          "https://github.com/goreleaser/goreleaser/releases/download/${version}/goreleaser_Linux_${GORELEASER_ARCH}.tar.gz"
+
+        tar -xzf "${tmp}/goreleaser.tar.gz" -C "${tmp}"
+
+        mkdir -p "${HOME}/bin"
+        mv "${tmp}/goreleaser" "${HOME}/bin/goreleaser"
+
+        echo "${HOME}/bin" >> "${GITHUB_PATH}"
+
+        echo "Installed:"
+        "${HOME}/bin/goreleaser" --version
+
+    - name: Verify tools
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        echo "Go version: $(go version)"
-        echo "GoReleaser version: $(goreleaser --version)"
+        echo "Go:"
+        go version
+
+        echo
+        echo "GoReleaser:"
+        goreleaser --version
+
+    - name: Verify GoReleaser config
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        if [[ ! -f "${{ inputs.goreleaser-config }}" ]]; then
+          echo "GoReleaser config not found:"
+          echo "  ${{ inputs.working-directory }}/${{ inputs.goreleaser-config }}"
+          exit 1
+        fi
+
+        echo "Using GoReleaser config:"
+        echo "  ${{ inputs.goreleaser-config }}"
 
     - name: Docker Login (if Docker build enabled)
       if: ${{ inputs.docker-build == 'true' }}
@@ -165,13 +234,25 @@ runs:
         echo "Artifact will be named: $ARTIFACT_NAME"
 
     - name: Upload artifacts
-      if: ${{ inputs.snapshot == 'true' || inputs.skip-publish == 'true' }}
-      uses: forgejo/upload-artifact@v4
+      if: ${{ inputs.upload-artifacts == 'true' && (inputs.snapshot == 'true' || inputs.skip-publish == 'true') }}
+      uses: forgejo/upload-artifact@v3
       with:
         name: ${{ steps.artifact-name.outputs.name }}
         path: ${{ inputs.working-directory }}/dist/
         retention-days: 7
         if-no-files-found: warn
+
+    # - name: "[DEBUG] Check GoReleaser action"
+    #   shell: bash
+    #   run: |
+    #     pwd
+    #     find pipelinetemplates/.forgejo/actions -maxdepth 3 -type f | sort | grep goreleaser || true
+
+    #     echo "---"
+    #     ls -la pipelinetemplates/.forgejo/actions/goreleaser-build || true
+
+    #     echo "---"
+    #     ls -la pipelinetemplates/.forgejo/actions/goreleaser-build/scripts || true
 
     - name: Generate build summary
       if: always()
@@ -183,4 +264,9 @@ runs:
         GO_VERSION: ${{ inputs.go-version }}
         GORELEASER_VERSION: ${{ inputs.goreleaser-version }}
       run: |
+        echo "github.action_path=${{ github.action_path }}"
+
+        ls -la "${{ github.action_path }}"
+        ls -la "${{ github.action_path }}/scripts"
+
         bash "${{ github.action_path }}/scripts/summary.sh"
