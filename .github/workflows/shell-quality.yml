@@ -39,6 +39,19 @@ on:
         required: false
         type: string
         default: check
+      shellfmt-commit-changes:
+        description: >-
+          Commit shellfmt changes back to an internal pull request branch.
+          Requires shellfmt-mode: write.
+        required: false
+        type: boolean
+        default: false
+      shellfmt-commit-message:
+        description: >-
+          Commit message used for automatic shellfmt formatting commits.
+        required: false
+        type: string
+        default: "style(shell): format shell scripts with shellfmt"
       fail-on-findings:
         required: false
         type: boolean
@@ -91,3 +104,5 @@ jobs:
       fail-on-findings: ${{ inputs.fail-on-findings }}
       artifact-name: shellfmt-results
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
+      commit-changes: ${{ inputs.shellfmt-commit-changes }}
+      commit-message: ${{ inputs.shellfmt-commit-message }}
