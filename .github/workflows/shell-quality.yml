@@ -1,18 +1,13 @@
 ---
-####################################################################################
-# Reusable Shell Quality Workflow                                                  #
-#                                                                                  #
-# Orchestrates individual ShellCheck and shellfmt reusable workflows.              #
-#                                                                                  #
-# This workflow intentionally does not install tools, resolve configuration,       #
-# discover shell files, parse reports, or upload artifacts. Those responsibilities #
-# remain within shellcheck.yml and shellfmt.yml.                                   #
-#                                                                                  #
-# Consumers may:                                                                   #
-#   - Call shellcheck.yml directly.                                                #
-#   - Call shellfmt.yml directly.                                                  #
-#   - Call this workflow with tools: shellcheck, shellfmt, or both.                #
-####################################################################################
+################################################################################
+# Shell Quality Orchestrator                                                   #
+#                                                                              #
+# Calls the individual ShellCheck and shellfmt reusable workflows.             #
+#                                                                              #
+# This workflow owns only tool selection and input forwarding. Configuration   #
+# resolution, installation, scanning, report generation, artifact upload, and  #
+# policy enforcement remain in shellcheck.yml and shellfmt.yml.                #
+################################################################################
 
 name: Shell Quality
 
@@ -22,93 +17,91 @@ on:
       pipelinetemplates-ref:
         description: >-
           PipelineTemplates branch, tag, or commit SHA used by the individual
-          reusable workflows to retrieve shared scripts and default config.
+          workflows to retrieve shared scripts and default configurations.
         required: false
         type: string
         default: main
 
       tools:
-        description: >-
-          Tools to run: shellcheck, shellfmt, or both.
+        description: "Tools to run: shellcheck, shellfmt, or both."
         required: false
         type: string
         default: both
 
       scan-path:
-        description: >-
-          Repository-relative file or directory containing shell scripts.
+        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
 
       include-patterns:
-        description: >-
-          Comma-separated file patterns to include.
+        description: Comma-separated shell file patterns to include.
         required: false
         type: string
         default: "*.sh,*.bash,*.bats"
 
       exclude-paths:
-        description: >-
-          Comma-separated files or directories to exclude.
+        description: Comma-separated files or directories to exclude.
         required: false
         type: string
         default: ".git,node_modules,vendor,dist,build,.terraform"
 
       shellcheck-version:
-        description: >-
-          ShellCheck release version to install.
+        description: ShellCheck release version.
         required: false
         type: string
         default: "0.10.0"
 
       shellcheck-config-path:
-        description: >-
-          Optional repository-relative ShellCheck configuration file.
+        description: Optional repository-relative ShellCheck configuration path.
         required: false
         type: string
         default: ""
 
       use-default-shellcheck-config:
-        description: >-
-          Use PipelineTemplates' default ShellCheck configuration when no caller
-          configuration file is supplied.
+        description: Use the PipelineTemplates default ShellCheck configuration.
         required: false
         type: boolean
         default: true
 
       shellfmt-version:
-        description: >-
-          shellfmt release version to install.
+        description: shellfmt release version.
         required: false
         type: string
         default: "3.10.0"
 
       shellfmt-config-path:
-        description: >-
-          Optional repository-relative shellfmt options file.
+        description: Optional repository-relative shellfmt options-file path.
         required: false
         type: string
         default: ""
 
       use-default-shellfmt-config:
-        description: >-
-          Use PipelineTemplates' default shellfmt options when no caller options
-          file is supplied.
+        description: Use the PipelineTemplates default shellfmt configuration.
         required: false
         type: boolean
         default: true
 
       fail-on-findings:
-        description: >-
-          Fail selected jobs after report upload when findings are detected.
+        description: Fail selected jobs after reports are uploaded when findings exist.
         required: false
         type: boolean
         default: true
 
+      shellcheck-artifact-name:
+        description: Artifact name passed to shellcheck.yml.
+        required: false
+        type: string
+        default: shellcheck-results
+
+      shellfmt-artifact-name:
+        description: Artifact name passed to shellfmt.yml.
+        required: false
+        type: string
+        default: shellfmt-results
+
       artifact-retention-days:
-        description: >-
-          Number of days to retain individual ShellCheck and shellfmt artifacts.
+        description: Number of days to retain individual tool report artifacts.
         required: false
         type: number
         default: 30
@@ -152,6 +145,7 @@ jobs:
       shellcheck-config-path: ${{ inputs.shellcheck-config-path }}
       use-default-shellcheck-config: ${{ inputs.use-default-shellcheck-config }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
+      artifact-name: ${{ inputs.shellcheck-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
 
   shellfmt:
@@ -168,4 +162,5 @@ jobs:
       shellfmt-config-path: ${{ inputs.shellfmt-config-path }}
       use-default-shellfmt-config: ${{ inputs.use-default-shellfmt-config }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
+      artifact-name: ${{ inputs.shellfmt-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}

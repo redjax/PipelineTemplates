@@ -7,77 +7,77 @@ on:
       pipelinetemplates-ref:
         description: >-
           PipelineTemplates branch, tag, or commit SHA containing shared scripts
-          and central shellfmt options.
+          and central shellfmt configuration.
         required: false
         type: string
         default: main
 
       scan-path:
-        description: >-
-          Repository-relative file or directory containing shell scripts.
+        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
 
       shellfmt-version:
-        description: >-
-          shellfmt release version to install, without a leading v.
+        description: shellfmt release version, without a leading v.
         required: false
         type: string
         default: "3.10.0"
 
       include-patterns:
-        description: >-
-          Comma-separated file patterns to include.
+        description: Comma-separated shell file patterns to include.
         required: false
         type: string
         default: "*.sh,*.bash,*.bats"
 
       exclude-paths:
-        description: >-
-          Comma-separated files or directories to exclude.
+        description: Comma-separated files or directories to exclude.
         required: false
         type: string
         default: ".git,node_modules,vendor,dist,build,.terraform"
 
       shellfmt-config-path:
         description: >-
-          Optional repository-relative shellfmt options file. When empty, the
-          central default is used if enabled.
+          Optional repository-relative shellfmt options-file path. When empty,
+          the central default is used if enabled.
         required: false
         type: string
         default: ""
 
       use-default-shellfmt-config:
         description: >-
-          Use PipelineTemplates config/shellfmt/options when no caller options
-          file is supplied.
+          Use PipelineTemplates config/shellfmt/options when no caller shellfmt
+          configuration file is supplied.
         required: false
         type: boolean
         default: true
 
       fail-on-findings:
-        description: >-
-          Fail after report upload if shellfmt differences are detected.
+        description: Fail after report upload when shellfmt differences exist.
         required: false
         type: boolean
         default: true
 
+      artifact-name:
+        description: Name of the uploaded shellfmt report artifact.
+        required: false
+        type: string
+        default: shellfmt-results
+
       artifact-retention-days:
-        description: >-
-          Number of days to retain the shellfmt report artifact.
+        description: Number of days to retain the shellfmt report artifact.
         required: false
         type: number
         default: 30
 
     outputs:
-      unformatted-file-count:
+      unformatted_file_count:
         description: Number of files with shellfmt formatting differences.
-        value: ${{ jobs.shellfmt.outputs.unformatted-file-count }}
+        value: ${{ jobs.shellfmt.outputs.unformatted_file_count }}
 
-      has-findings:
+      has_findings:
         description: Whether shellfmt reported formatting differences.
-        value: ${{ jobs.shellfmt.outputs.has-findings }}
+        value: ${{ jobs.shellfmt.outputs.has_findings }}
 
 permissions:
   contents: read
@@ -88,8 +88,8 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      unformatted-file-count: ${{ steps.results.outputs.unformatted-file-count }}
-      has-findings: ${{ steps.results.outputs.has-findings }}
+      unformatted_file_count: ${{ steps.results.outputs.unformatted_file_count }}
+      has_findings: ${{ steps.results.outputs.has_findings }}
 
     steps:
       - name: Check out calling repository
@@ -152,8 +152,8 @@ jobs:
           report_dir="${RUNNER_TEMP}/shellfmt-reports"
           report_path="${report_dir}/shellfmt.diff"
 
-          echo "report-dir=${report_dir}" >> "${GITHUB_OUTPUT}"
-          echo "report-path=${report_path}" >> "${GITHUB_OUTPUT}"
+          echo "report_dir=${report_dir}" >> "${GITHUB_OUTPUT}"
+          echo "report_path=${report_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Run shared shellfmt script
         shell: bash
@@ -165,7 +165,7 @@ jobs:
           SHELLFMT_SCAN_PATH: ${{ inputs.scan-path }}
           SHELLFMT_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLFMT_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
-          SHELLFMT_REPORT_PATH: ${{ steps.paths.outputs.report-path }}
+          SHELLFMT_REPORT_PATH: ${{ steps.paths.outputs.report_path }}
           SHELLFMT_FAIL_ON_FINDINGS: "false"
         run: |
           set -euo pipefail
@@ -178,7 +178,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT_PATH: ${{ steps.paths.outputs.report-path }}
+          REPORT_PATH: ${{ steps.paths.outputs.report_path }}
         run: |
           set -euo pipefail
 
@@ -205,23 +205,23 @@ jobs:
             echo "::notice title=No shellfmt differences::shellfmt completed with no formatting differences."
           fi
 
-          echo "unformatted-file-count=${unformatted_file_count}" >> "${GITHUB_OUTPUT}"
-          echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
+          echo "unformatted_file_count=${unformatted_file_count}" >> "${GITHUB_OUTPUT}"
+          echo "has_findings=${has_findings}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload shellfmt report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: shellfmt-results
-          path: ${{ steps.paths.outputs.report-dir }}/
+          name: ${{ inputs.artifact-name }}
+          path: ${{ steps.paths.outputs.report_dir }}/
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
       - name: Enforce shellfmt policy
-        if: success() && inputs.fail-on-findings && steps.results.outputs.has-findings == 'true'
+        if: success() && inputs.fail-on-findings && steps.results.outputs.has_findings == 'true'
         shell: bash
         env:
-          UNFORMATTED_FILE_COUNT: ${{ steps.results.outputs.unformatted-file-count }}
+          UNFORMATTED_FILE_COUNT: ${{ steps.results.outputs.unformatted_file_count }}
         run: |
           set -euo pipefail
 

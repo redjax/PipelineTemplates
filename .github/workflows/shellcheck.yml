@@ -7,42 +7,38 @@ on:
       pipelinetemplates-ref:
         description: >-
           PipelineTemplates branch, tag, or commit SHA containing shared scripts
-          and the central default ShellCheck configuration.
+          and central ShellCheck configuration.
         required: false
         type: string
         default: main
 
       scan-path:
-        description: >-
-          Repository-relative file or directory containing shell scripts.
+        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
 
       shellcheck-version:
-        description: >-
-          ShellCheck release version to install, without a leading v.
+        description: ShellCheck release version, without a leading v.
         required: false
         type: string
         default: "0.10.0"
 
       include-patterns:
-        description: >-
-          Comma-separated file patterns to include.
+        description: Comma-separated shell file patterns to include.
         required: false
         type: string
         default: "*.sh,*.bash,*.bats"
 
       exclude-paths:
-        description: >-
-          Comma-separated files or directories to exclude.
+        description: Comma-separated files or directories to exclude.
         required: false
         type: string
         default: ".git,node_modules,vendor,dist,build,.terraform"
 
       shellcheck-config-path:
         description: >-
-          Optional repository-relative ShellCheck configuration file. When empty,
+          Optional repository-relative ShellCheck configuration path. When empty,
           the central default is used if enabled.
         required: false
         type: string
@@ -51,33 +47,37 @@ on:
       use-default-shellcheck-config:
         description: >-
           Use PipelineTemplates config/shellcheck/.shellcheckrc when no caller
-          configuration file is supplied.
+          ShellCheck configuration file is supplied.
         required: false
         type: boolean
         default: true
 
       fail-on-findings:
-        description: >-
-          Fail after report upload if ShellCheck findings are detected.
+        description: Fail after report upload when ShellCheck findings exist.
         required: false
         type: boolean
         default: true
 
+      artifact-name:
+        description: Name of the uploaded ShellCheck report artifact.
+        required: false
+        type: string
+        default: shellcheck-results
+
       artifact-retention-days:
-        description: >-
-          Number of days to retain the ShellCheck report artifact.
+        description: Number of days to retain the ShellCheck report artifact.
         required: false
         type: number
         default: 30
 
     outputs:
-      finding-count:
+      finding_count:
         description: Number of ShellCheck findings reported.
-        value: ${{ jobs.shellcheck.outputs.finding-count }}
+        value: ${{ jobs.shellcheck.outputs.finding_count }}
 
-      has-findings:
+      has_findings:
         description: Whether ShellCheck reported one or more findings.
-        value: ${{ jobs.shellcheck.outputs.has-findings }}
+        value: ${{ jobs.shellcheck.outputs.has_findings }}
 
 permissions:
   contents: read
@@ -88,8 +88,8 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      finding-count: ${{ steps.results.outputs.finding-count }}
-      has-findings: ${{ steps.results.outputs.has-findings }}
+      finding_count: ${{ steps.results.outputs.finding_count }}
+      has_findings: ${{ steps.results.outputs.has_findings }}
 
     steps:
       - name: Check out calling repository
@@ -152,8 +152,8 @@ jobs:
           report_dir="${RUNNER_TEMP}/shellcheck-reports"
           report_path="${report_dir}/shellcheck.txt"
 
-          echo "report-dir=${report_dir}" >> "${GITHUB_OUTPUT}"
-          echo "report-path=${report_path}" >> "${GITHUB_OUTPUT}"
+          echo "report_dir=${report_dir}" >> "${GITHUB_OUTPUT}"
+          echo "report_path=${report_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Run shared ShellCheck script
         shell: bash
@@ -165,7 +165,7 @@ jobs:
           SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
           SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
-          SHELLCHECK_REPORT_PATH: ${{ steps.paths.outputs.report-path }}
+          SHELLCHECK_REPORT_PATH: ${{ steps.paths.outputs.report_path }}
           SHELLCHECK_FAIL_ON_FINDINGS: "false"
         run: |
           set -euo pipefail
@@ -178,7 +178,7 @@ jobs:
         if: always()
         shell: bash
         env:
-          REPORT_PATH: ${{ steps.paths.outputs.report-path }}
+          REPORT_PATH: ${{ steps.paths.outputs.report_path }}
         run: |
           set -euo pipefail
 
@@ -199,28 +199,29 @@ jobs:
 
           if [[ "${finding_count}" -gt 0 ]]; then
             has_findings=true
+
             echo "::warning title=ShellCheck findings detected::ShellCheck reported ${finding_count} finding(s)."
           else
             echo "::notice title=No ShellCheck findings::ShellCheck completed with no findings."
           fi
 
-          echo "finding-count=${finding_count}" >> "${GITHUB_OUTPUT}"
-          echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
+          echo "finding_count=${finding_count}" >> "${GITHUB_OUTPUT}"
+          echo "has_findings=${has_findings}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload ShellCheck report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: shellcheck-results
-          path: ${{ steps.paths.outputs.report-dir }}/
+          name: ${{ inputs.artifact-name }}
+          path: ${{ steps.paths.outputs.report_dir }}/
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
       - name: Enforce ShellCheck policy
-        if: success() && inputs.fail-on-findings && steps.results.outputs.has-findings == 'true'
+        if: success() && inputs.fail-on-findings && steps.results.outputs.has_findings == 'true'
         shell: bash
         env:
-          FINDING_COUNT: ${{ steps.results.outputs.finding-count }}
+          FINDING_COUNT: ${{ steps.results.outputs.finding_count }}
         run: |
           set -euo pipefail
 
