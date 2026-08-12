@@ -1,0 +1,13 @@
+## Default Shellcheck configuration for PipelineTemplates repository.
+#
+#  A consuming repository can provide its own config file through the
+#  shellcheck-config-path workflow input.
+
+## Default to Bash unless a scanned script has an explicit shebang.
+shell=bash
+
+## Resolve source directives relative to the script being analyzed.
+source-path=SCRIPTDIR
+
+#@ Avoid ANSI color sequences in CI logs and text report artifacts.
+color=never
