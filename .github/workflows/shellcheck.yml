@@ -5,157 +5,95 @@ on:
   workflow_call:
     inputs:
       pipelinetemplates-ref:
-        description: >-
-          PipelineTemplates branch, tag, or commit SHA containing shared scripts
-          and central ShellCheck configuration.
         required: false
         type: string
         default: main
-
       scan-path:
-        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
-
       shellcheck-version:
-        description: ShellCheck release version, without a leading v.
         required: false
         type: string
         default: "0.10.0"
-
       include-patterns:
-        description: Comma-separated shell file patterns to include.
         required: false
         type: string
         default: "*.sh,*.bash,*.bats"
-
       exclude-paths:
-        description: Comma-separated files or directories to exclude.
         required: false
         type: string
         default: ".git,node_modules,vendor,dist,build,.terraform"
-
       shellcheck-config-path:
-        description: >-
-          Optional repository-relative ShellCheck configuration path. When empty,
-          the central default is used if enabled.
         required: false
         type: string
         default: ""
-
       use-default-shellcheck-config:
-        description: >-
-          Use PipelineTemplates config/shellcheck/.shellcheckrc when no caller
-          ShellCheck configuration file is supplied.
         required: false
         type: boolean
         default: true
-
       fail-on-findings:
-        description: Fail after report upload when ShellCheck findings exist.
         required: false
         type: boolean
         default: true
-
       artifact-name:
-        description: Name of the uploaded ShellCheck report artifact.
         required: false
         type: string
         default: shellcheck-results
-
       artifact-retention-days:
-        description: Number of days to retain the ShellCheck report artifact.
         required: false
         type: number
         default: 30
-
-    outputs:
-      finding_count:
-        description: Number of ShellCheck findings reported.
-        value: ${{ jobs.shellcheck.outputs.finding_count }}
-
-      has_findings:
-        description: Whether ShellCheck reported one or more findings.
-        value: ${{ jobs.shellcheck.outputs.has_findings }}
 
 permissions:
   contents: read
 
 jobs:
   shellcheck:
-    name: ShellCheck
     runs-on: ubuntu-latest
 
-    outputs:
-      finding_count: ${{ steps.results.outputs.finding_count }}
-      has_findings: ${{ steps.results.outputs.has_findings }}
-
     steps:
-      - name: Check out calling repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
           path: repository
 
-      - name: Check out PipelineTemplates scripts
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
           fetch-depth: 1
           path: pipeline-templates
 
-      - name: Resolve ShellCheck configuration
+      - name: Resolve configuration
         id: config
         shell: bash
         env:
           CALLER_ROOT: ${{ github.workspace }}/repository
           TEMPLATE_ROOT: ${{ github.workspace }}/pipeline-templates
-          CALLER_CONFIG_PATH: ${{ inputs.shellcheck-config-path }}
-          USE_DEFAULT_CONFIG: ${{ inputs.use-default-shellcheck-config }}
+          CALLER_CONFIG: ${{ inputs.shellcheck-config-path }}
+          USE_DEFAULT: ${{ inputs.use-default-shellcheck-config }}
         run: |
           set -euo pipefail
 
-          resolved_config=""
+          config_path=""
 
-          if [[ -n "${CALLER_CONFIG_PATH}" ]]; then
-            resolved_config="${CALLER_ROOT}/${CALLER_CONFIG_PATH}"
-
-            if [[ ! -f "${resolved_config}" ]]; then
-              echo "::error title=ShellCheck configuration not found::${CALLER_CONFIG_PATH}"
-              exit 1
-            fi
-
-            echo "[INFO] Using caller ShellCheck configuration: ${CALLER_CONFIG_PATH}"
-          elif [[ "${USE_DEFAULT_CONFIG}" == "true" ]]; then
-            resolved_config="${TEMPLATE_ROOT}/config/shellcheck/.shellcheckrc"
-
-            if [[ ! -f "${resolved_config}" ]]; then
-              echo "::error title=Default ShellCheck configuration not found::${resolved_config}"
-              exit 1
-            fi
-
-            echo "[INFO] Using PipelineTemplates default ShellCheck configuration."
-          else
-            echo "[INFO] Running ShellCheck without a configuration file."
+          if [[ -n "${CALLER_CONFIG}" ]]; then
+            config_path="${CALLER_ROOT}/${CALLER_CONFIG}"
+          elif [[ "${USE_DEFAULT}" == "true" ]]; then
+            config_path="${TEMPLATE_ROOT}/config/shellcheck/.shellcheckrc"
           fi
 
-          echo "path=${resolved_config}" >> "${GITHUB_OUTPUT}"
+          if [[ -n "${config_path}" && ! -f "${config_path}" ]]; then
+            echo "::error title=ShellCheck configuration missing::${config_path}"
+            exit 1
+          fi
 
-      - name: Define report path
-        id: paths
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
 
-          report_dir="${RUNNER_TEMP}/shellcheck-reports"
-          report_path="${report_dir}/shellcheck.txt"
-
-          echo "report_dir=${report_dir}" >> "${GITHUB_OUTPUT}"
-          echo "report_path=${report_path}" >> "${GITHUB_OUTPUT}"
-
-      - name: Run shared ShellCheck script
+      - name: Run ShellCheck
+        id: scan
+        continue-on-error: true
         shell: bash
         working-directory: repository
         env:
@@ -165,65 +103,24 @@ jobs:
           SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
           SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
-          SHELLCHECK_REPORT_PATH: ${{ steps.paths.outputs.report_path }}
-          SHELLCHECK_FAIL_ON_FINDINGS: "false"
+          SHELLCHECK_REPORT_PATH: ${{ runner.temp }}/shellcheck-reports/shellcheck.txt
+          SHELLCHECK_FAIL_ON_FINDINGS: "true"
         run: |
           set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
 
-          bash \
-            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
-
-      - name: Read ShellCheck results
-        id: results
-        if: always()
-        shell: bash
-        env:
-          REPORT_PATH: ${{ steps.paths.outputs.report_path }}
-        run: |
-          set -euo pipefail
-
-          finding_count=0
-
-          if [[ -f "${REPORT_PATH}" ]]; then
-            finding_count="$(
-              grep \
-                --extended-regexp \
-                --count \
-                'SC[0-9]+' \
-                "${REPORT_PATH}" \
-                || true
-            )"
-          fi
-
-          has_findings=false
-
-          if [[ "${finding_count}" -gt 0 ]]; then
-            has_findings=true
-
-            echo "::warning title=ShellCheck findings detected::ShellCheck reported ${finding_count} finding(s)."
-          else
-            echo "::notice title=No ShellCheck findings::ShellCheck completed with no findings."
-          fi
-
-          echo "finding_count=${finding_count}" >> "${GITHUB_OUTPUT}"
-          echo "has_findings=${has_findings}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload ShellCheck report
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
-          path: ${{ steps.paths.outputs.report_dir }}/
+          path: ${{ runner.temp }}/shellcheck-reports/
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
-      - name: Enforce ShellCheck policy
-        if: success() && inputs.fail-on-findings && steps.results.outputs.has_findings == 'true'
+      - name: Enforce policy
+        if: steps.scan.outcome == 'failure' && inputs.fail-on-findings
         shell: bash
-        env:
-          FINDING_COUNT: ${{ steps.results.outputs.finding_count }}
         run: |
-          set -euo pipefail
-
-          echo "::error title=ShellCheck policy failed::ShellCheck reported ${FINDING_COUNT} finding(s)."
+          echo "::error title=ShellCheck policy failed::ShellCheck reported findings or could not run."
           exit 1

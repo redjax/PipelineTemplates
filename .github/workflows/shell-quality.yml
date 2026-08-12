@@ -15,93 +15,35 @@ on:
   workflow_call:
     inputs:
       pipelinetemplates-ref:
-        description: >-
-          PipelineTemplates branch, tag, or commit SHA used by the individual
-          workflows to retrieve shared scripts and default configurations.
         required: false
         type: string
         default: main
-
       tools:
-        description: "Tools to run: shellcheck, shellfmt, or both."
+        description: shellcheck, shellfmt, or both
         required: false
         type: string
         default: both
-
       scan-path:
-        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
-
-      include-patterns:
-        description: Comma-separated shell file patterns to include.
-        required: false
-        type: string
-        default: "*.sh,*.bash,*.bats"
-
-      exclude-paths:
-        description: Comma-separated files or directories to exclude.
-        required: false
-        type: string
-        default: ".git,node_modules,vendor,dist,build,.terraform"
-
       shellcheck-version:
-        description: ShellCheck release version.
         required: false
         type: string
         default: "0.10.0"
-
-      shellcheck-config-path:
-        description: Optional repository-relative ShellCheck configuration path.
-        required: false
-        type: string
-        default: ""
-
-      use-default-shellcheck-config:
-        description: Use the PipelineTemplates default ShellCheck configuration.
-        required: false
-        type: boolean
-        default: true
-
       shellfmt-version:
-        description: shellfmt release version.
         required: false
         type: string
         default: "3.10.0"
-
-      shellfmt-config-path:
-        description: Optional repository-relative shellfmt options-file path.
+      shellfmt-mode:
         required: false
         type: string
-        default: ""
-
-      use-default-shellfmt-config:
-        description: Use the PipelineTemplates default shellfmt configuration.
-        required: false
-        type: boolean
-        default: true
-
+        default: check
       fail-on-findings:
-        description: Fail selected jobs after reports are uploaded when findings exist.
         required: false
         type: boolean
         default: true
-
-      shellcheck-artifact-name:
-        description: Artifact name passed to shellcheck.yml.
-        required: false
-        type: string
-        default: shellcheck-results
-
-      shellfmt-artifact-name:
-        description: Artifact name passed to shellfmt.yml.
-        required: false
-        type: string
-        default: shellfmt-results
-
       artifact-retention-days:
-        description: Number of days to retain individual tool report artifacts.
         required: false
         type: number
         default: 30
@@ -111,28 +53,21 @@ permissions:
 
 jobs:
   validate:
-    name: Validate tool selection
     runs-on: ubuntu-latest
-
     steps:
-      - name: Validate tools input
-        shell: bash
+      - shell: bash
         env:
           TOOLS: ${{ inputs.tools }}
         run: |
-          set -euo pipefail
-
           case "${TOOLS}" in
-            shellcheck|shellfmt|both)
-              ;;
+            shellcheck|shellfmt|both) ;;
             *)
-              echo "::error title=Invalid tool selection::tools must be shellcheck, shellfmt, or both."
+              echo "::error title=Invalid tools input::Use shellcheck, shellfmt, or both."
               exit 1
               ;;
           esac
 
   shellcheck:
-    name: ShellCheck
     needs: validate
     if: inputs.tools == 'shellcheck' || inputs.tools == 'both'
     uses: ./.github/workflows/shellcheck.yml
@@ -140,16 +75,11 @@ jobs:
       pipelinetemplates-ref: ${{ inputs.pipelinetemplates-ref }}
       scan-path: ${{ inputs.scan-path }}
       shellcheck-version: ${{ inputs.shellcheck-version }}
-      include-patterns: ${{ inputs.include-patterns }}
-      exclude-paths: ${{ inputs.exclude-paths }}
-      shellcheck-config-path: ${{ inputs.shellcheck-config-path }}
-      use-default-shellcheck-config: ${{ inputs.use-default-shellcheck-config }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
-      artifact-name: ${{ inputs.shellcheck-artifact-name }}
+      artifact-name: shellcheck-results
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
 
   shellfmt:
-    name: shellfmt
     needs: validate
     if: inputs.tools == 'shellfmt' || inputs.tools == 'both'
     uses: ./.github/workflows/shellfmt.yml
@@ -157,10 +87,7 @@ jobs:
       pipelinetemplates-ref: ${{ inputs.pipelinetemplates-ref }}
       scan-path: ${{ inputs.scan-path }}
       shellfmt-version: ${{ inputs.shellfmt-version }}
-      include-patterns: ${{ inputs.include-patterns }}
-      exclude-paths: ${{ inputs.exclude-paths }}
-      shellfmt-config-path: ${{ inputs.shellfmt-config-path }}
-      use-default-shellfmt-config: ${{ inputs.use-default-shellfmt-config }}
+      mode: ${{ inputs.shellfmt-mode }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
-      artifact-name: ${{ inputs.shellfmt-artifact-name }}
+      artifact-name: shellfmt-results
       artifact-retention-days: ${{ inputs.artifact-retention-days }}

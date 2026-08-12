@@ -5,157 +5,100 @@ on:
   workflow_call:
     inputs:
       pipelinetemplates-ref:
-        description: >-
-          PipelineTemplates branch, tag, or commit SHA containing shared scripts
-          and central shellfmt configuration.
         required: false
         type: string
         default: main
-
       scan-path:
-        description: Repository-relative file or directory containing shell scripts.
         required: false
         type: string
         default: "."
-
       shellfmt-version:
-        description: shellfmt release version, without a leading v.
         required: false
         type: string
         default: "3.10.0"
-
       include-patterns:
-        description: Comma-separated shell file patterns to include.
         required: false
         type: string
         default: "*.sh,*.bash,*.bats"
-
       exclude-paths:
-        description: Comma-separated files or directories to exclude.
         required: false
         type: string
         default: ".git,node_modules,vendor,dist,build,.terraform"
-
       shellfmt-config-path:
-        description: >-
-          Optional repository-relative shellfmt options-file path. When empty,
-          the central default is used if enabled.
         required: false
         type: string
         default: ""
-
       use-default-shellfmt-config:
-        description: >-
-          Use PipelineTemplates config/shellfmt/options when no caller shellfmt
-          configuration file is supplied.
         required: false
         type: boolean
         default: true
-
+      mode:
+        description: check detects differences; write formats the runner checkout.
+        required: false
+        type: string
+        default: check
       fail-on-findings:
-        description: Fail after report upload when shellfmt differences exist.
         required: false
         type: boolean
         default: true
-
       artifact-name:
-        description: Name of the uploaded shellfmt report artifact.
         required: false
         type: string
         default: shellfmt-results
-
       artifact-retention-days:
-        description: Number of days to retain the shellfmt report artifact.
         required: false
         type: number
         default: 30
-
-    outputs:
-      unformatted_file_count:
-        description: Number of files with shellfmt formatting differences.
-        value: ${{ jobs.shellfmt.outputs.unformatted_file_count }}
-
-      has_findings:
-        description: Whether shellfmt reported formatting differences.
-        value: ${{ jobs.shellfmt.outputs.has_findings }}
 
 permissions:
   contents: read
 
 jobs:
   shellfmt:
-    name: shellfmt
     runs-on: ubuntu-latest
 
-    outputs:
-      unformatted_file_count: ${{ steps.results.outputs.unformatted_file_count }}
-      has_findings: ${{ steps.results.outputs.has_findings }}
-
     steps:
-      - name: Check out calling repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 1
           path: repository
 
-      - name: Check out PipelineTemplates scripts
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}
           fetch-depth: 1
           path: pipeline-templates
 
-      - name: Resolve shellfmt configuration
+      - name: Resolve configuration
         id: config
         shell: bash
         env:
           CALLER_ROOT: ${{ github.workspace }}/repository
           TEMPLATE_ROOT: ${{ github.workspace }}/pipeline-templates
-          CALLER_CONFIG_PATH: ${{ inputs.shellfmt-config-path }}
-          USE_DEFAULT_CONFIG: ${{ inputs.use-default-shellfmt-config }}
+          CALLER_CONFIG: ${{ inputs.shellfmt-config-path }}
+          USE_DEFAULT: ${{ inputs.use-default-shellfmt-config }}
         run: |
           set -euo pipefail
 
-          resolved_config=""
+          config_path=""
 
-          if [[ -n "${CALLER_CONFIG_PATH}" ]]; then
-            resolved_config="${CALLER_ROOT}/${CALLER_CONFIG_PATH}"
-
-            if [[ ! -f "${resolved_config}" ]]; then
-              echo "::error title=shellfmt configuration not found::${CALLER_CONFIG_PATH}"
-              exit 1
-            fi
-
-            echo "[INFO] Using caller shellfmt configuration: ${CALLER_CONFIG_PATH}"
-          elif [[ "${USE_DEFAULT_CONFIG}" == "true" ]]; then
-            resolved_config="${TEMPLATE_ROOT}/config/shellfmt/options"
-
-            if [[ ! -f "${resolved_config}" ]]; then
-              echo "::error title=Default shellfmt configuration not found::${resolved_config}"
-              exit 1
-            fi
-
-            echo "[INFO] Using PipelineTemplates default shellfmt configuration."
-          else
-            echo "[INFO] Running shellfmt without an options file."
+          if [[ -n "${CALLER_CONFIG}" ]]; then
+            config_path="${CALLER_ROOT}/${CALLER_CONFIG}"
+          elif [[ "${USE_DEFAULT}" == "true" ]]; then
+            config_path="${TEMPLATE_ROOT}/config/shellfmt/options"
           fi
 
-          echo "path=${resolved_config}" >> "${GITHUB_OUTPUT}"
+          if [[ -n "${config_path}" && ! -f "${config_path}" ]]; then
+            echo "::error title=shellfmt configuration missing::${config_path}"
+            exit 1
+          fi
 
-      - name: Define report path
-        id: paths
-        shell: bash
-        run: |
-          set -euo pipefail
+          echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
 
-          report_dir="${RUNNER_TEMP}/shellfmt-reports"
-          report_path="${report_dir}/shellfmt.diff"
-
-          echo "report_dir=${report_dir}" >> "${GITHUB_OUTPUT}"
-          echo "report_path=${report_path}" >> "${GITHUB_OUTPUT}"
-
-      - name: Run shared shellfmt script
+      - name: Run shellfmt
+        id: scan
+        continue-on-error: true
         shell: bash
         working-directory: repository
         env:
@@ -165,65 +108,25 @@ jobs:
           SHELLFMT_SCAN_PATH: ${{ inputs.scan-path }}
           SHELLFMT_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLFMT_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
-          SHELLFMT_REPORT_PATH: ${{ steps.paths.outputs.report_path }}
-          SHELLFMT_FAIL_ON_FINDINGS: "false"
+          SHELLFMT_REPORT_PATH: ${{ runner.temp }}/shellfmt-reports/shellfmt.diff
+          SHELLFMT_MODE: ${{ inputs.mode }}
+          SHELLFMT_FAIL_ON_FINDINGS: "true"
         run: |
           set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellfmt.sh"
 
-          bash \
-            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellfmt.sh"
-
-      - name: Read shellfmt results
-        id: results
-        if: always()
-        shell: bash
-        env:
-          REPORT_PATH: ${{ steps.paths.outputs.report_path }}
-        run: |
-          set -euo pipefail
-
-          unformatted_file_count=0
-
-          if [[ -f "${REPORT_PATH}" ]]; then
-            unformatted_file_count="$(
-              grep \
-                --fixed-strings \
-                --count \
-                '--- ' \
-                "${REPORT_PATH}" \
-                || true
-            )"
-          fi
-
-          has_findings=false
-
-          if [[ "${unformatted_file_count}" -gt 0 ]]; then
-            has_findings=true
-
-            echo "::warning title=shellfmt differences detected::shellfmt reported ${unformatted_file_count} unformatted file(s)."
-          else
-            echo "::notice title=No shellfmt differences::shellfmt completed with no formatting differences."
-          fi
-
-          echo "unformatted_file_count=${unformatted_file_count}" >> "${GITHUB_OUTPUT}"
-          echo "has_findings=${has_findings}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload shellfmt report
+      - name: Upload report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
-          path: ${{ steps.paths.outputs.report_dir }}/
+          path: ${{ runner.temp }}/shellfmt-reports/
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
-      - name: Enforce shellfmt policy
-        if: success() && inputs.fail-on-findings && steps.results.outputs.has_findings == 'true'
+      - name: Enforce policy
+        if: steps.scan.outcome == 'failure' && inputs.fail-on-findings
         shell: bash
-        env:
-          UNFORMATTED_FILE_COUNT: ${{ steps.results.outputs.unformatted_file_count }}
         run: |
-          set -euo pipefail
-
-          echo "::error title=shellfmt policy failed::shellfmt reported ${UNFORMATTED_FILE_COUNT} unformatted file(s)."
+          echo "::error title=shellfmt policy failed::shellfmt reported formatting differences or could not run."
           exit 1

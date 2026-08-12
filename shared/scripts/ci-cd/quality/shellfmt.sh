@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-#########################################################
-# Run shellfmt                                          #
-#                                                       #
-# Environment:                                          #
-#   SHELLFMT_VERSION                                    #
-#   SHELLFMT_INSTALL_DIR                                #
-#   SHELLFMT_BIN                                        #
-#   SHELLFMT_CONFIG_PATH                                #
-#   SHELLFMT_SCAN_PATH                                  #
-#   SHELLFMT_INCLUDE_PATTERNS                           #
-#   SHELLFMT_EXCLUDE_PATHS                              #
-#   SHELLFMT_REPORT_PATH                                #
-#   SHELLFMT_FAIL_ON_FINDINGS                           #
-#########################################################
-
 _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _REPOSITORY_ROOT="$(cd "${_DIR}/../../../.." && pwd)"
 
@@ -29,40 +14,43 @@ SHELLFMT_SCAN_PATH="${SHELLFMT_SCAN_PATH:-.}"
 SHELLFMT_INCLUDE_PATTERNS="${SHELLFMT_INCLUDE_PATTERNS:-*.sh,*.bash,*.bats}"
 SHELLFMT_EXCLUDE_PATHS="${SHELLFMT_EXCLUDE_PATHS:-.git,node_modules,vendor,dist,build,.terraform}"
 SHELLFMT_REPORT_PATH="${SHELLFMT_REPORT_PATH:-./reports/shellfmt/shellfmt.diff}"
-SHELLFMT_FAIL_ON_FINDINGS="${SHELLFMT_FAIL_ON_FINDINGS:-false}"
+SHELLFMT_MODE="${SHELLFMT_MODE:-check}"
+SHELLFMT_FAIL_ON_FINDINGS="${SHELLFMT_FAIL_ON_FINDINGS:-true}"
 
 function fail() {
   echo "[ERROR] $*" >&2
   exit 2
 }
 
-function validate_boolean() {
-  local variable_name="${1}"
-  local value="${2}"
-
-  case "${value}" in
-  true | false) ;;
+function validate_inputs() {
+  case "${SHELLFMT_MODE}" in
+  check | write) ;;
   *)
-    fail "${variable_name} must be either 'true' or 'false'."
+    fail "SHELLFMT_MODE must be check or write."
     ;;
   esac
-}
 
-function validate_inputs() {
-  validate_boolean "SHELLFMT_FAIL_ON_FINDINGS" "${SHELLFMT_FAIL_ON_FINDINGS}"
+  case "${SHELLFMT_FAIL_ON_FINDINGS}" in
+  true | false) ;;
+  *)
+    fail "SHELLFMT_FAIL_ON_FINDINGS must be true or false."
+    ;;
+  esac
 
-  if [[ ! -e "${SHELLFMT_SCAN_PATH}" ]]; then
+  [[ -e "${SHELLFMT_SCAN_PATH}" ]] ||
     fail "SHELLFMT_SCAN_PATH does not exist: ${SHELLFMT_SCAN_PATH}"
-  fi
 
-  if [[ -n "${SHELLFMT_CONFIG_PATH}" && ! -f "${SHELLFMT_CONFIG_PATH}" ]]; then
-    fail "SHELLFMT_CONFIG_PATH does not exist: ${SHELLFMT_CONFIG_PATH}"
+  if [[ -n "${SHELLFMT_CONFIG_PATH}" ]]; then
+    [[ -f "${SHELLFMT_CONFIG_PATH}" ]] ||
+      fail "SHELLFMT_CONFIG_PATH does not exist: ${SHELLFMT_CONFIG_PATH}"
   fi
 }
 
 function resolve_shellfmt_binary() {
   if [[ -n "${SHELLFMT_BIN}" ]]; then
-    [[ -x "${SHELLFMT_BIN}" ]] || fail "SHELLFMT_BIN is not executable: ${SHELLFMT_BIN}"
+    [[ -x "${SHELLFMT_BIN}" ]] ||
+      fail "SHELLFMT_BIN is not executable: ${SHELLFMT_BIN}"
+
     return 0
   fi
 
@@ -75,8 +63,6 @@ function resolve_shellfmt_binary() {
     SHELLFMT_BIN="$(command -v shfmt)"
     return 0
   fi
-
-  echo "[INFO] shellfmt is not installed; installing v${SHELLFMT_VERSION}"
 
   SHELLFMT_VERSION="${SHELLFMT_VERSION}" \
     SHELLFMT_INSTALL_DIR="${SHELLFMT_INSTALL_DIR}" \
@@ -96,9 +82,7 @@ function path_is_excluded() {
     excluded_path="${excluded_path#"${excluded_path%%[![:space:]]*}"}"
     excluded_path="${excluded_path%"${excluded_path##*[![:space:]]}"}"
 
-    if [[ -z "${excluded_path}" ]]; then
-      continue
-    fi
+    [[ -n "${excluded_path}" ]] || continue
 
     if [[ "${file_path}" == *"/${excluded_path}/"* || "${file_path}" == *"/${excluded_path}" ]]; then
       return 0
@@ -109,66 +93,53 @@ function path_is_excluded() {
 }
 
 function find_shell_files() {
-  local include_pattern
   local file_path
+  local include_pattern
   local -a include_patterns=()
 
   IFS=',' read -r -a include_patterns <<<"${SHELLFMT_INCLUDE_PATTERNS}"
 
   while IFS= read -r -d '' file_path; do
-    if path_is_excluded "${file_path}"; then
-      continue
-    fi
+    path_is_excluded "${file_path}" && continue
 
     for include_pattern in "${include_patterns[@]}"; do
       include_pattern="${include_pattern#"${include_pattern%%[![:space:]]*}"}"
       include_pattern="${include_pattern%"${include_pattern##*[![:space:]]}"}"
 
       # shellcheck disable=SC2053
-      # include_pattern is intentionally a glob, for example: *.sh or *.bash.
       if [[ -n "${include_pattern}" && "$(basename "${file_path}")" == ${include_pattern} ]]; then
         printf '%s\0' "${file_path}"
         break
       fi
     done
-  done < <(
-    find "${SHELLFMT_SCAN_PATH}" \
-      -type f \
-      -print0
-  )
+  done < <(find "${SHELLFMT_SCAN_PATH}" -type f -print0)
 }
 
-function read_shellfmt_options() {
-  local option=""
+function read_options() {
+  local option
 
   SHELLFMT_OPTIONS=()
 
-  if [[ -z "${SHELLFMT_CONFIG_PATH}" ]]; then
-    return 0
-  fi
+  [[ -n "${SHELLFMT_CONFIG_PATH}" ]] || return 0
 
   while IFS= read -r option || [[ -n "${option}" ]]; do
     option="${option#"${option%%[![:space:]]*}"}"
     option="${option%"${option##*[![:space:]]}"}"
 
-    if [[ -z "${option}" || "${option}" == \#* ]]; then
-      continue
-    fi
+    [[ -n "${option}" && "${option}" != \#* ]] || continue
 
     SHELLFMT_OPTIONS+=("${option}")
   done <"${SHELLFMT_CONFIG_PATH}"
 }
 
 function main() {
-  local shellfmt_exit_code=0
-  local unformatted_file_count=0
-  local has_findings=false
-  local -a command=()
+  local exit_code=0
   local -a shell_files=()
+  local -a command=()
 
   validate_inputs
   resolve_shellfmt_binary
-  read_shellfmt_options
+  read_options
 
   mkdir --parents "$(dirname "${SHELLFMT_REPORT_PATH}")"
 
@@ -178,61 +149,54 @@ function main() {
 
   if [[ "${#shell_files[@]}" -eq 0 ]]; then
     : >"${SHELLFMT_REPORT_PATH}"
-
-    echo "[INFO] No files matched SHELLFMT_INCLUDE_PATTERNS."
-    echo "SHELLFMT_UNFORMATTED_FILE_COUNT=0"
-    echo "SHELLFMT_HAS_FINDINGS=false"
-    echo "SHELLFMT_REPORT_PATH=${SHELLFMT_REPORT_PATH}"
-
-    return 0
+    echo "[INFO] No shellfmt files found."
+    exit 0
   fi
 
   command=(
     "${SHELLFMT_BIN}"
-    -d
     "${SHELLFMT_OPTIONS[@]}"
-    "${shell_files[@]}"
   )
 
-  echo "[INFO] Running shellfmt against ${#shell_files[@]} file(s)."
-
-  set +e
-  "${command[@]}" >"${SHELLFMT_REPORT_PATH}"
-  shellfmt_exit_code=$?
-  set -e
-
-  case "${shellfmt_exit_code}" in
-  0) ;;
-  1) ;;
-  *)
-    cat "${SHELLFMT_REPORT_PATH}" >&2
-    fail "shellfmt failed with exit code ${shellfmt_exit_code}."
+  case "${SHELLFMT_MODE}" in
+  check)
+    command+=(-d)
+    ;;
+  write)
+    command+=(-l)
     ;;
   esac
 
-  unformatted_file_count="$(
-    grep \
-      --fixed-strings \
-      --count \
-      -- \
-      '--- ' \
-      "${SHELLFMT_REPORT_PATH}" ||
-      true
-  )"
+  command+=("${shell_files[@]}")
 
-  if [[ "${unformatted_file_count}" -gt 0 ]]; then
-    has_findings=true
-    echo "[WARN] shellfmt reported ${unformatted_file_count} unformatted file(s)."
-  else
-    echo "[INFO] shellfmt completed with no formatting differences."
+  printf '[INFO] Command:'
+  printf ' %q' "${command[@]}"
+  printf '\n'
+
+  set +e
+  "${command[@]}" >"${SHELLFMT_REPORT_PATH}" 2>&1
+  exit_code=$?
+  set -e
+
+  [[ "${exit_code}" -eq 0 ]] ||
+    fail "shellfmt failed with exit code ${exit_code}."
+
+  if [[ "${SHELLFMT_MODE}" == "write" && -s "${SHELLFMT_REPORT_PATH}" ]]; then
+    "${SHELLFMT_BIN}" \
+      "${SHELLFMT_OPTIONS[@]}" \
+      -w \
+      "${shell_files[@]}"
+
+    echo "[INFO] shellfmt formatted listed files in the runner checkout."
+    exit 0
   fi
 
-  echo "SHELLFMT_UNFORMATTED_FILE_COUNT=${unformatted_file_count}"
-  echo "SHELLFMT_HAS_FINDINGS=${has_findings}"
-  echo "SHELLFMT_REPORT_PATH=${SHELLFMT_REPORT_PATH}"
+  if [[ "${SHELLFMT_MODE}" == "check" && -s "${SHELLFMT_REPORT_PATH}" ]]; then
+    echo "[WARN] shellfmt found formatting differences."
 
-  if [[ "${SHELLFMT_FAIL_ON_FINDINGS}" == "true" && "${has_findings}" == "true" ]]; then
-    exit 1
+    if [[ "${SHELLFMT_FAIL_ON_FINDINGS}" == "true" ]]; then
+      exit 1
+    fi
   fi
 }
 
