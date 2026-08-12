@@ -63,9 +63,6 @@ on:
         type: string
         default: "style(shell): format shell scripts with shellfmt"
 
-permissions:
-  contents: read
-
 jobs:
   shellfmt:
     runs-on: ubuntu-latest
@@ -157,7 +154,6 @@ jobs:
 
       - name: Run shellfmt
         id: scan
-        continue-on-error: true
         shell: bash
         working-directory: repository
         env:
@@ -173,12 +169,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          set +e
+
           bash \
             "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellfmt.sh"
 
+          exit_code=$?
+
+          set -e
+
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "[INFO] shellfmt exit code: ${exit_code}"
+
       - name: Commit shellfmt changes to pull request
         if: >-
-          success()
+          steps.scan.outputs.exit_code == '0'
           && inputs.mode == 'write'
           && inputs.commit-changes
           && github.event_name == 'pull_request'
@@ -218,9 +223,23 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
-      - name: Enforce policy
-        if: steps.scan.outcome == 'failure' && inputs.fail-on-findings
+      - name: Enforce shellfmt policy
+        if: always() && steps.scan.outputs.exit_code != '0'
         shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
-          echo "::error title=shellfmt policy failed::shellfmt reported formatting differences or could not run."
-          exit 1
+          set -euo pipefail
+
+          if [[ "${EXIT_CODE}" -gt 1 ]]; then
+            echo "::error title=shellfmt execution failed::shellfmt could not complete successfully. Exit code: ${EXIT_CODE}."
+            exit "${EXIT_CODE}"
+          fi
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            echo "::error title=shellfmt policy failed::shellfmt reported formatting differences."
+            exit 1
+          fi
+
+          echo "::warning title=shellfmt differences detected::shellfmt reported formatting differences, but fail-on-findings is disabled."

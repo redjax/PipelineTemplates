@@ -134,6 +134,7 @@ function read_options() {
 
 function main() {
   local exit_code=0
+  local write_exit_code=0
   local -a shell_files=()
   local -a command=()
 
@@ -178,26 +179,49 @@ function main() {
   exit_code=$?
   set -e
 
-  [[ "${exit_code}" -eq 0 ]] ||
-    fail "shellfmt failed with exit code ${exit_code}."
+  case "${SHELLFMT_MODE}:${exit_code}" in
+  check:0)
+    echo "[INFO] shellfmt completed with no formatting differences."
+    ;;
 
-  if [[ "${SHELLFMT_MODE}" == "write" && -s "${SHELLFMT_REPORT_PATH}" ]]; then
-    "${SHELLFMT_BIN}" \
-      "${SHELLFMT_OPTIONS[@]}" \
-      -w \
-      "${shell_files[@]}"
-
-    echo "[INFO] shellfmt formatted listed files in the runner checkout."
-    exit 0
-  fi
-
-  if [[ "${SHELLFMT_MODE}" == "check" && -s "${SHELLFMT_REPORT_PATH}" ]]; then
+  check:1)
     echo "[WARN] shellfmt found formatting differences."
 
     if [[ "${SHELLFMT_FAIL_ON_FINDINGS}" == "true" ]]; then
       exit 1
     fi
-  fi
+    ;;
+
+  write:0)
+    if [[ -s "${SHELLFMT_REPORT_PATH}" ]]; then
+      echo "[INFO] shellfmt will format listed files in the runner checkout."
+
+      set +e
+
+      "${SHELLFMT_BIN}" \
+        "${SHELLFMT_OPTIONS[@]}" \
+        -w \
+        "${shell_files[@]}"
+
+      write_exit_code=$?
+
+      set -e
+
+      if [[ "${write_exit_code}" -ne 0 ]]; then
+        fail "shellfmt could not write formatted files. Exit code: ${write_exit_code}."
+      fi
+
+      echo "[INFO] shellfmt formatted listed files in the runner checkout."
+    else
+      echo "[INFO] shellfmt found no files requiring formatting."
+    fi
+    ;;
+
+  *)
+    cat "${SHELLFMT_REPORT_PATH}" >&2
+    fail "shellfmt failed with exit code ${exit_code}."
+    ;;
+  esac
 }
 
 main "$@"
