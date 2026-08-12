@@ -1,0 +1,245 @@
+---
+name: shellfmt
+
+on:
+  workflow_call:
+    inputs:
+      pipelinetemplates-ref:
+        required: false
+        type: string
+        default: main
+      scan-path:
+        required: false
+        type: string
+        default: "."
+      shellfmt-version:
+        required: false
+        type: string
+        default: "3.10.0"
+      include-patterns:
+        required: false
+        type: string
+        default: "*.sh,*.bash,*.bats"
+      exclude-paths:
+        required: false
+        type: string
+        default: ".git,node_modules,vendor,dist,build,.terraform"
+      shellfmt-config-path:
+        required: false
+        type: string
+        default: ""
+      use-default-shellfmt-config:
+        required: false
+        type: boolean
+        default: true
+      mode:
+        description: check detects differences; write formats the runner checkout.
+        required: false
+        type: string
+        default: check
+      fail-on-findings:
+        required: false
+        type: boolean
+        default: true
+      artifact-name:
+        required: false
+        type: string
+        default: shellfmt-results
+      artifact-retention-days:
+        required: false
+        type: number
+        default: 30
+      commit-changes:
+        description: >-
+          Commit and push shellfmt changes back to an internal pull request.
+          Requires mode: write and contents: write permission.
+        required: false
+        type: boolean
+        default: false
+      commit-message:
+        description: >-
+          Commit message used when shellfmt writes changes to a pull request.
+        required: false
+        type: string
+        default: "style(shell): format shell scripts with shellfmt"
+
+jobs:
+  shellfmt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out calling repository
+        uses: actions/checkout@v4
+        with:
+          ## On an internal pull request, check out its actual source branch so
+          #  shellfmt changes can be committed and pushed back to that branch.
+          #
+          #  On push, schedule, and manual runs, use the triggering SHA.
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
+          fetch-depth: 1
+          path: repository
+          persist-credentials: true
+
+      - name: Validate shellfmt write policy
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          COMMIT_CHANGES: ${{ inputs.commit-changes }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          CURRENT_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          case "${MODE}" in
+            check|write)
+              ;;
+            *)
+              echo "::error title=Invalid shellfmt mode::mode must be check or write."
+              exit 1
+              ;;
+          esac
+
+          if [[ "${COMMIT_CHANGES}" != "true" ]]; then
+            exit 0
+          fi
+
+          if [[ "${MODE}" != "write" ]]; then
+            echo "::error title=Invalid shellfmt commit configuration::commit-changes requires mode: write."
+            exit 1
+          fi
+
+          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
+            echo "::error title=Invalid shellfmt commit configuration::commit-changes is supported only for pull_request events."
+            exit 1
+          fi
+
+          if [[ "${HEAD_REPOSITORY}" != "${CURRENT_REPOSITORY}" ]]; then
+            echo "::error title=Fork pull request not supported::Automatic commits are disabled for pull requests from forks."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          fetch-depth: 1
+          path: pipeline-templates
+
+      - name: Resolve configuration
+        id: config
+        shell: bash
+        env:
+          CALLER_ROOT: ${{ github.workspace }}/repository
+          TEMPLATE_ROOT: ${{ github.workspace }}/pipeline-templates
+          CALLER_CONFIG: ${{ inputs.shellfmt-config-path }}
+          USE_DEFAULT: ${{ inputs.use-default-shellfmt-config }}
+        run: |
+          set -euo pipefail
+
+          config_path=""
+
+          if [[ -n "${CALLER_CONFIG}" ]]; then
+            config_path="${CALLER_ROOT}/${CALLER_CONFIG}"
+          elif [[ "${USE_DEFAULT}" == "true" ]]; then
+            config_path="${TEMPLATE_ROOT}/config/shellfmt/options"
+          fi
+
+          if [[ -n "${config_path}" && ! -f "${config_path}" ]]; then
+            echo "::error title=shellfmt configuration missing::${config_path}"
+            exit 1
+          fi
+
+          echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shellfmt
+        id: scan
+        shell: bash
+        working-directory: repository
+        env:
+          SHELLFMT_VERSION: ${{ inputs.shellfmt-version }}
+          SHELLFMT_INSTALL_DIR: ${{ runner.temp }}/shellfmt-bin
+          SHELLFMT_CONFIG_PATH: ${{ steps.config.outputs.path }}
+          SHELLFMT_SCAN_PATH: ${{ inputs.scan-path }}
+          SHELLFMT_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
+          SHELLFMT_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SHELLFMT_REPORT_PATH: ${{ runner.temp }}/shellfmt-reports/shellfmt.diff
+          SHELLFMT_MODE: ${{ inputs.mode }}
+          SHELLFMT_FAIL_ON_FINDINGS: "true"
+        run: |
+          set -euo pipefail
+
+          set +e
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellfmt.sh"
+
+          exit_code=$?
+
+          set -e
+
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "[INFO] shellfmt exit code: ${exit_code}"
+
+      - name: Commit shellfmt changes to pull request
+        if: >-
+          steps.scan.outputs.exit_code == '0'
+          && inputs.mode == 'write'
+          && inputs.commit-changes
+          && github.event_name == 'pull_request'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        working-directory: repository
+        env:
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          PR_BRANCH: ${{ github.head_ref }}
+          SCAN_PATH: ${{ inputs.scan-path }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- "${SCAN_PATH}"; then
+            echo "[INFO] shellfmt made no tracked file changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- "${SCAN_PATH}"
+
+          git commit \
+            --message "${COMMIT_MESSAGE}"
+
+          git push origin "HEAD:${PR_BRANCH}"
+
+          echo "[INFO] Committed shellfmt changes to pull request branch: ${PR_BRANCH}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/shellfmt-reports/
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Enforce shellfmt policy
+        if: always() && steps.scan.outputs.exit_code != '0'
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EXIT_CODE}" -gt 1 ]]; then
+            echo "::error title=shellfmt execution failed::shellfmt could not complete successfully. Exit code: ${EXIT_CODE}."
+            exit "${EXIT_CODE}"
+          fi
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            echo "::error title=shellfmt policy failed::shellfmt reported formatting differences."
+            exit 1
+          fi
+
+          echo "::warning title=shellfmt differences detected::shellfmt reported formatting differences, but fail-on-findings is disabled."

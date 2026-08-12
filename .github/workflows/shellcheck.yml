@@ -1,0 +1,150 @@
+---
+name: ShellCheck
+
+on:
+  workflow_call:
+    inputs:
+      pipelinetemplates-ref:
+        required: false
+        type: string
+        default: main
+      scan-path:
+        required: false
+        type: string
+        default: "."
+      shellcheck-version:
+        required: false
+        type: string
+        default: "0.10.0"
+      include-patterns:
+        required: false
+        type: string
+        default: "*.sh,*.bash,*.bats"
+      exclude-paths:
+        required: false
+        type: string
+        default: ".git,node_modules,vendor,dist,build,.terraform"
+      shellcheck-config-path:
+        required: false
+        type: string
+        default: ""
+      use-default-shellcheck-config:
+        required: false
+        type: boolean
+        default: true
+      fail-on-findings:
+        required: false
+        type: boolean
+        default: true
+      artifact-name:
+        required: false
+        type: string
+        default: shellcheck-results
+      artifact-retention-days:
+        required: false
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          path: repository
+
+      - uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          fetch-depth: 1
+          path: pipeline-templates
+
+      - name: Resolve configuration
+        id: config
+        shell: bash
+        env:
+          CALLER_ROOT: ${{ github.workspace }}/repository
+          TEMPLATE_ROOT: ${{ github.workspace }}/pipeline-templates
+          CALLER_CONFIG: ${{ inputs.shellcheck-config-path }}
+          USE_DEFAULT: ${{ inputs.use-default-shellcheck-config }}
+        run: |
+          set -euo pipefail
+
+          config_path=""
+
+          if [[ -n "${CALLER_CONFIG}" ]]; then
+            config_path="${CALLER_ROOT}/${CALLER_CONFIG}"
+          elif [[ "${USE_DEFAULT}" == "true" ]]; then
+            config_path="${TEMPLATE_ROOT}/config/shellcheck/.shellcheckrc"
+          fi
+
+          if [[ -n "${config_path}" && ! -f "${config_path}" ]]; then
+            echo "::error title=ShellCheck configuration missing::${config_path}"
+            exit 1
+          fi
+
+          echo "path=${config_path}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run ShellCheck
+        id: scan
+        shell: bash
+        working-directory: repository
+        env:
+          SHELLCHECK_VERSION: ${{ inputs.shellcheck-version }}
+          SHELLCHECK_INSTALL_DIR: ${{ runner.temp }}/shellcheck-bin
+          SHELLCHECK_CONFIG_PATH: ${{ steps.config.outputs.path }}
+          SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
+          SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
+          SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SHELLCHECK_REPORT_PATH: ${{ runner.temp }}/shellcheck-reports/shellcheck.txt
+          SHELLCHECK_FAIL_ON_FINDINGS: "true"
+        run: |
+          set -euo pipefail
+
+          set +e
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
+          exit_code=$?
+
+          set -e
+
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "[INFO] ShellCheck exit code: ${exit_code}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/shellcheck-reports/
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Enforce ShellCheck policy
+        if: always() && steps.scan.outputs.exit_code != '0'
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${EXIT_CODE}" -gt 1 ]]; then
+            echo "::error title=ShellCheck execution failed::ShellCheck could not complete successfully. Exit code: ${EXIT_CODE}."
+            exit "${EXIT_CODE}"
+          fi
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            echo "::error title=ShellCheck policy failed::ShellCheck reported lint findings."
+            exit 1
+          fi
+
+          echo "::warning title=ShellCheck findings detected::ShellCheck reported findings, but fail-on-findings is disabled."
