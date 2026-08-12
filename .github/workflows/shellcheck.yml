@@ -93,7 +93,6 @@ jobs:
 
       - name: Run ShellCheck
         id: scan
-        continue-on-error: true
         shell: bash
         working-directory: repository
         env:
@@ -107,7 +106,18 @@ jobs:
           SHELLCHECK_FAIL_ON_FINDINGS: "true"
         run: |
           set -euo pipefail
-          bash "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
+          set +e
+
+          bash \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
+          exit_code=$?
+
+          set -e
+
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          echo "[INFO] ShellCheck exit code: ${exit_code}"
 
       - name: Upload report
         if: always()
@@ -118,9 +128,23 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
-      - name: Enforce policy
-        if: steps.scan.outcome == 'failure' && inputs.fail-on-findings
+      - name: Enforce ShellCheck policy
+        if: always() && steps.scan.outputs.exit_code != '0'
         shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
         run: |
-          echo "::error title=ShellCheck policy failed::ShellCheck reported findings or could not run."
-          exit 1
+          set -euo pipefail
+
+          if [[ "${EXIT_CODE}" -gt 1 ]]; then
+            echo "::error title=ShellCheck execution failed::ShellCheck could not complete successfully. Exit code: ${EXIT_CODE}."
+            exit "${EXIT_CODE}"
+          fi
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            echo "::error title=ShellCheck policy failed::ShellCheck reported lint findings."
+            exit 1
+          fi
+
+          echo "::warning title=ShellCheck findings detected::ShellCheck reported findings, but fail-on-findings is disabled."
