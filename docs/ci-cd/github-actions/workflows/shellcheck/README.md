@@ -197,9 +197,9 @@ permissions:
 
 jobs:
   shellcheck:
-    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@v1
+    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@main
     with:
-      pipelinetemplates-ref: v1
+      pipelinetemplates-ref: main
 ```
 
 ### Scan a scripts directory
@@ -207,9 +207,9 @@ jobs:
 ```yaml
 jobs:
   shellcheck:
-    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@v1
+    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@main
     with:
-      pipelinetemplates-ref: v1
+      pipelinetemplates-ref: main
       scan-path: scripts
       fail-on-findings: true
 ```
@@ -219,9 +219,9 @@ jobs:
 ```yaml
 jobs:
   shellcheck:
-    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@v1
+    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@main
     with:
-      pipelinetemplates-ref: v1
+      pipelinetemplates-ref: main
       scan-path: scripts
       shellcheck-config-path: ".shellcheckrc"
       use-default-shellcheck-config: false
@@ -233,9 +233,9 @@ jobs:
 ```yaml
 jobs:
   shellcheck:
-    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@v1
+    uses: redjax/PipelineTemplates/.github/workflows/shellcheck.yml@main
     with:
-      pipelinetemplates-ref: v1
+      pipelinetemplates-ref: main
       scan-path: .
       fail-on-findings: false
       artifact-name: shellcheck-baseline-results
