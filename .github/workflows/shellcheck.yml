@@ -128,6 +128,69 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
+      - name: Publish ShellCheck findings
+        if: always() && steps.scan.outputs.exit_code == '1'
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/shellcheck-reports/shellcheck.txt
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          annotation_type="warning"
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            annotation_type="error"
+          fi
+
+          {
+            echo "## ShellCheck findings"
+            echo
+            echo "ShellCheck detected lint findings."
+            echo
+            echo "### Full report"
+            echo
+            echo '```text'
+
+            if [[ -f "${REPORT_PATH}" ]]; then
+              sed --quiet '1,500p' "${REPORT_PATH}"
+            else
+              echo "ShellCheck report was not produced."
+            fi
+
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ ! -f "${REPORT_PATH}" ]]; then
+            exit 0
+          fi
+
+          annotation_count=0
+
+          while IFS= read -r report_line; do
+            if [[ ! "${report_line}" =~ ^([^:]+):([0-9]+):([0-9]+):[[:space:]]*([^:]+):[[:space:]]*(.*)$ ]]; then
+              continue
+            fi
+
+            file_path="${BASH_REMATCH[1]}"
+            line_number="${BASH_REMATCH[2]}"
+            column_number="${BASH_REMATCH[3]}"
+            severity="${BASH_REMATCH[4]}"
+            message="${BASH_REMATCH[5]}"
+
+            echo "::${annotation_type} file=${file_path},line=${line_number},col=${column_number},title=ShellCheck ${severity}::${message}"
+
+            annotation_count=$((annotation_count + 1))
+
+            if [[ "${annotation_count}" -ge 10 ]]; then
+              break
+            fi
+          done < "${REPORT_PATH}"
+
+          if [[ "${annotation_count}" -ge 10 ]]; then
+            echo "::notice title=ShellCheck annotations truncated::Only the first 10 findings were published as annotations. See the job summary or report artifact for all findings."
+          fi
+
       - name: Enforce ShellCheck policy
         if: always() && steps.scan.outputs.exit_code != '0'
         shell: bash

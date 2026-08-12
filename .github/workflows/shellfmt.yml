@@ -223,6 +223,69 @@ jobs:
           if-no-files-found: warn
           retention-days: ${{ inputs.artifact-retention-days }}
 
+      - name: Publish shellfmt findings
+        if: always() && steps.scan.outputs.exit_code == '1'
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/shellfmt-reports/shellfmt.diff
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          annotation_type="warning"
+
+          if [[ "${FAIL_ON_FINDINGS}" == "true" ]]; then
+            annotation_type="error"
+          fi
+
+          {
+            echo "## shellfmt formatting differences"
+            echo
+            echo "shellfmt detected files that do not match the configured formatting rules."
+            echo
+            echo "### Full diff"
+            echo
+            echo '```diff'
+
+            if [[ -f "${REPORT_PATH}" ]]; then
+              sed --quiet '1,500p' "${REPORT_PATH}"
+            else
+              echo "shellfmt report was not produced."
+            fi
+
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ ! -f "${REPORT_PATH}" ]]; then
+            exit 0
+          fi
+
+          annotation_count=0
+
+          while IFS= read -r file_path; do
+            file_path="${file_path#--- }"
+
+            [[ -n "${file_path}" ]] || continue
+
+            echo "::${annotation_type} file=${file_path},title=shellfmt::Formatting differs from the configured shellfmt rules."
+
+            annotation_count=$((annotation_count + 1))
+
+            if [[ "${annotation_count}" -ge 10 ]]; then
+              break
+            fi
+          done < <(
+            grep \
+              --extended-regexp \
+              '^--- ' \
+              "${REPORT_PATH}" \
+              || true
+          )
+
+          if [[ "${annotation_count}" -ge 10 ]]; then
+            echo "::notice title=shellfmt annotations truncated::Only the first 10 files were published as annotations. See the job summary or report artifact for the complete diff."
+          fi
+
       - name: Enforce shellfmt policy
         if: always() && steps.scan.outputs.exit_code != '0'
         shell: bash
