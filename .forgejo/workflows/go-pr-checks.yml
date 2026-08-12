@@ -1,0 +1,194 @@
+---
+############################################
+# Call from a consuming repository to do a #
+# Go build validation.                     #
+############################################
+
+name: Go PR Checks
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: "Path to Go module root containing go.mod."
+        required: false
+        type: string
+        default: "."
+      build-package:
+        description: "Go package to build relative to module-dir."
+        required: false
+        type: string
+        default: "."
+      binary-name:
+        description: "Name for the built binary."
+        required: true
+        type: string
+      go-version:
+        description: "Go version."
+        required: false
+        type: string
+        default: "1.25.6"
+      platforms:
+        description: "Comma separated GOOS/GOARCH targets."
+        required: false
+        type: string
+        default: "linux/amd64"
+      build-tags:
+        description: "Optional build tags."
+        required: false
+        type: string
+        default: ""
+      ldflags:
+        description: "Optional linker flags."
+        required: false
+        type: string
+        default: ""
+      output-dir:
+        description: "Output directory."
+        required: false
+        type: string
+        default: "dist"
+      artifact-name:
+        description: "Artifact name."
+        required: false
+        type: string
+        default: ""
+      upload-artifacts:
+        description: "Upload artifacts."
+        required: false
+        type: boolean
+        default: true
+      enable-cache:
+        description: "Enable Go cache."
+        required: false
+        type: boolean
+        default: true
+      base-sha:
+        description: "Base commit."
+        required: true
+        type: string
+      head-sha:
+        description: "Head commit."
+        required: true
+        type: string
+      change-paths:
+        description: "Paths triggering build."
+        required: false
+        type: string
+        default: |
+          [
+            "go.mod",
+            "go.sum",
+            "**/go.mod",
+            "**/go.sum",
+            "cmd/**",
+            "internal/**"
+          ]
+      pipelinetemplates-ref:
+        description: "PipelineTemplates revision."
+        required: false
+        type: string
+        default: main
+    outputs:
+      changes_detected:
+        description: "Whether Go files changed."
+        value: ${{ jobs.detect.outputs.changes_detected }}
+
+jobs:
+  detect:
+    runs-on: forgejo-runner-base
+    outputs:
+      changes_detected: ${{ steps.filter.outputs.changes_detected }}
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: filter
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base-sha }}
+          HEAD_SHA: ${{ inputs.head-sha }}
+          CHANGE_PATHS: ${{ inputs.change-paths }}
+        run: |
+          changed=false
+
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            BASE_SHA=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          mapfile -t patterns < <(
+            echo "$CHANGE_PATHS" | jq -r '.[]'
+          )
+
+          while IFS= read -r file; do
+            for pattern in "${patterns[@]}"; do
+              if [[ "$file" == $pattern ]]; then
+                changed=true
+                break 2
+              fi
+            done
+          done < <(
+            git diff --name-only "$BASE_SHA" "$HEAD_SHA"
+          )
+
+          echo "Detected changes: $changed"
+          echo \
+            "changes_detected=$changed" \
+            >> "$GITHUB_OUTPUT"
+
+  build-preview:
+    needs: detect
+    if: needs.detect.outputs.changes_detected == 'true'
+    runs-on: forgejo-runner-base
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: ${{ inputs.enable-cache }}
+
+      - name: Verify Go installation
+        shell: bash
+        run: |
+          which go
+          go version
+          go env GOPATH GOMOD
+
+      - name: Build snapshot
+        uses: ./pipelinetemplates/.forgejo/actions/go-build
+        with:
+          module-dir: ${{ inputs.module-dir }}
+          build-package: ${{ inputs.build-package }}
+          binary-name: ${{ inputs.binary-name }}
+          platforms: ${{ inputs.platforms }}
+          build-tags: ${{ inputs.build-tags }}
+          ldflags: ${{ inputs.ldflags }}
+          output-dir: ${{ inputs.output-dir }}
+          artifact-name: ${{ inputs.artifact-name }}
+          upload-artifacts: ${{ inputs.upload-artifacts }}

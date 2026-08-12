@@ -1,0 +1,45 @@
+---
+##############################################################
+# Example pipeline                                           #
+#                                                            #
+# Create a pipeline like this in a repository with a Go app. #
+# The pipeline calls tasks from this shared repository.      #
+##############################################################
+
+resources:
+  - name: pipelinetemplates
+    type: git
+    source:
+      uri: ((templates_git_uri))
+      branch: ((templates_git_branch))
+
+  - name: app
+    type: git
+    source:
+      uri: ((git_uri))
+      branch: ((git_branch))
+
+  - name: go-image
+    type: registry-image
+    source:
+      repository: golang
+      tag: ((go_version))
+
+jobs:
+  - name: publish-go-app
+    public: true
+    plan:
+      - get: pipelinetemplates
+        trigger: true
+      - get: app
+        passed: [build-go-app]
+        trigger: true
+      - get: go-image
+
+      - task: publish
+        image: go-image
+        file: pipelinetemplates/.concourse/go/go-build/tasks/publish.yml
+        params:
+          MODULE_DIR: ((module_dir))
+          BINARY_NAME: ((binary_name))
+          OUTPUT_DIR: ((output_dir))

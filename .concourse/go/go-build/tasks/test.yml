@@ -1,0 +1,13 @@
+---
+platform: linux
+
+inputs:
+  - name: app
+  - name: pipelinetemplates
+
+run:
+  path: sh
+  args:
+    - -ec
+    - |
+      bash pipelinetemplates/.concourse/go/go-build/scripts/test.sh

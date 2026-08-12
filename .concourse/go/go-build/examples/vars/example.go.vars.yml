@@ -1,0 +1,21 @@
+---
+templates_git_uri: git@github.com:redjax/PipelineTemplates.git
+templates_git_branch: main
+
+git_uri: ssh://git@your-git-host/owner/repo.git
+git_branch: main
+
+module_dir: "."
+build_package: "."
+test_package: "./..."
+binary_name: your-binary-name
+
+platforms: linux/amd64
+build_tags: ""
+ldflags: ""
+output_dir: dist
+
+go_version: 1.26.4
+cgo_enabled: 0
+
+test_flags: ""

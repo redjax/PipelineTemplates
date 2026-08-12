@@ -32,6 +32,21 @@ inputs:
     required: false
     default: "false"
 
+  delete-tag:
+    description: "Whether to delete a previously pushed Git tag."
+    required: false
+    default: "false"
+
+  expected-target:
+    description: "Expected commit SHA for a tag being deleted."
+    required: false
+    default: ""
+
+  remote:
+    description: "Git remote used to push or delete tags."
+    required: false
+    default: "origin"
+
   create-release:
     description: "Whether to create/update the Forgejo release"
     required: false
@@ -104,12 +119,22 @@ runs:
       env:
         TAG_NAME: ${{ inputs.tag-name }}
         CREATE_TAG: ${{ inputs.create-tag }}
+        DELETE_TAG: ${{ inputs.delete-tag }}
         CREATE_RELEASE: ${{ inputs.create-release }}
 
     - name: Resolve metadata
       id: meta
       shell: bash
       run: echo "tag-name=${{ inputs.tag-name }}" >> "$GITHUB_OUTPUT"
+
+    - name: Delete tag
+      if: ${{ inputs.delete-tag == 'true' }}
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/delete-tag.sh"
+      env:
+        TAG_NAME: ${{ inputs.tag-name }}
+        EXPECTED_TARGET: ${{ inputs.expected-target }}
+        REMOTE: ${{ inputs.remote }}
 
     - name: Create tag
       if: ${{ inputs.create-tag == 'true' }}

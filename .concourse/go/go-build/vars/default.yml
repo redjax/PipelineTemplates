@@ -1,0 +1,19 @@
+---
+git_uri: ""
+git_branch: main
+
+repo_name: ""
+module_dir: "."
+build_package: "."
+binary_name: ""
+
+platforms: linux/amd64
+build_tags: ""
+ldflags: ""
+output_dir: dist
+
+go_version: 1.26.4
+cgo_enabled: 0  # Set to 1 in calling repository to enable CGO
+
+upload_artifacts: true
+publish_enabled: false

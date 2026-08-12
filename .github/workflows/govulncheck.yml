@@ -1,0 +1,318 @@
+---
+######################################################
+# Run govulncheck against a consuming Go repository. #
+######################################################
+
+name: Govulncheck scan
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: >
+          Go version used to install and run govulncheck. This must be at least
+          as new as every module's declared Go version.
+        required: false
+        type: string
+        default: "stable"
+
+      govulncheck-version:
+        description: >
+          Govulncheck version to install. Use "latest" or a Go module version
+          such as "v1.1.4".
+        required: false
+        type: string
+        default: "latest"
+
+      module-paths:
+        description: >
+          Optional newline-delimited directories containing go.mod files,
+          relative to the repository root. Leave empty to automatically find
+          every supported Go module.
+        required: false
+        type: string
+        default: ""
+
+      exclude-module-paths:
+        description: >
+          Optional newline-delimited Go module directories to exclude during
+          automatic discovery.
+        required: false
+        type: string
+        default: ""
+
+      package-pattern:
+        description: >
+          Go package pattern passed to govulncheck for each module.
+        required: false
+        type: string
+        default: "./..."
+
+      fail-on-vulnerabilities:
+        description: >
+          Fail after reports upload when reachable known vulnerabilities are
+          found. Scanner/configuration errors always fail the workflow.
+        required: false
+        type: boolean
+        default: true
+
+      sarif-category:
+        description: >
+          GitHub Code Scanning category for this scan.
+        required: false
+        type: string
+        default: "govulncheck"
+
+      artifact-retention-days:
+        description: "Days to retain govulncheck artifacts."
+        required: false
+        type: number
+        default: 30
+
+      pipeline-templates-ref:
+        description: >
+          Git ref in redjax/PipelineTemplates from which to retrieve the shared
+          scan script. This should match the ref used to call this workflow.
+        required: false
+        type: string
+        default: "main"
+
+jobs:
+  govulncheck:
+    name: Go vulnerability scan
+    runs-on: ubuntu-latest
+
+    outputs:
+      sarif-matrix: ${{ steps.sarif-matrix.outputs.matrix }}
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v7
+
+      - name: Checkout PipelineTemplates scan script
+        uses: actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipeline-templates-ref }}
+          path: .pipeline-templates
+          sparse-checkout: |
+            shared/scripts/ci-cd/security/govulncheck.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ inputs.go-version }}
+          cache: false
+
+      - name: Install govulncheck
+        timeout-minutes: 3
+        shell: bash
+        env:
+          GOVULNCHECK_VERSION: ${{ inputs.govulncheck-version }}
+        run: |
+          set -euo pipefail
+
+          echo "Installing govulncheck@${GOVULNCHECK_VERSION}"
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+
+          echo "Installed govulncheck:"
+          govulncheck -version
+
+      - name: Write module path configuration
+        id: module-paths
+        shell: bash
+        env:
+          MODULE_PATHS: ${{ inputs.module-paths }}
+          EXCLUDE_MODULE_PATHS: ${{ inputs.exclude-module-paths }}
+        run: |
+          set -euo pipefail
+
+          module_paths_file="${RUNNER_TEMP}/govulncheck-module-paths.txt"
+          exclude_module_paths_file="${RUNNER_TEMP}/govulncheck-exclude-module-paths.txt"
+
+          printf '%s\n' "${MODULE_PATHS}" > "${module_paths_file}"
+          printf '%s\n' "${EXCLUDE_MODULE_PATHS}" > "${exclude_module_paths_file}"
+
+          echo "module_paths_file=${module_paths_file}" >> "${GITHUB_OUTPUT}"
+          echo "exclude_module_paths_file=${exclude_module_paths_file}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run govulncheck
+        id: govulncheck
+        timeout-minutes: 30
+        shell: bash
+        env:
+          MODULE_PATHS_FILE: ${{ steps.module-paths.outputs.module_paths_file }}
+          EXCLUDE_MODULE_PATHS_FILE: ${{ steps.module-paths.outputs.exclude_module_paths_file }}
+          PACKAGE_PATTERN: ${{ inputs.package-pattern }}
+        run: |
+          set +e
+
+          bash .pipeline-templates/shared/scripts/ci-cd/security/govulncheck.sh \
+            --module-paths-file "${MODULE_PATHS_FILE}" \
+            --exclude-module-paths-file "${EXCLUDE_MODULE_PATHS_FILE}" \
+            --package-pattern "${PACKAGE_PATTERN}" \
+            --reports-directory govulncheck-reports \
+            --summary-file govulncheck-reports/summary.env
+
+          script_exit_code=$?
+
+          echo "script_exit_code=${script_exit_code}" >> "${GITHUB_OUTPUT}"
+
+          if [[ -f govulncheck-reports/summary.env ]]; then
+            while IFS='=' read -r key value; do
+              case "${key}" in
+                module_count|vulnerability_module_count|error_module_count|has_vulnerabilities|has_errors)
+                  echo "${key}=${value}" >> "${GITHUB_OUTPUT}"
+                  ;;
+              esac
+            done < govulncheck-reports/summary.env
+          else
+            echo "has_errors=true" >> "${GITHUB_OUTPUT}"
+            echo "::error title=Govulncheck script failed::No Govulncheck summary file was generated."
+          fi
+
+          # Report upload and policy enforcement occur in later steps.
+          exit 0
+
+      - name: Build SARIF upload matrix
+        id: sarif-matrix
+        if: always()
+        shell: bash
+        env:
+          SARIF_CATEGORY: ${{ inputs.sarif-category }}
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          sarif_reports=(govulncheck-reports/sarif/*.sarif)
+
+          if [[ ${#sarif_reports[@]} -eq 0 ]]; then
+            echo 'matrix={"include":[]}' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          matrix="$(
+            jq \
+              --compact-output \
+              --null-input \
+              --arg category_prefix "${SARIF_CATEGORY}" \
+              '
+                {
+                  include: [
+                    $ARGS.positional[]
+                    | {
+                        sarif_file: .,
+                        category: (
+                          $category_prefix +
+                          "-" +
+                          (
+                            split("/")
+                            | last
+                            | sub("\\.sarif$"; "")
+                          )
+                        )
+                      }
+                  ]
+                }
+              ' \
+              --args \
+              "${sarif_reports[@]}"
+          )"
+
+          echo "matrix=${matrix}" >> "${GITHUB_OUTPUT}"
+
+          echo "SARIF upload matrix:"
+          echo "${matrix}" | jq .
+
+      - name: Display Govulncheck reports
+        if: always()
+        shell: bash
+        run: |
+          shopt -s nullglob
+
+          reports=(govulncheck-reports/text/*.txt)
+
+          if [[ ${#reports[@]} -eq 0 ]]; then
+            echo "No Govulncheck text reports were generated."
+            exit 0
+          fi
+
+          for report in "${reports[@]}"; do
+            echo "::group::${report}"
+            cat "${report}"
+            echo "::endgroup::"
+          done
+
+      - name: Upload Govulncheck reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: govulncheck-reports
+          path: govulncheck-reports/
+          if-no-files-found: warn
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Fail if Govulncheck had an error
+        if: >
+          always() &&
+          (
+            steps.govulncheck.outputs.script_exit_code != '0' ||
+            steps.govulncheck.outputs.has_errors == 'true'
+          )
+        shell: bash
+        run: |
+          echo "::error title=Govulncheck scan failed::One or more Go modules could not be scanned successfully."
+          echo "Download the govulncheck-reports artifact to inspect stderr logs."
+          exit 1
+
+      - name: Fail if reachable vulnerabilities were found
+        if: >
+          always() &&
+          inputs.fail-on-vulnerabilities &&
+          steps.govulncheck.outputs.has_vulnerabilities == 'true'
+        shell: bash
+        run: |
+          echo "::error title=Reachable Go vulnerabilities detected::govulncheck reported reachable known vulnerabilities in one or more Go modules."
+          echo "Review GitHub Code Scanning or download the govulncheck-reports artifact."
+          exit 1
+
+  upload-sarif:
+    name: Upload Govulncheck SARIF
+    needs: govulncheck
+
+    ## Run after the scan job even when scan policy intentionally failed.
+    #  Skip when no module generated a SARIF report.
+    if: >
+      always() &&
+      needs.govulncheck.outputs.sarif-matrix != '' &&
+      needs.govulncheck.outputs.sarif-matrix != '{"include":[]}'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.govulncheck.outputs.sarif-matrix) }}
+
+    steps:
+      - name: Download Govulncheck reports
+        uses: actions/download-artifact@v8
+        with:
+          name: govulncheck-reports
+          path: govulncheck-reports
+
+      - name: Upload module SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ matrix.sarif_file }}
+          category: ${{ matrix.category }}
+          wait-for-processing: true

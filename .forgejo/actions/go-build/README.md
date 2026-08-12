@@ -7,7 +7,7 @@ This Action builds Go applications for one or more target platforms and optional
 - `module-dir`: Working directory for the pipeline. The build script uses this path, and the artifact path becomes `${module-dir}/${output-dir}`. Default: `.`, which is the repository root.
 - `build-package`: Go package path to build, for example `.` or `./cmd/example`. Required.
 - `binary-name`: Name to give the built binary file. Required.
-- `platforms`: Comma‑separated list of `GOOS/GOARCH` targets, such as `linux/amd64,linux/arm64`. Default: `linux/amd64`.
+- `platforms`: JSON formatted string, which is a list of `GOOS/GOARCH` targets, such as `'["linux/amd64", "linux/arm64"]'`. Default: `'["linux/amd64"]'`.
 - `build-tags`: Optional list of Go build tags passed to go build `-tags`. Default: empty.
 - `ldflags`: Optional flags passed to go build `-ldflags`. Often used to inject version info, for example `-X main.version=${{ forgejo.sha }}`. Default: empty.
 - `output-dir`: Directory under module-dir where build artifacts are written. Default: `dist`.
@@ -41,7 +41,7 @@ This Action builds Go applications for one or more target platforms and optional
             build-package: .
             go-version: "1.25.6"
             binary-name: example
-            platforms: linux/amd64,linux/arm64
+            platforms: '["linux/amd64", "linux/arm64"]'
             upload-artifacts: "true"
             artifact-name: example-dist
             ldflags: -X main.version=${{ forgejo.sha }}
@@ -71,7 +71,7 @@ This Action builds Go applications for one or more target platforms and optional
             build-package: ./cmd/example
             go-version: "1.25.6"
             binary-name: ex
-            platforms: linux/amd64,linux/arm64
+            platforms: '["linux/amd64", "linux/arm64"]'
             upload-artifacts: "true"
             ldflags: -X main.version=${{ forgejo.sha }}
             enable-cache: true
