@@ -1,0 +1,14 @@
+## Default shellfmt options for the PipelineTemplates repository.
+#
+#  A consuming repository can supply its own file through the
+#  shellfmt-config-path reusable-workflow input.
+
+## Indent with two spaces.
+-i
+2
+
+## Indent case branches.
+-ci
+
+## Apply binary-next-line redirection formatting.
+-sr
