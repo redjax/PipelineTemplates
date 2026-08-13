@@ -26,5 +26,19 @@
             ],
             "automerge": false
         }
+    ],
+    "customManagers": [
+        {
+            "customType": "regex",
+            "description": "Update Docker image versions in GitLab CI template inputs",
+            "managerFilePatterns": [
+                "/^\\.gitlab\\/renovate\\.ya?ml$/"
+            ],
+            "matchStrings": [
+                "image:\\s*[\"']?(?<depName>[A-Za-z0-9._/-]+):(?<currentValue>[A-Za-z0-9_.-]+)[\"']?"
+            ],
+            "datasourceTemplate": "docker",
+            "versioningTemplate": "docker"
+        }
     ]
 }
