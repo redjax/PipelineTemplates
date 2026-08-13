@@ -1,0 +1,193 @@
+---
+################################################################################
+# Run Renovate against the consuming GitLab repository                         #
+#                                                                              #
+# A consuming project may define renovate.json. If it does not, this template  #
+# checks out PipelineTemplates and uses config/renovate/default.json instead.  #
+#                                                                              #
+# Required consumer CI/CD variable: RENOVATE_TOKEN                             #
+#                                                                              #
+# Requires the following repository secrets:                                   #
+#   RENOVATE_TOKEN: Gitlab token with API access                               #
+#   GH_API_TOKEN: Github PAT with API read access                              #
+################################################################################
+
+spec:
+  inputs:
+    stage:
+      description: GitLab pipeline stage in which Renovate runs.
+      type: string
+      default: maintenance
+
+    image:
+      description: Renovate container image.
+      type: string
+      default: renovate/renovate:44.27.0
+
+    mode:
+      description: Renovate mode.
+      type: string
+      default: run
+      options:
+        - extract
+        - lookup
+        - run
+
+    log-level:
+      description: Renovate log level.
+      type: string
+      default: info
+      options:
+        - debug
+        - info
+        - warn
+        - error
+
+    config-file:
+      description: Repository-relative Renovate config file.
+      type: string
+      default: renovate.json
+
+    require-config:
+      description: Renovate repository configuration policy.
+      type: string
+      default: optional
+      options:
+        - required
+        - optional
+        - ignored
+
+    github-template-repository:
+      description: GitHub repository containing PipelineTemplates.
+      type: string
+      default: redjax/PipelineTemplates
+
+    pipelinetemplates-ref:
+      description: PipelineTemplates branch, tag, or commit SHA.
+      type: string
+      default: main
+
+    base-branches:
+      description: Comma-separated Renovate base branches.
+      type: string
+      default: ""
+
+    use-base-branch-config:
+      description: Load Renovate configuration from base branches.
+      type: boolean
+      default: false
+
+    runner-tags:
+      description: GitLab runner tags.
+      type: array
+      default: []
+
+---
+renovate:
+  stage: $[[ inputs.stage ]]
+  image:
+    name: $[[ inputs.image ]]
+    entrypoint: [""]
+
+  tags: $[[ inputs.runner-tags ]]
+
+  variables:
+    GIT_DEPTH: "0"
+
+    LOG_LEVEL: $[[ inputs.log-level ]]
+    RENOVATE_PLATFORM: gitlab
+    RENOVATE_ENDPOINT: $CI_API_V4_URL
+    RENOVATE_REPOSITORIES: $CI_PROJECT_PATH
+    RENOVATE_REQUIRE_CONFIG: $[[ inputs.require-config ]]
+    RENOVATE_BASE_BRANCHES: $[[ inputs.base-branches ]]
+    RENOVATE_USE_BASE_BRANCH_CONFIG: $[[ inputs.use-base-branch-config ]]
+
+    GITHUB_TEMPLATE_REPOSITORY: $[[ inputs.github-template-repository ]]
+    PIPELINETEMPLATES_REF: $[[ inputs.pipelinetemplates-ref ]]
+    REQUESTED_CONFIG_FILE: $[[ inputs.config-file ]]
+    REQUESTED_MODE: $[[ inputs.mode ]]
+
+  rules:
+    ## Normal Renovate execution should be scheduled.
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+    ## Allow intentional manual testing from GitLab's Run pipeline page.
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+    ## Do not run Renovate on ordinary commits or merge-request pipelines.
+    - when: never
+
+  before_script:
+    - |
+      set -Eeuo pipefail
+
+      if [[ -z "${RENOVATE_TOKEN:-}" ]]; then
+        echo "[ERROR] Missing required masked CI/CD variable: RENOVATE_TOKEN." >&2
+        exit 1
+      fi
+
+      if [[ -z "${GH_API_TOKEN:-}" ]]; then
+        echo "[WARNING] GH_API_TOKEN is not set. Renovate can run, but GitHub.com API lookups may be rate-limited." >&2
+      fi
+
+      case "${REQUESTED_MODE}" in
+        extract|lookup)
+          export RENOVATE_DRY_RUN="${REQUESTED_MODE}"
+          ;;
+        run)
+          unset RENOVATE_DRY_RUN
+          ;;
+        *)
+          echo "[ERROR] Invalid Renovate mode: ${REQUESTED_MODE}. Use extract, lookup, or run." >&2
+          exit 1
+          ;;
+      esac
+
+      if [[ -f "${REQUESTED_CONFIG_FILE}" ]]; then
+        export RENOVATE_CONFIG_FILE="${REQUESTED_CONFIG_FILE}"
+        echo "[INFO] Using repository Renovate config: ${RENOVATE_CONFIG_FILE}"
+      else
+        template_directory=".pipelinetemplates"
+        default_config_file="${template_directory}/config/renovate/default.json"
+        github_clone_url="https://github.com/${GITHUB_TEMPLATE_REPOSITORY}.git"
+
+        if [[ -n "${GH_API_TOKEN:-}" ]]; then
+          echo "[INFO] Cloning PipelineTemplates from GitHub with API authentication."
+
+          git \
+            -c http.extraHeader="Authorization: Bearer ${GH_API_TOKEN}" \
+            clone \
+            --depth 1 \
+            --branch "${PIPELINETEMPLATES_REF}" \
+            "${github_clone_url}" \
+            "${template_directory}"
+        else
+          echo "[WARNING] GH_API_TOKEN is not set. Cloning public PipelineTemplates anonymously." >&2
+
+          git clone \
+            --depth 1 \
+            --branch "${PIPELINETEMPLATES_REF}" \
+            "${github_clone_url}" \
+            "${template_directory}"
+        fi
+
+        if [[ ! -f "${default_config_file}" ]]; then
+          echo "[ERROR] No Renovate config found at '${REQUESTED_CONFIG_FILE}' or '${default_config_file}'." >&2
+          exit 1
+        fi
+
+        export RENOVATE_CONFIG_FILE="${default_config_file}"
+        echo "[INFO] Using PipelineTemplates default Renovate config: ${RENOVATE_CONFIG_FILE}"
+      fi
+
+  script:
+    - |
+      set -Eeuo pipefail
+
+      if [[ -n "${GH_API_TOKEN:-}" ]]; then
+        export RENOVATE_GITHUB_COM_TOKEN="${GH_API_TOKEN}"
+      else
+        echo "[WARNING] GH_API_TOKEN is not set. GitHub.com lookups may be rate-limited." >&2
+      fi
+
+      renovate
