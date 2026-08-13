@@ -107,6 +107,87 @@ jobs:
 
 ```
 
+To run Renovate more frequently, you can add a `pull_request` trigger and use an `if:` conditional to trigger the Renovate job only on `renovate/*` -> `main` PR merge.
+
+```yaml
+---
+############################################################
+# Run Mendbot Renovate against the PipelineTemplates repo. #
+#                                                          #
+# Keeps centralized pipelines up to date.                  #
+############################################################
+
+name: Run Renovate (self)
+
+on:
+  ## Trigger on Renovate activity. The 'if' conditional in the
+  #  renovate job below filters non-renovate PRs.
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+  ## Trigger on a cron schedule.
+  schedule:
+    - cron: "0 3 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 15 * * *"
+    - cron: "0 21 * * *"
+
+  ## Trigger manually
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Renovate mode"
+        required: false
+        default: "lookup"
+        type: choice
+        options:
+          - extract
+          - lookup
+          - run
+      log-level:
+        description: "Renovate log level"
+        required: false
+        default: "info"
+        type: choice
+        options:
+          - info
+          - debug
+          - trace
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  renovate:
+    ## Trigger on PR merge to main from renovate/ branch
+    if: |
+      github.event_name != 'pull_request' ||
+      (
+        startsWith(github.event.pull_request.head.ref, 'renovate/') &&
+        github.event.pull_request.merged == true
+      )
+    uses: redjax/pipelinetemplates/.github/workflows/renovate.yml@main
+    with:
+      mode: ${{ github.event_name == 'schedule' && 'run' || inputs.mode || 'lookup' }}
+      log-level: ${{ inputs.log-level || 'info' }}
+      repository: ${{ github.repository }}
+      config-file: renovate.json
+      require-config: optional
+      autodiscover: false
+      runner-image: ubuntu-latest
+      renovate-author-email: "5534031+redjax@users.noreply.github.com"
+    secrets:
+      renovate-token: ${{ secrets.RENOVATE_TOKEN }}
+      gh-api-token: ${{ secrets.GH_API_TOKEN }}
+
+```
+
 ### Example Renovate config JSON files
 
 A consuming repository can provide its own `renovate.json` using the `config-file` input. If `renovate.json` is available in the consuming repo, the workflow will use that file instead of the default fallback in the PipelineTemplates repository.
