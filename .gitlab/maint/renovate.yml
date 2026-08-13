@@ -146,6 +146,7 @@ renovate:
       if [[ -f "${REQUESTED_CONFIG_FILE}" ]]; then
         export RENOVATE_CONFIG_FILE="${REQUESTED_CONFIG_FILE}"
         echo "[INFO] Using repository Renovate config: ${RENOVATE_CONFIG_FILE}"
+
       else
         template_directory=".pipelinetemplates"
         default_config_file="${template_directory}/config/renovate/default.json"
@@ -154,21 +155,29 @@ renovate:
         if [[ -n "${GH_API_TOKEN:-}" ]]; then
           echo "[INFO] Cloning PipelineTemplates from GitHub with API authentication."
 
+          GIT_TERMINAL_PROMPT=0 \
+            git clone \
+              --depth 1 \
+              --branch "${PIPELINETEMPLATES_REF}" \
+              "https://x-access-token:${GH_API_TOKEN}@github.com/${GITHUB_TEMPLATE_REPOSITORY}.git" \
+              "${template_directory}"
+
           git \
-            -c http.extraHeader="Authorization: Bearer ${GH_API_TOKEN}" \
-            clone \
-            --depth 1 \
-            --branch "${PIPELINETEMPLATES_REF}" \
-            "${github_clone_url}" \
-            "${template_directory}"
+            -C "${template_directory}" \
+            remote \
+            set-url \
+            origin \
+            "${github_clone_url}"
         else
           echo "[WARNING] GH_API_TOKEN is not set. Cloning public PipelineTemplates anonymously." >&2
 
-          git clone \
-            --depth 1 \
-            --branch "${PIPELINETEMPLATES_REF}" \
-            "${github_clone_url}" \
-            "${template_directory}"
+          ## Disable Git interactive username/password prompt
+          GIT_TERMINAL_PROMPT=0 \
+            git clone \
+              --depth 1 \
+              --branch "${PIPELINETEMPLATES_REF}" \
+              "${github_clone_url}" \
+              "${template_directory}"
         fi
 
         if [[ ! -f "${default_config_file}" ]]; then
