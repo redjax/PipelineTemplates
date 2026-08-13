@@ -6,6 +6,8 @@
     "labels": [
         "dependencies"
     ],
+    "dependencyDashboard": true,
+    "pruneStaleBranches": true,
     "prConcurrentLimit": 5,
     "packageRules": [
         {
@@ -15,7 +17,8 @@
                 "digest"
             ],
             "groupName": "non-major dependencies",
-            "automerge": true
+            "automerge": true,
+            "automergeType": "pr"
         },
         {
             "matchUpdateTypes": [
