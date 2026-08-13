@@ -18,6 +18,18 @@
             "versioningTemplate": "npm"
         }
     ],
+    "gitlabci": {
+        "managerFilePatterns": [
+            "/(^|/)\\.gitlab-ci\\.ya?ml$/",
+            "/^\\.gitlab/.*\\.ya?ml$/"
+        ]
+    },
+    "gitlabci-include": {
+        "managerFilePatterns": [
+            "/(^|/)\\.gitlab-ci\\.ya?ml$/",
+            "/^\\.gitlab/.*\\.ya?ml$/"
+        ]
+    },
     "packageRules": [
         {
             "matchPackageNames": [
