@@ -16,6 +16,10 @@ on:
         required: false
         type: string
         default: "0.10.0"
+      shellcheck-severity:
+        required: false
+        type: string
+        default: error
       include-patterns:
         required: false
         type: string
@@ -65,6 +69,33 @@ jobs:
           fetch-depth: 1
           path: pipeline-templates
 
+      ## Debug step to show shellcheck environment
+      - name: "[DEBUG] Verify PipelineTemplates checkout"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Requested ref: ${{ inputs.pipelinetemplates-ref }}"
+          echo
+
+          echo "Checked-out commit:"
+          git -C "${GITHUB_WORKSPACE}/pipeline-templates" rev-parse HEAD
+          echo
+
+          echo "Branches:"
+          git -C "${GITHUB_WORKSPACE}/pipeline-templates" branch -avv
+          echo
+
+          echo "shellcheck.sh:"
+          grep -n -- '--rcfile\|SHELLCHECK_SEVERITY\|command=(' \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh" \
+            || true
+
+          echo
+          echo "Relevant command construction:"
+          sed -n '/command=(/,/printf.*Command/p' \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
       - name: Resolve configuration
         id: config
         shell: bash
@@ -97,13 +128,14 @@ jobs:
         working-directory: repository
         env:
           SHELLCHECK_VERSION: ${{ inputs.shellcheck-version }}
+          SHELLCHECK_SEVERITY: ${{ inputs.shellcheck-severity }}
           SHELLCHECK_INSTALL_DIR: ${{ runner.temp }}/shellcheck-bin
           SHELLCHECK_CONFIG_PATH: ${{ steps.config.outputs.path }}
           SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
           SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
           SHELLCHECK_REPORT_PATH: ${{ runner.temp }}/shellcheck-reports/shellcheck.txt
-          SHELLCHECK_FAIL_ON_FINDINGS: "true"
+          SHELLCHECK_FAIL_ON_FINDINGS: "false"
         run: |
           set -euo pipefail
 

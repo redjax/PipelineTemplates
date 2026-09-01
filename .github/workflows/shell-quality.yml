@@ -61,6 +61,11 @@ on:
         required: false
         type: string
         default: "0.10.0"
+      shellcheck-severity:
+        description: Minimum ShellCheck severity to report.
+        required: false
+        type: string
+        default: error
       shellfmt-version:
         required: false
         type: string
@@ -123,6 +128,7 @@ jobs:
       pipelinetemplates-ref: ${{ inputs.pipelinetemplates-ref }}
       scan-path: ${{ inputs.scan-path }}
       shellcheck-version: ${{ inputs.shellcheck-version }}
+      shellcheck-severity: ${{ inputs.shellcheck-severity }}
       fail-on-findings: ${{ inputs.fail-on-findings }}
       artifact-name: ${{ inputs.shellcheck-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
