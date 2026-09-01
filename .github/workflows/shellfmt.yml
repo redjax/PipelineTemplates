@@ -76,7 +76,7 @@ jobs:
           #
           #  On push, schedule, and manual runs, use the triggering SHA.
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
-          fetch-depth: 1
+          fetch-depth: 0
           path: repository
           persist-credentials: true
 
