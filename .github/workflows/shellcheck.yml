@@ -69,6 +69,33 @@ jobs:
           fetch-depth: 1
           path: pipeline-templates
 
+      ## Debug step to show shellcheck environment
+      - name: "[DEBUG] Verify PipelineTemplates checkout"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Requested ref: ${{ inputs.pipelinetemplates-ref }}"
+          echo
+
+          echo "Checked-out commit:"
+          git -C "${GITHUB_WORKSPACE}/pipeline-templates" rev-parse HEAD
+          echo
+
+          echo "Branches:"
+          git -C "${GITHUB_WORKSPACE}/pipeline-templates" branch -avv
+          echo
+
+          echo "shellcheck.sh:"
+          grep -n -- '--rcfile\|SHELLCHECK_SEVERITY\|command=(' \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh" \
+            || true
+
+          echo
+          echo "Relevant command construction:"
+          sed -n '/command=(/,/printf.*Command/p' \
+            "${GITHUB_WORKSPACE}/pipeline-templates/shared/scripts/ci-cd/quality/shellcheck.sh"
+
       - name: Resolve configuration
         id: config
         shell: bash
