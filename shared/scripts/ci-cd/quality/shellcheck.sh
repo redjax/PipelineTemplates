@@ -200,10 +200,6 @@ function main() {
     --external-sources
   )
 
-  if [[ -n "${SHELLCHECK_CONFIG_PATH}" ]]; then
-    command+=("--rcfile=${SHELLCHECK_CONFIG_PATH}")
-  fi
-
   command+=("${shell_files[@]}")
 
   printf '[INFO] Command:'
@@ -224,7 +220,8 @@ function main() {
     ;;
   *)
     cat "${SHELLCHECK_REPORT_PATH}" >&2
-    fail "ShellCheck failed with exit code ${exit_code}."
+    echo "[ERROR] ShellCheck failed with exit code ${exit_code}." >&2
+    exit "${exit_code}"
     ;;
   esac
 
