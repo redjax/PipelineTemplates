@@ -40,6 +40,13 @@
                 "patch"
             ],
             "automerge": false
+        },
+        {
+            "matchPackageNames": [
+                "forgejo/upload-artifact",
+                "forgejo/download-artifact"
+            ],
+            "enabled": false
         }
     ]
 }
