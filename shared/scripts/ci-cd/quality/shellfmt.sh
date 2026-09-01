@@ -186,6 +186,25 @@ function main() {
 
   check:1)
     echo "[WARN] shellfmt found formatting differences."
+    echo
+    echo "[INFO] Files that would be formatted:"
+
+    for file_path in "${shell_files[@]}"; do
+      if ! "${SHELLFMT_BIN}" \
+        "${SHELLFMT_OPTIONS[@]}" \
+        -d \
+        "${file_path}" \
+        >/dev/null 2>&1; then
+
+        printf '  - %s\n' "${file_path}"
+      fi
+    done
+
+    echo
+    echo "[INFO] Formatting diff:"
+    echo
+
+    cat "${SHELLFMT_REPORT_PATH}"
 
     if [[ "${SHELLFMT_FAIL_ON_FINDINGS}" == "true" ]]; then
       exit 1
