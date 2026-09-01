@@ -61,6 +61,11 @@ on:
         required: false
         type: string
         default: "0.10.0"
+      shellcheck-severity:
+        description: Minimum ShellCheck severity to report.
+        required: false
+        type: string
+        default: error
       shellfmt-version:
         required: false
         type: string

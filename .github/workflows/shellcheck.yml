@@ -16,6 +16,10 @@ on:
         required: false
         type: string
         default: "0.10.0"
+      shellcheck-severity:
+        required: false
+        type: string
+        default: error
       include-patterns:
         required: false
         type: string

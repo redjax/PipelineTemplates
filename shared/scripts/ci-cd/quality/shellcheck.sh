@@ -195,8 +195,14 @@ function main() {
   command=(
     "${SHELLCHECK_BIN}"
     --format gcc
-    "${shell_files[@]}"
+    --external-sources
   )
+
+  if [[ -n "${SHELLCHECK_CONFIG_PATH}" ]]; then
+    command+=("--rcfile=${SHELLCHECK_CONFIG_PATH}")
+  fi
+
+  command+=("${shell_files[@]}")
 
   printf '[INFO] Command:'
   printf ' %q' "${command[@]}"
