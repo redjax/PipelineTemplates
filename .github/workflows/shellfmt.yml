@@ -109,13 +109,13 @@ jobs:
             exit 1
           fi
 
-          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
-            echo "::error title=Invalid shellfmt commit configuration::commit-changes is supported only for pull_request events."
-            exit 1
-          fi
-
-          if [[ "${HEAD_REPOSITORY}" != "${CURRENT_REPOSITORY}" ]]; then
-            echo "::error title=Fork pull request not supported::Automatic commits are disabled for pull requests from forks."
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            if [[ "${HEAD_REPOSITORY}" != "${CURRENT_REPOSITORY}" ]]; then
+              echo "::error title=Fork pull request not supported::Automatic commits are disabled for pull requests from forks."
+              exit 1
+            fi
+          elif [[ "${EVENT_NAME}" != "push" ]]; then
+            echo "::error title=Invalid shellfmt commit configuration::commit-changes is supported only for pull_request and push events."
             exit 1
           fi
 
