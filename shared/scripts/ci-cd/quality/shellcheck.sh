@@ -7,6 +7,7 @@ _REPOSITORY_ROOT="$(cd "${_DIR}/../../../.." && pwd)"
 source "${_REPOSITORY_ROOT}/shared/scripts/bash/_util/is-installed.sh"
 
 SHELLCHECK_VERSION="${SHELLCHECK_VERSION:-0.10.0}"
+SHELLCHECK_SEVERITY="${SHELLCHECK_SEVERITY:-error}"
 SHELLCHECK_INSTALL_DIR="${SHELLCHECK_INSTALL_DIR:-${HOME}/.local/bin}"
 SHELLCHECK_BIN="${SHELLCHECK_BIN:-}"
 SHELLCHECK_CONFIG_PATH="${SHELLCHECK_CONFIG_PATH:-}"
@@ -195,6 +196,7 @@ function main() {
   command=(
     "${SHELLCHECK_BIN}"
     --format gcc
+    "--severity=${SHELLCHECK_SEVERITY}"
     --external-sources
   )
 

@@ -101,6 +101,7 @@ jobs:
         working-directory: repository
         env:
           SHELLCHECK_VERSION: ${{ inputs.shellcheck-version }}
+          SHELLCHECK_SEVERITY: ${{ inputs.shellcheck-severity }}
           SHELLCHECK_INSTALL_DIR: ${{ runner.temp }}/shellcheck-bin
           SHELLCHECK_CONFIG_PATH: ${{ steps.config.outputs.path }}
           SHELLCHECK_SCAN_PATH: ${{ inputs.scan-path }}
