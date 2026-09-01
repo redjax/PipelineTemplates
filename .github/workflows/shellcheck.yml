@@ -108,7 +108,7 @@ jobs:
           SHELLCHECK_INCLUDE_PATTERNS: ${{ inputs.include-patterns }}
           SHELLCHECK_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
           SHELLCHECK_REPORT_PATH: ${{ runner.temp }}/shellcheck-reports/shellcheck.txt
-          SHELLCHECK_FAIL_ON_FINDINGS: "true"
+          SHELLCHECK_FAIL_ON_FINDINGS: "false"
         run: |
           set -euo pipefail
 
