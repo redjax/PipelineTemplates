@@ -225,6 +225,62 @@ jobs:
 
           exit 0
 
+      - name: Print OSV-Scanner findings
+        if: always()
+        shell: bash
+        env:
+          SARIF_REPORT: osv-results.sarif
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${SARIF_REPORT}" ]]; then
+            echo "::notice title=OSV report unavailable::No OSV SARIF report was generated."
+            exit 0
+          fi
+
+          echo
+          echo "OSV-Scanner findings"
+          echo
+
+          finding_count="$(
+            jq '[.runs[]?.results[]?] | length' "${SARIF_REPORT}"
+          )"
+
+          if [[ "${finding_count}" -eq 0 ]]; then
+            echo "No OSV-Scanner findings."
+            exit 0
+          fi
+
+          echo "Finding count: ${finding_count}"
+          echo
+
+          jq -r '
+            .runs[]?.results[]? |
+            [
+              (.level // "warning" | ascii_upcase),
+              (.ruleId // "unknown"),
+              (.message.text // "No message"),
+              (
+                .locations[0].physicalLocation.artifactLocation.uri //
+                "unknown location"
+              ),
+              (
+                .locations[0].physicalLocation.region.startLine //
+                "-"
+              )
+            ] |
+            @tsv
+          ' "${SARIF_REPORT}" |
+          while IFS=$'\t' read -r level rule message file line; do
+            printf '[%s] %s at %s:%s\n' \
+              "${level}" \
+              "${rule}" \
+              "${file}" \
+              "${line}"
+            printf '  %s\n' "${message}"
+            echo
+          done
+
       - name: Upload SARIF results to GitHub Security
         if: always() && hashFiles('osv-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4

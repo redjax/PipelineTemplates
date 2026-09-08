@@ -299,6 +299,116 @@ jobs:
           echo "count=${finding_count}" >> "${GITHUB_OUTPUT}"
           echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
 
+      - name: Print Trivy findings
+        if: always()
+        shell: bash
+        env:
+          JSON_REPORT: ${{ steps.paths.outputs.json-report }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${JSON_REPORT}" ]]; then
+            echo "::notice title=Trivy report unavailable::No Trivy JSON report was generated."
+            exit 0
+          fi
+
+          echo
+          echo "Trivy findings"
+          echo
+
+          finding_count="$(
+            jq '
+              [
+                .Results[]?
+                | (.Vulnerabilities // [])[],
+                  (.Misconfigurations // [])[],
+                  (.Secrets // [])[]
+              ]
+              | length
+            ' "${JSON_REPORT}"
+          )"
+
+          if [[ "${finding_count}" -eq 0 ]]; then
+            echo "No Trivy findings."
+            exit 0
+          fi
+
+          echo "Finding count: ${finding_count}"
+          echo
+
+          jq -r '
+            .Results[]? as $result |
+            (
+              ($result.Vulnerabilities // [])[] |
+              {
+                kind: "vulnerability",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.VulnerabilityID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: (.PkgName // "unknown"),
+                installed: (.InstalledVersion // "unknown"),
+                fixed: (.FixedVersion // ""),
+                title: (.Title // "")
+              }
+            ),
+            (
+              ($result.Misconfigurations // [])[] |
+              {
+                kind: "misconfiguration",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.ID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: "",
+                installed: "",
+                fixed: "",
+                title: (.Title // "")
+              }
+            ),
+            (
+              ($result.Secrets // [])[] |
+              {
+                kind: "secret",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.RuleID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: "",
+                installed: "",
+                fixed: "",
+                title: (.Title // "")
+              }
+            )
+          ' "${JSON_REPORT}" |
+          jq -r '
+            "[\(.severity)] \(.kind): \(.id)",
+            "  Target: \(.target)",
+            "  Type: \(.type)",
+            (
+              if .package != "" then
+                "  Package: \(.package)@\(.installed)"
+              else
+                empty
+              end
+            ),
+            (
+              if .fixed != "" then
+                "  Fixed version: \(.fixed)"
+              else
+                empty
+              end
+            ),
+            (
+              if .title != "" then
+                "  \(.title)"
+              else
+                empty
+              end
+            ),
+            ""
+          '
+
       - name: Upload Trivy reports
         if: always()
         uses: actions/upload-artifact@v7
