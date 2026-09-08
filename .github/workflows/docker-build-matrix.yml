@@ -53,7 +53,7 @@ jobs:
           password: ${{ secrets.registry-token || github.token }}
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -63,8 +63,12 @@ jobs:
           labels: ${{ matrix.labels }}
           target: ${{ matrix.target }}
           pull: ${{ matrix.pull }}
+          no-cache: ${{ matrix.no_cache }}
+          cache-from: ${{ matrix.cache_from }}
+          cache-to: ${{ matrix.cache_to }}
+          secrets: ${{ matrix.secrets }}
+          outputs: ${{ matrix.outputs }}
+          annotations: ${{ matrix.annotations }}
           push: ${{ inputs.publish && matrix.publish }}
           provenance: ${{ inputs.publish && matrix.publish }}
           sbom: ${{ inputs.publish && matrix.publish }}
-          cache-from: type=gha,scope=${{ matrix.cache_scope }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}

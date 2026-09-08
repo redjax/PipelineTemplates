@@ -22,7 +22,7 @@ on:
         type: string
 
       platforms:
-        description: Target platforms
+        description: Target platforms (i.e. linux/amd64,linux/arm64,windows/amd64,windows/arm64,darwin/amd64,darwin/arm64)
         required: false
         type: string
         default: linux/amd64
@@ -39,11 +39,53 @@ on:
         type: string
         default: ""
 
+      target:
+        description: Optional Dockerfile build target
+        required: false
+        type: string
+        default: ""
+
       pull:
         description: Always pull base images
         required: false
         type: boolean
         default: false
+
+      no-cache:
+        description: Disable Docker build cache
+        required: false
+        type: boolean
+        default: false
+
+      cache-from:
+        description: Newline-delimited BuildKit cache sources
+        required: false
+        type: string
+        default: type=gha
+
+      cache-to:
+        description: Newline-delimited BuildKit cache destinations
+        required: false
+        type: string
+        default: type=gha,mode=max
+
+      secrets:
+        description: Newline-delimited BuildKit secret specifications
+        required: false
+        type: string
+        default: ""
+
+      outputs:
+        description: Newline-delimited BuildKit output specifications
+        required: false
+        type: string
+        default: ""
+
+      annotations:
+        description: Newline-delimited OCI annotations
+        required: false
+        type: string
+        default: ""
 
       publish:
         description: Push the image
@@ -65,6 +107,7 @@ on:
 
     secrets:
       registry-token:
+        description: Registry authentication token
         required: false
 
 jobs:
@@ -95,7 +138,7 @@ jobs:
           password: ${{ secrets.registry-token || github.token }}
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.dockerfile }}
@@ -103,9 +146,14 @@ jobs:
           tags: ${{ inputs.tags }}
           build-args: ${{ inputs.build-args }}
           labels: ${{ inputs.labels }}
+          target: ${{ inputs.target }}
           pull: ${{ inputs.pull }}
+          no-cache: ${{ inputs.no-cache }}
+          cache-from: ${{ inputs.cache-from }}
+          cache-to: ${{ inputs.cache-to }}
+          secrets: ${{ inputs.secrets }}
+          outputs: ${{ inputs.outputs }}
+          annotations: ${{ inputs.annotations }}
           push: ${{ inputs.publish }}
           provenance: ${{ inputs.publish }}
           sbom: ${{ inputs.publish }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
