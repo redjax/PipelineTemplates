@@ -1,0 +1,111 @@
+---
+name: Docker Build
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Docker build context
+        required: false
+        type: string
+        default: .
+
+      dockerfile:
+        description: Dockerfile path
+        required: false
+        type: string
+        default: Dockerfile
+
+      tags:
+        description: Newline-delimited image tags
+        required: true
+        type: string
+
+      platforms:
+        description: Target platforms
+        required: false
+        type: string
+        default: linux/amd64
+
+      build-args:
+        description: Newline-delimited Docker build arguments
+        required: false
+        type: string
+        default: ""
+
+      labels:
+        description: Newline-delimited Docker labels
+        required: false
+        type: string
+        default: ""
+
+      pull:
+        description: Always pull base images
+        required: false
+        type: boolean
+        default: false
+
+      publish:
+        description: Push the image
+        required: false
+        type: boolean
+        default: false
+
+      registry:
+        description: Registry hostname
+        required: false
+        type: string
+        default: ghcr.io
+
+      registry-username:
+        description: Registry username
+        required: false
+        type: string
+        default: ""
+
+    secrets:
+      registry-token:
+        required: false
+
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        if: inputs.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ inputs.registry-username || github.actor }}
+          password: ${{ secrets.registry-token || github.token }}
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ inputs.tags }}
+          build-args: ${{ inputs.build-args }}
+          labels: ${{ inputs.labels }}
+          pull: ${{ inputs.pull }}
+          push: ${{ inputs.publish }}
+          provenance: ${{ inputs.publish }}
+          sbom: ${{ inputs.publish }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
