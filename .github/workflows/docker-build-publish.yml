@@ -1,0 +1,46 @@
+---
+name: Build and Publish Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+  pull_request:
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-artifact:
+    name: Build image artifact
+    uses: redjax/pipelinetemplates/.github/workflows/docker-build.yml@main
+    with:
+      context: .
+      dockerfile: containers/Dockerfile
+      image: porkbun-cli
+      platforms: linux/amd64
+      artifact-name: porkbun-cli-linux-amd64
+    secrets: inherit
+
+  publish:
+    name: Publish image
+    if: github.event_name != 'pull_request'
+    needs:
+      - build-artifact
+    uses: redjax/pipelinetemplates/.github/workflows/docker-publish.yml@main
+    with:
+      context: .
+      dockerfile: containers/Dockerfile
+      image: ghcr.io/redjax/porkbun-cli
+      platforms: linux/amd64
+      tags: |
+        ghcr.io/redjax/porkbun-cli:latest
+        ghcr.io/redjax/porkbun-cli:git-${{ github.sha }}
+    secrets:
+      registry-token: ${{ secrets.GITHUB_TOKEN }}
