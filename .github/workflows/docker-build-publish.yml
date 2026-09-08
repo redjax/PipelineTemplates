@@ -11,36 +11,230 @@ on:
   pull_request:
 
   workflow_dispatch:
+    inputs:
+      context:
+        description: Docker build context
+        required: false
+        type: string
+        default: .
+
+      dockerfile:
+        description: Path to the Dockerfile
+        required: false
+        type: string
+        default: Dockerfile
+
+      image:
+        description: Fully qualified image name without the tag
+        required: true
+        type: string
+
+      tags:
+        description: Newline-delimited complete image tags
+        required: true
+        type: string
+
+      platforms:
+        description: Comma-separated target platforms
+        required: false
+        type: string
+        default: linux/amd64
+
+      build_args:
+        description: Newline-delimited Docker build arguments
+        required: false
+        type: string
+        default: ""
+
+      labels:
+        description: Newline-delimited Docker image labels
+        required: false
+        type: string
+        default: ""
+
+      target:
+        description: Optional Dockerfile build target
+        required: false
+        type: string
+        default: ""
+
+      pull:
+        description: Always pull base images
+        required: false
+        type: boolean
+        default: false
+
+      no_cache:
+        description: Disable Docker build cache
+        required: false
+        type: boolean
+        default: false
+
+      cache_from:
+        description: Newline-delimited BuildKit cache sources
+        required: false
+        type: string
+        default: type=gha
+
+      cache_to:
+        description: Newline-delimited BuildKit cache destinations
+        required: false
+        type: string
+        default: type=gha,mode=max
+
+      secrets:
+        description: Newline-delimited BuildKit secret specifications
+        required: false
+        type: string
+        default: ""
+
+      outputs:
+        description: Newline-delimited BuildKit output specifications
+        required: false
+        type: string
+        default: ""
+
+      annotations:
+        description: Newline-delimited OCI annotations
+        required: false
+        type: string
+        default: ""
+
+      publish:
+        description: Push the image to the registry
+        required: false
+        type: boolean
+        default: false
+
+  workflow_call:
+    inputs:
+      context:
+        description: Docker build context
+        required: false
+        type: string
+        default: .
+
+      dockerfile:
+        description: Path to the Dockerfile
+        required: false
+        type: string
+        default: Dockerfile
+
+      image:
+        description: Fully qualified image name without the tag
+        required: true
+        type: string
+
+      tags:
+        description: Newline-delimited complete image tags
+        required: true
+        type: string
+
+      platforms:
+        description: Comma-separated target platforms
+        required: false
+        type: string
+        default: linux/amd64
+
+      build_args:
+        description: Newline-delimited Docker build arguments
+        required: false
+        type: string
+        default: ""
+
+      labels:
+        description: Newline-delimited Docker image labels
+        required: false
+        type: string
+        default: ""
+
+      target:
+        description: Optional Dockerfile build target
+        required: false
+        type: string
+        default: ""
+
+      pull:
+        description: Always pull base images
+        required: false
+        type: boolean
+        default: false
+
+      no_cache:
+        description: Disable Docker build cache
+        required: false
+        type: boolean
+        default: false
+
+      cache_from:
+        description: Newline-delimited BuildKit cache sources
+        required: false
+        type: string
+        default: type=gha
+
+      cache_to:
+        description: Newline-delimited BuildKit cache destinations
+        required: false
+        type: string
+        default: type=gha,mode=max
+
+      secrets:
+        description: Newline-delimited BuildKit secret specifications
+        required: false
+        type: string
+        default: ""
+
+      outputs:
+        description: Newline-delimited BuildKit output specifications
+        required: false
+        type: string
+        default: ""
+
+      annotations:
+        description: Newline-delimited OCI annotations
+        required: false
+        type: string
+        default: ""
+
+      publish:
+        description: Push the image to the registry
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      registry-token:
+        description: Registry authentication token
+        required: false
 
 permissions:
   contents: read
   packages: write
 
 jobs:
-  build-artifact:
-    name: Build image artifact
-    uses: redjax/pipelinetemplates/.github/workflows/docker-build.yml@main
-    with:
-      context: .
-      dockerfile: containers/Dockerfile
-      image: porkbun-cli
-      platforms: linux/amd64
-      artifact-name: porkbun-cli-linux-amd64
-    secrets: inherit
+  docker:
+    name: Build Docker image
 
-  publish:
-    name: Publish image
-    if: github.event_name != 'pull_request'
-    needs:
-      - build-artifact
-    uses: redjax/pipelinetemplates/.github/workflows/docker-publish.yml@main
+    permissions:
+      contents: read
+      packages: write
+
+    uses: redjax/pipelinetemplates/.github/workflows/docker-build.yml@feat/docker-gh-publish
     with:
-      context: .
-      dockerfile: containers/Dockerfile
-      image: ghcr.io/redjax/porkbun-cli
-      platforms: linux/amd64
-      tags: |
-        ghcr.io/redjax/porkbun-cli:latest
-        ghcr.io/redjax/porkbun-cli:git-${{ github.sha }}
+      context: ${{ inputs.context }}
+      dockerfile: ${{ inputs.dockerfile }}
+      tags: ${{ inputs.tags }}
+      platforms: ${{ inputs.platforms }}
+      build-args: ${{ inputs.build_args }}
+      labels: ${{ inputs.labels }}
+      target: ${{ inputs.target }}
+      pull: ${{ inputs.pull }}
+      no-cache: ${{ inputs.no_cache }}
+      cache-from: ${{ inputs.cache_from }}
+      cache-to: ${{ inputs.cache_to }}
+      secrets: ${{ inputs.secrets }}
+      outputs: ${{ inputs.outputs }}
+      annotations: ${{ inputs.annotations }}
+      publish: ${{ inputs.publish }}
     secrets:
-      registry-token: ${{ secrets.GITHUB_TOKEN }}
+      registry-token: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
