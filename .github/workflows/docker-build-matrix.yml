@@ -1,0 +1,74 @@
+---
+name: Docker Matrix Build
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        description: JSON array of Docker image build definitions
+        required: true
+        type: string
+
+      publish:
+        description: Publish images to their configured registries
+        required: false
+        default: false
+        type: boolean
+
+    secrets:
+      registry-token:
+        description: Registry authentication token
+        required: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.matrix) }}
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to registry
+        if: inputs.publish && matrix.publish
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ matrix.registry }}
+          username: ${{ matrix.registry_username || github.actor }}
+          password: ${{ secrets.registry-token || github.token }}
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          tags: ${{ matrix.tags }}
+          build-args: ${{ matrix.build_args }}
+          labels: ${{ matrix.labels }}
+          target: ${{ matrix.target }}
+          pull: "${{ matrix.pull == true }}"
+          no-cache: "${{ matrix.no_cache == true }}"
+          cache-from: ${{ matrix.cache_from }}
+          cache-to: ${{ matrix.cache_to }}
+          secrets: ${{ matrix.secrets }}
+          outputs: ${{ matrix.outputs }}
+          annotations: ${{ matrix.annotations }}
+          push: "${{ inputs.publish == true && matrix.publish == true }}"
+          provenance: "${{ inputs.publish == true && matrix.publish == true }}"
+          sbom: "${{ inputs.publish == true && matrix.publish == true }}"
