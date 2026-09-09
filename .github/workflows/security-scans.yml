@@ -1,0 +1,431 @@
+---
+#######################################################################
+# Orchestrate security scanners for a consuming repository.           #
+#                                                                     #
+# This workflow controls which scanners run and passes scanner        #
+# configuration to the individual reusable scanner workflows.         #
+#######################################################################
+
+name: Security scans
+
+on:
+  workflow_call:
+    inputs:
+      #########
+      # Trivy #
+      #########
+
+      enableTrivy:
+        description: Run Trivy
+        required: false
+        type: boolean
+        default: false
+
+      trivyVersion:
+        description: Trivy version without a leading v
+        required: false
+        type: string
+        default: "0.73.0"
+
+      trivyScanType:
+        description: Trivy scan target
+        required: false
+        type: string
+        default: filesystem
+
+      trivyScanPath:
+        description: Repository-relative path to scan with Trivy filesystem mode
+        required: false
+        type: string
+        default: .
+
+      trivyImageRef:
+        description: Image reference to scan with Trivy image mode
+        required: false
+        type: string
+        default: ""
+
+      trivyScanners:
+        description: Comma-separated Trivy scanners
+        required: false
+        type: string
+        default: vuln,secret,misconfig
+
+      trivySeverity:
+        description: Comma-separated Trivy severity levels
+        required: false
+        type: string
+        default: HIGH,CRITICAL
+
+      trivyIgnoreUnfixed:
+        description: Ignore Trivy vulnerabilities without a fix
+        required: false
+        type: boolean
+        default: true
+
+      trivyConfigPath:
+        description: Optional repository-relative Trivy configuration path
+        required: false
+        type: string
+        default: ""
+
+      trivyIgnoreFile:
+        description: Optional repository-relative Trivy ignore file path
+        required: false
+        type: string
+        default: ""
+
+      trivySkipDirs:
+        description: Optional comma-separated Trivy directories to skip
+        required: false
+        type: string
+        default: ""
+
+      failOnTrivyFindings:
+        description: Fail if Trivy reports findings
+        required: false
+        type: boolean
+        default: true
+
+      ############
+      # Gitleaks #
+      ############
+
+      enableGitleaks:
+        description: Run Gitleaks against Git history
+        required: false
+        type: boolean
+        default: false
+
+      gitleaksVersion:
+        description: Gitleaks version without a leading v
+        required: false
+        type: string
+        default: "8.30.1"
+
+      gitleaksMode:
+        description: Gitleaks scan mode
+        required: false
+        type: string
+        default: git
+
+      gitleaksSource:
+        description: Gitleaks source path when using directory mode
+        required: false
+        type: string
+        default: .
+
+      gitleaksConfigPath:
+        description: Optional repository-relative Gitleaks config path
+        required: false
+        type: string
+        default: ""
+
+      gitleaksBaselinePath:
+        description: Optional repository-relative Gitleaks baseline path
+        required: false
+        type: string
+        default: ""
+
+      failOnGitleaksFindings:
+        description: Fail if Gitleaks reports findings
+        required: false
+        type: boolean
+        default: true
+
+      gitleaksGenerateCsvReport:
+        description: Generate a Gitleaks CSV report
+        required: false
+        type: boolean
+        default: false
+
+      ###############
+      # OSV Scanner #
+      ###############
+
+      enableOSV:
+        description: Run OSV-Scanner against repository dependencies
+        required: false
+        type: boolean
+        default: false
+
+      osvScannerVersion:
+        description: OSV-Scanner version without a leading v
+        required: false
+        type: string
+        default: "2.5.0"
+
+      osvSource:
+        description: Repository-relative OSV-Scanner source path
+        required: false
+        type: string
+        default: .
+
+      osvRecursive:
+        description: Recursively scan for dependency manifests and lockfiles
+        required: false
+        type: boolean
+        default: true
+
+      osvConfigPath:
+        description: Optional repository-relative OSV-Scanner config path
+        required: false
+        type: string
+        default: ""
+
+      osvNoResolve:
+        description: Disable OSV transitive dependency resolution
+        required: false
+        type: boolean
+        default: false
+
+      osvAllowNoPackageSources:
+        description: Treat no package sources as a successful no-op
+        required: false
+        type: boolean
+        default: false
+
+      osvVerbosity:
+        description: OSV-Scanner logging verbosity
+        required: false
+        type: string
+        default: info
+
+      osvAdditionalArgs:
+        description: Additional OSV-Scanner arguments
+        required: false
+        type: string
+        default: ""
+
+      failOnOSVFindings:
+        description: Fail if OSV-Scanner reports vulnerabilities
+        required: false
+        type: boolean
+        default: true
+
+      osvSarifCategory:
+        description: GitHub Code Scanning category for OSV results
+        required: false
+        type: string
+        default: osv-scanner
+
+      #################
+      # Github CodeQL #
+      #################
+
+      enableCodeQL:
+        description: Run CodeQL analysis
+        required: false
+        type: boolean
+        default: false
+
+      codeqlLanguages:
+        description: Comma-separated CodeQL languages
+        required: false
+        type: string
+        default: ""
+
+      codeqlQueries:
+        description: CodeQL query suite or query additions
+        required: false
+        type: string
+        default: ""
+
+      codeqlRunBuild:
+        description: Run a traced CodeQL build
+        required: false
+        type: boolean
+        default: false
+
+      codeqlBuildCommands:
+        description: Newline-delimited CodeQL build commands
+        required: false
+        type: string
+        default: ""
+
+      codeqlUploadSarif:
+        description: Upload CodeQL SARIF results
+        required: false
+        type: boolean
+        default: true
+
+      codeqlFailOnError:
+        description: Fail if CodeQL initialization or analysis fails
+        required: false
+        type: boolean
+        default: true
+
+      codeqlCategory:
+        description: GitHub Code Scanning category for CodeQL results
+        required: false
+        type: string
+        default: ""
+
+      ##############
+      # Trufflehog #
+      ##############
+
+      enableTruffleHog:
+        description: Run TruffleHog against Git history
+        required: false
+        type: boolean
+        default: false
+
+      trufflehogVersion:
+        description: TruffleHog version without a leading v
+        required: false
+        type: string
+        default: "3.96.0"
+
+      trufflehogMode:
+        description: TruffleHog scan mode
+        required: false
+        type: string
+        default: git
+
+      trufflehogSource:
+        description: TruffleHog source path or repository URL
+        required: false
+        type: string
+        default: .
+
+      trufflehogConfigPath:
+        description: Optional repository-relative TruffleHog config path
+        required: false
+        type: string
+        default: ""
+
+      trufflehogResults:
+        description: TruffleHog result categories
+        required: false
+        type: string
+        default: verified
+
+      failOnTruffleHogFindings:
+        description: Fail if TruffleHog reports findings
+        required: false
+        type: boolean
+        default: true
+
+      #################
+      # Miscellaneous #
+      #################
+
+      artifactRetentionDays:
+        description: Number of days to retain scanner artifacts
+        required: false
+        type: number
+        default: 30
+
+      pipelineTemplatesRef:
+        description: PipelineTemplates ref used by nested scanner workflows
+        required: false
+        type: string
+        default: main
+
+jobs:
+  trivy:
+    name: Trivy scan
+    if: inputs.enableTrivy
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/trivy-scan.yml
+    with:
+      trivy-version: ${{ inputs.trivyVersion }}
+      scan-type: ${{ inputs.trivyScanType }}
+      scan-path: ${{ inputs.trivyScanPath }}
+      image-ref: ${{ inputs.trivyImageRef }}
+      scanners: ${{ inputs.trivyScanners }}
+      severity: ${{ inputs.trivySeverity }}
+      ignore-unfixed: ${{ inputs.trivyIgnoreUnfixed }}
+      config-path: ${{ inputs.trivyConfigPath }}
+      ignore-file: ${{ inputs.trivyIgnoreFile }}
+      skip-dirs: ${{ inputs.trivySkipDirs }}
+      fail-on-findings: ${{ inputs.failOnTrivyFindings }}
+      artifact-retention-days: ${{ inputs.artifactRetentionDays }}
+      pipelinetemplates-ref: ${{ inputs.pipelineTemplatesRef }}
+
+  gitleaks:
+    name: Gitleaks scan
+    if: inputs.enableGitleaks
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/gitleaks-secret-scan.yml
+    with:
+      gitleaks-version: ${{ inputs.gitleaksVersion }}
+      mode: ${{ inputs.gitleaksMode }}
+      source: ${{ inputs.gitleaksSource }}
+      config-path: ${{ inputs.gitleaksConfigPath }}
+      baseline-path: ${{ inputs.gitleaksBaselinePath }}
+      fail-on-findings: ${{ inputs.failOnGitleaksFindings }}
+      generate-csv-report: ${{ inputs.gitleaksGenerateCsvReport }}
+      artifact-retention-days: ${{ inputs.artifactRetentionDays }}
+
+  osv:
+    name: OSV dependency scan
+    if: inputs.enableOSV
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/osv-scan.yml
+    with:
+      osv-scanner-version: ${{ inputs.osvScannerVersion }}
+      source: ${{ inputs.osvSource }}
+      recursive: ${{ inputs.osvRecursive }}
+      config-path: ${{ inputs.osvConfigPath }}
+      no-resolve: ${{ inputs.osvNoResolve }}
+      allow-no-package-sources: ${{ inputs.osvAllowNoPackageSources }}
+      verbosity: ${{ inputs.osvVerbosity }}
+      additional-args: ${{ inputs.osvAdditionalArgs }}
+      fail-on-vulnerabilities: ${{ inputs.failOnOSVFindings }}
+      sarif-category: ${{ inputs.osvSarifCategory }}
+      artifact-retention-days: ${{ inputs.artifactRetentionDays }}
+      pipeline-templates-ref: ${{ inputs.pipelineTemplatesRef }}
+
+  codeql:
+    name: CodeQL analysis
+    if: inputs.enableCodeQL
+
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    uses: ./.github/workflows/codeql-analysis.yml
+    with:
+      languages: ${{ inputs.codeqlLanguages }}
+      queries: ${{ inputs.codeqlQueries }}
+      run-build: ${{ inputs.codeqlRunBuild }}
+      build-commands: ${{ inputs.codeqlBuildCommands }}
+      upload-sarif: ${{ inputs.codeqlUploadSarif }}
+      fail-on-error: ${{ inputs.codeqlFailOnError }}
+      category: ${{ inputs.codeqlCategory }}
+
+  trufflehog:
+    name: TruffleHog scan
+    if: inputs.enableTruffleHog
+
+    permissions:
+      actions: read
+      contents: read
+
+    uses: ./.github/workflows/trufflehog-secret-scan.yml
+    with:
+      trufflehog-version: ${{ inputs.trufflehogVersion }}
+      mode: ${{ inputs.trufflehogMode }}
+      source: ${{ inputs.trufflehogSource }}
+      config-path: ${{ inputs.trufflehogConfigPath }}
+      results: ${{ inputs.trufflehogResults }}
+      fail-on-findings: ${{ inputs.failOnTruffleHogFindings }}
+      artifact-retention-days: ${{ inputs.artifactRetentionDays }}
