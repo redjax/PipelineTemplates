@@ -1,0 +1,14 @@
+---
+## Default Trivy configuration when consuming pipeline does not provide its own.
+
+scan:
+  scanners:
+    - vuln
+    - secret
+    - misconfig
+
+severity:
+  - HIGH
+  - CRITICAL
+
+ignore-unfixed: true

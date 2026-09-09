@@ -74,6 +74,14 @@ on:
         type: string
         default: ""
 
+      ignore-file:
+        description: >-
+          Optional repository-relative Trivy ignore file path.
+          This file is passed to Trivy using --ignorefile.
+        required: false
+        type: string
+        default: ""
+
       skip-dirs:
         description: >-
           Optional comma-separated directories to exclude from scanning.
@@ -155,7 +163,7 @@ jobs:
           set -euo pipefail
 
           if [[ ! "${TRIVY_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error title=Invalid Trivy version::Use a semantic version without a leading 'v', such as 0.73.0."
+            echo "::error title=Invalid Trivy version::Use a version without a leading 'v', such as 0.73.0."
             exit 1
           fi
 
@@ -250,6 +258,7 @@ jobs:
           TRIVY_SEVERITY: ${{ inputs.severity }}
           TRIVY_IGNORE_UNFIXED: ${{ inputs.ignore-unfixed }}
           TRIVY_CONFIG_PATH: ${{ inputs.config-path }}
+          TRIVY_IGNORE_FILE: ${{ inputs.ignore-file }}
           TRIVY_SKIP_DIRS: ${{ inputs.skip-dirs }}
           TRIVY_REPORT_DIR: ${{ steps.paths.outputs.report-dir }}
           TRIVY_CACHE_DIR: ${{ runner.temp }}/trivy-cache
@@ -288,16 +297,124 @@ jobs:
 
           if [[ "${finding_count}" -gt 0 ]]; then
             has_findings=true
-
             echo "::warning title=Trivy findings detected::Trivy reported ${finding_count} finding(s)."
           else
             has_findings=false
-
             echo "::notice title=No Trivy findings::Trivy completed successfully with no findings matching the configured scanners and severity policy."
           fi
 
           echo "count=${finding_count}" >> "${GITHUB_OUTPUT}"
           echo "has-findings=${has_findings}" >> "${GITHUB_OUTPUT}"
+
+      - name: Print Trivy findings
+        if: always()
+        shell: bash
+        env:
+          JSON_REPORT: ${{ steps.paths.outputs.json-report }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f "${JSON_REPORT}" ]]; then
+            echo "::notice title=Trivy report unavailable::No Trivy JSON report was generated."
+            exit 0
+          fi
+
+          echo
+          echo "Trivy findings"
+          echo
+
+          finding_count="$(
+            jq '
+              [
+                .Results[]?
+                | (.Vulnerabilities // [])[],
+                  (.Misconfigurations // [])[],
+                  (.Secrets // [])[]
+              ]
+              | length
+            ' "${JSON_REPORT}"
+          )"
+
+          if [[ "${finding_count}" -eq 0 ]]; then
+            echo "No Trivy findings."
+            exit 0
+          fi
+
+          echo "Finding count: ${finding_count}"
+          echo
+
+          jq -r '
+            .Results[]? as $result |
+            (
+              ($result.Vulnerabilities // [])[] |
+              {
+                kind: "vulnerability",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.VulnerabilityID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: (.PkgName // "unknown"),
+                installed: (.InstalledVersion // "unknown"),
+                fixed: (.FixedVersion // ""),
+                title: (.Title // "")
+              }
+            ),
+            (
+              ($result.Misconfigurations // [])[] |
+              {
+                kind: "misconfiguration",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.ID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: "",
+                installed: "",
+                fixed: "",
+                title: (.Title // "")
+              }
+            ),
+            (
+              ($result.Secrets // [])[] |
+              {
+                kind: "secret",
+                target: ($result.Target // "unknown"),
+                type: ($result.Type // "unknown"),
+                id: (.RuleID // "unknown"),
+                severity: (.Severity // "UNKNOWN"),
+                package: "",
+                installed: "",
+                fixed: "",
+                title: (.Title // "")
+              }
+            )
+          ' "${JSON_REPORT}" |
+          jq -r '
+            "[\(.severity)] \(.kind): \(.id)",
+            "  Target: \(.target)",
+            "  Type: \(.type)",
+            (
+              if .package != "" then
+                "  Package: \(.package)@\(.installed)"
+              else
+                empty
+              end
+            ),
+            (
+              if .fixed != "" then
+                "  Fixed version: \(.fixed)"
+              else
+                empty
+              end
+            ),
+            (
+              if .title != "" then
+                "  \(.title)"
+              else
+                empty
+              end
+            ),
+            ""
+          '
 
       - name: Upload Trivy reports
         if: always()
