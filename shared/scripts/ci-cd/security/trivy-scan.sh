@@ -53,8 +53,8 @@ TRIVY_REPORT_DIR="${TRIVY_REPORT_DIR:-./reports/trivy}"
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-}"
 TRIVY_FAIL_ON_FINDINGS="${TRIVY_FAIL_ON_FINDINGS:-false}"
 
-DEFAULT_TRIVY_CONFIG_PATH="${_REPOSITORY_ROOT}/config/trivy/trivy.yaml"
-DEFAULT_TRIVY_IGNORE_FILE="${_REPOSITORY_ROOT}/config/trivy/trivyignore.yaml"
+DEFAULT_TRIVY_CONFIG_PATH="${_REPOSITORY_ROOT}/config/trivy/trivy.yml"
+DEFAULT_TRIVY_IGNORE_FILE="${_REPOSITORY_ROOT}/config/trivy/trivyignore.yml"
 
 function fail() {
   echo "[ERROR] $*" >&2
