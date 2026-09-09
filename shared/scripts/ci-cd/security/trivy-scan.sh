@@ -25,6 +25,7 @@ set -euo pipefail
 #   TRIVY_SEVERITY                                      #
 #   TRIVY_IGNORE_UNFIXED                                #
 #   TRIVY_CONFIG_PATH                                   #
+#   TRIVY_IGNORE_FILE                                   #
 #   TRIVY_SKIP_DIRS                                     #
 #   TRIVY_REPORT_DIR                                    #
 #   TRIVY_CACHE_DIR                                     #
@@ -46,6 +47,7 @@ TRIVY_SCANNERS="${TRIVY_SCANNERS:-vuln,secret,misconfig}"
 TRIVY_SEVERITY="${TRIVY_SEVERITY:-HIGH,CRITICAL}"
 TRIVY_IGNORE_UNFIXED="${TRIVY_IGNORE_UNFIXED:-true}"
 TRIVY_CONFIG_PATH="${TRIVY_CONFIG_PATH:-}"
+TRIVY_IGNORE_FILE="${TRIVY_IGNORE_FILE:-}"
 TRIVY_SKIP_DIRS="${TRIVY_SKIP_DIRS:-}"
 TRIVY_REPORT_DIR="${TRIVY_REPORT_DIR:-./reports/trivy}"
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-}"
@@ -101,6 +103,10 @@ function validate_inputs() {
 
   if [[ -n "${TRIVY_CONFIG_PATH}" && ! -f "${TRIVY_CONFIG_PATH}" ]]; then
     fail "TRIVY_CONFIG_PATH does not exist: ${TRIVY_CONFIG_PATH}"
+  fi
+
+  if [[ -n "${TRIVY_IGNORE_FILE}" && ! -f "${TRIVY_IGNORE_FILE}" ]]; then
+    fail "TRIVY_IGNORE_FILE does not exist: ${TRIVY_IGNORE_FILE}"
   fi
 
   if ! is_installed jq; then
@@ -167,6 +173,10 @@ function build_scan_command() {
 
   if [[ -n "${TRIVY_CONFIG_PATH}" ]]; then
     TRIVY_COMMAND+=(--config "${TRIVY_CONFIG_PATH}")
+  fi
+
+  if [[ -n "${TRIVY_IGNORE_FILE}" ]]; then
+    TRIVY_COMMAND+=(--ignorefile "${TRIVY_IGNORE_FILE}")
   fi
 
   if [[ -n "${TRIVY_CACHE_DIR}" ]]; then
