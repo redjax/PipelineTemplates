@@ -53,6 +53,9 @@ TRIVY_REPORT_DIR="${TRIVY_REPORT_DIR:-./reports/trivy}"
 TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-}"
 TRIVY_FAIL_ON_FINDINGS="${TRIVY_FAIL_ON_FINDINGS:-false}"
 
+DEFAULT_TRIVY_CONFIG_PATH="${_REPOSITORY_ROOT}/config/trivy/trivy.yaml"
+DEFAULT_TRIVY_IGNORE_FILE="${_REPOSITORY_ROOT}/config/trivy/trivyignore.yaml"
+
 function fail() {
   echo "[ERROR] $*" >&2
   exit 2
@@ -111,6 +114,22 @@ function validate_inputs() {
 
   if ! is_installed jq; then
     fail "jq is required to count Trivy findings and enforce scan policy."
+  fi
+}
+
+function resolve_configuration_files() {
+  if [[ -z "${TRIVY_CONFIG_PATH}" ]]; then
+    TRIVY_CONFIG_PATH="${DEFAULT_TRIVY_CONFIG_PATH}"
+    echo "[INFO] Using default Trivy config: ${TRIVY_CONFIG_PATH}"
+  else
+    echo "[INFO] Using custom Trivy config: ${TRIVY_CONFIG_PATH}"
+  fi
+
+  if [[ -z "${TRIVY_IGNORE_FILE}" ]]; then
+    TRIVY_IGNORE_FILE="${DEFAULT_TRIVY_IGNORE_FILE}"
+    echo "[INFO] Using default Trivy ignore file: ${TRIVY_IGNORE_FILE}"
+  else
+    echo "[INFO] Using custom Trivy ignore file: ${TRIVY_IGNORE_FILE}"
   fi
 }
 
@@ -219,6 +238,7 @@ function main() {
   local finding_count=""
   local has_findings="false"
 
+  resolve_configuration_files
   validate_inputs
   resolve_trivy_binary
 

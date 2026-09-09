@@ -1,0 +1,10 @@
+---
+###########################################################################
+# Trivy scan exceptions                                                   #
+#                                                                         #
+# Consuming repositories can provide their own ignore file when they need #
+# repository-specific exceptions. Otherwise, these rules will apply to    #
+# all scans initiated by this repository's trivy-scan.yml pipeline(s).    #
+###########################################################################
+
+misconfigurations: []
