@@ -89,7 +89,7 @@ on:
 
     secrets:
       release-bot-pat:
-        required: false
+        required: true
 
 permissions:
   contents: write
