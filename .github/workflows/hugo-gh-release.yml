@@ -189,14 +189,24 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
-            echo "[INFO] Tag exists: ${TAG}"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "${TAG}" -m "${TAG}"
-            git push origin "${TAG}"
+          if [[ -z "${RELEASE_BOT_PAT}" ]]; then
+            echo "::error::release-bot-pat was not passed to hugo-gh-release.yml"
+            exit 1
           fi
+
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -Fxq "refs/tags/${TAG}"; then
+            echo "[INFO] Tag exists: ${TAG}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "${TAG}" -m "${TAG}"
+
+          git push \
+            "https://x-access-token:${RELEASE_BOT_PAT}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/tags/${TAG}:refs/tags/${TAG}"
 
       ## Create .tar.gz and .zip archives from pipeline build artifact
       - name: Package site
