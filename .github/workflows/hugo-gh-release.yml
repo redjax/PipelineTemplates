@@ -185,6 +185,7 @@ jobs:
         shell: bash
         env:
           TAG: ${{ needs.meta.outputs.release-tag }}
+          RELEASE_BOT_PAT: ${{ secrets.release-bot-pat }}
         run: |
           set -Eeuo pipefail
 
