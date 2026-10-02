@@ -2,3 +2,4 @@
 site_name = "PipelineTemplates"
 docs_dir = "docs"
 site_dir = "docs-site/site"
+dev_addr = "127.0.0.1:8118"
