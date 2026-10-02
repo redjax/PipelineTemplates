@@ -1,0 +1,4 @@
+[project]
+site_name = "PipelineTemplates"
+docs_dir = "docs"
+site_dir = "docs-site/site"
