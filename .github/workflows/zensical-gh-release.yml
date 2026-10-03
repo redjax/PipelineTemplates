@@ -176,7 +176,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
-          token: ${{ secrets.release-bot-pat }}
+          token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Download generated site artifact
         uses: actions/download-artifact@v8
