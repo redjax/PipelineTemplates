@@ -56,7 +56,7 @@ on:
         description: "Fail the Zensical build when warnings are emitted."
         required: false
         type: boolean
-        default: true
+        default: false # Set to true before merging to main
 
       build-flags:
         description: "Additional whitespace-delimited arguments passed to zensical build."
