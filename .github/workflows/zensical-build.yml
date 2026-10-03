@@ -1,0 +1,208 @@
+---
+name: Build Zensical Site
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version used for the Zensical build."
+        required: false
+        type: string
+        default: "3.13"
+
+      uv-version:
+        description: "Optional UV version. Leave empty for the setup action default."
+        required: false
+        type: string
+        default: ""
+
+      working-directory:
+        description: "Repository-relative directory in which Zensical runs."
+        required: false
+        type: string
+        default: "."
+
+      python-project-dir:
+        description: "Repository-relative UV project directory containing pyproject.toml."
+        required: false
+        type: string
+        default: "."
+
+      zensical-config:
+        description: "Optional repository-relative Zensical config path. Leave empty for automatic discovery."
+        required: false
+        type: string
+        default: ""
+
+      docs-dir:
+        description: "Optional repository-relative documentation source directory."
+        required: false
+        type: string
+        default: ""
+
+      output-dir:
+        description: "Repository-relative static-site output directory."
+        required: false
+        type: string
+        default: "site"
+
+      clean:
+        description: "Remove output before build and request a clean Zensical build."
+        required: false
+        type: boolean
+        default: true
+
+      strict:
+        description: "Fail the Zensical build when warnings are emitted."
+        required: false
+        type: boolean
+        default: true
+
+      build-flags:
+        description: "Additional whitespace-delimited arguments passed to zensical build."
+        required: false
+        type: string
+        default: ""
+
+      use-cache:
+        description: "Enable UV dependency caching."
+        required: false
+        type: boolean
+        default: true
+
+      cache-key-suffix:
+        description: "Optional UV cache-key suffix."
+        required: false
+        type: string
+        default: ""
+
+      check-changed:
+        description: "Skip the build when no configured relevant paths changed."
+        required: false
+        type: boolean
+        default: false
+
+      changed-paths-mode:
+        description: "How changed-paths is applied: default, replace, or append."
+        required: false
+        type: string
+        default: "default"
+
+      changed-paths:
+        description: "Newline-delimited repository-relative Git pathspecs."
+        required: false
+        type: string
+        default: ""
+
+      artifact-name:
+        description: "Artifact name for the generated static site."
+        required: false
+        type: string
+        default: "zensical-site"
+
+      artifact-retention-days:
+        description: "Generated-site artifact retention period in days."
+        required: false
+        type: number
+        default: 7
+
+      artifact-if-no-files-found:
+        description: "Behavior when the generated site output is missing: error, warn, or ignore."
+        required: false
+        type: string
+        default: "error"
+
+      checkout-ref:
+        description: "Branch, tag, or commit SHA in the consuming repository to build. Empty uses the triggering ref."
+        required: false
+        type: string
+        default: ""
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+      debug-state:
+        description: "Enable detailed path, config, tool-version, and output diagnostics."
+        required: false
+        type: boolean
+        default: false
+
+    outputs:
+      zensical-changed:
+        description: "Whether the Zensical action detected relevant changes."
+        value: ${{ jobs.build.outputs.zensical-changed }}
+
+      output-dir:
+        description: "Absolute generated-site directory resolved by the action."
+        value: ${{ jobs.build.outputs.output-dir }}
+
+jobs:
+  build:
+    name: Build Zensical Site
+    runs-on: ${{ inputs.runner-image }}
+
+    outputs:
+      zensical-changed: ${{ steps.zensical.outputs.zensical-changed }}
+      output-dir: ${{ steps.zensical.outputs.output-dir }}
+
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
+
+      - name: Inspect repository state
+        if: ${{ inputs.debug-state }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          echo "=== Repository ==="
+          echo "Workspace: ${GITHUB_WORKSPACE}"
+          echo "SHA: $(git rev-parse HEAD)"
+          echo "Ref: $(git symbolic-ref --short -q HEAD || git rev-parse --short HEAD)"
+
+          echo
+          echo "=== Repository root ==="
+          ls -la
+
+          echo
+          echo "=== Config candidates ==="
+          find . -maxdepth 3 \
+            \( -name "zensical.toml" -o -name "mkdocs.yml" -o -name "mkdocs.yaml" \) \
+            -type f \
+            -print \
+            | sort
+
+      - name: Build Zensical site
+        id: zensical
+        uses: redjax/pipelinetemplates/.github/actions/zensical-build@feat/zensical-build-gh-action
+        with:
+          python-version: ${{ inputs.python-version }}
+          uv-version: ${{ inputs.uv-version }}
+          working-directory: ${{ inputs.working-directory }}
+          python-project-dir: ${{ inputs.python-project-dir }}
+          zensical-config: ${{ inputs.zensical-config }}
+          docs-dir: ${{ inputs.docs-dir }}
+          output-dir: ${{ inputs.output-dir }}
+          clean: ${{ inputs.clean && 'true' || 'false' }}
+          strict: ${{ inputs.strict && 'true' || 'false' }}
+          build-flags: ${{ inputs.build-flags }}
+          use-cache: ${{ inputs.use-cache && 'true' || 'false' }}
+          cache-key-suffix: ${{ inputs.cache-key-suffix }}
+          check-changed: ${{ inputs.check-changed && 'true' || 'false' }}
+          changed-paths-mode: ${{ inputs.changed-paths-mode }}
+          changed-paths: ${{ inputs.changed-paths }}
+          publish-artifact: "true"
+          artifact-name: ${{ inputs.artifact-name }}
+          artifact-retention-days: ${{ inputs.artifact-retention-days }}
+          artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+          debug-state: ${{ inputs.debug-state && 'true' || 'false' }}
