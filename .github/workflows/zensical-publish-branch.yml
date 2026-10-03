@@ -1,11 +1,18 @@
 ---
+################################################################################
+# Publish a built Zensical static-site artifact to a Git branch                #
+#                                                                              #
+# Downloads the generated artifact from the specified workflow run and force-  #
+# updates the selected branch, commonly gh-pages.                              #
+################################################################################
+
 name: Publish Zensical Site to Branch
 
 on:
   workflow_call:
     inputs:
       artifact-name:
-        description: "Generated-site artifact to publish."
+        description: "Generated static-site artifact to publish."
         required: false
         type: string
         default: "zensical-site"
@@ -16,7 +23,7 @@ on:
         type: string
 
       branch-name:
-        description: "Repository branch that will contain generated static site files."
+        description: "Repository branch that will contain generated static-site files."
         required: false
         type: string
         default: "gh-pages"
@@ -35,7 +42,8 @@ on:
 
     secrets:
       push-token:
-        required: true
+        description: "Optional PAT or GitHub App token used instead of GITHUB_TOKEN."
+        required: false
 
 permissions:
   contents: write
@@ -53,13 +61,17 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ./_published
           run-id: ${{ inputs.run-id }}
-          github-token: ${{ secrets.push-token }}
+          github-token: ${{ secrets.push-token || github.token }}
 
       - name: Verify downloaded site artifact
         shell: bash
         run: |
           set -Eeuo pipefail
-          test -f ./_published/index.html
+
+          if [[ ! -f ./_published/index.html ]]; then
+            echo "::error::Generated site artifact does not contain ./_published/index.html" >&2
+            exit 1
+          fi
 
       - name: Force-update deployment branch
         shell: bash
@@ -67,11 +79,11 @@ jobs:
         env:
           BRANCH_NAME: ${{ inputs.branch-name }}
           COMMIT_MESSAGE: ${{ inputs.commit-message }}
-          PUSH_TOKEN: ${{ secrets.push-token }}
+          PUSH_TOKEN: ${{ secrets.push-token || github.token }}
         run: |
           set -Eeuo pipefail
 
-          : "${PUSH_TOKEN:?push-token is required}"
+          : "${PUSH_TOKEN:?No token is available for deployment-branch publishing}"
 
           git init
           git config user.name "github-actions[bot]"
