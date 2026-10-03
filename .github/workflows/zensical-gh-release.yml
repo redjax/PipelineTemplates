@@ -71,7 +71,8 @@ on:
 
     secrets:
       release-bot-pat:
-        required: true
+        description: "Optional PAT used instead of GITHUB_TOKEN for tag/release operations."
+        required: false
 
     outputs:
       release-version:
@@ -205,11 +206,11 @@ jobs:
         shell: bash
         env:
           TAG: ${{ needs.meta.outputs.release-tag }}
-          RELEASE_BOT_PAT: ${{ secrets.release-bot-pat }}
+          PUSH_TOKEN: ${{ secrets.release-bot-pat || github.token }}
         run: |
           set -Eeuo pipefail
 
-          : "${RELEASE_BOT_PAT:?release-bot-pat is required}"
+          : "${PUSH_TOKEN:?No GitHub token is available}"
 
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "[INFO] Tag already exists: ${TAG}"
@@ -222,7 +223,7 @@ jobs:
           git tag -a "${TAG}" -m "${TAG}"
 
           git push \
-            "https://x-access-token:${RELEASE_BOT_PAT}@github.com/${GITHUB_REPOSITORY}.git" \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "refs/tags/${TAG}:refs/tags/${TAG}"
 
       - name: Package static site archives
