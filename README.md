@@ -24,6 +24,8 @@ Reusable pipeline templates for CI/CD technologies like Github Actions, Gitlab P
 > [!TIP]
 > I use a separate repository, [`PipelineTemplates-Test`](https://github.com/redjax/PipelineTemplates-Test), to demonstrate and mock integrations with components from this repository. The test repository includes Docker containers, Go applications, and other supporting services, along with example pipelines that consume components from this repository for demonstration and validation runs.
 
+Documentation for this site is published from the [`docs/` directory](./docs/) to [https://redjax.github.io/PipelineTemplates](https://redjax.github.io/PipelineTemplates). The site is currently built with [Zensical](https://zensical.org); the Zensical project lives in the [`docs-site/` directory](./docs-site/).
+
 ## Description
 
 Centralized repository where I store my CI/CD pipelines & components. Each component is versioned individually (read the [versioning docs](./docs/versioning/)) and creates a git tag so they are idempotent/repeatable; each time a pipeline is called from the same ref/tag, it will do the same thing.
