@@ -1,0 +1,67 @@
+---
+name: Test Zensical Build and Release
+
+on:
+  push:
+    branches:
+      - feat/zensical-build-gh-workflow
+  workflow_dispatch:
+    inputs:
+      create-github-release:
+        description: "Create a GitHub Release after building."
+        required: false
+        type: boolean
+        default: false
+
+      release-tag:
+        description: "Required when create-github-release is true. Example: zensical-test-20261003-0257."
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/zensical-build.yml
+    with:
+      runner-image: "ubuntu-latest"
+      python-version: "3.13"
+
+      working-directory: "."
+      python-project-dir: "docs-site"
+      zensical-config: "zensical.toml"
+      docs-dir: "docs"
+      output-dir: "docs-site/site"
+
+      clean: true
+      strict: false
+      use-cache: true
+      cache-key-suffix: "pipelinetemplates-docs"
+
+      artifact-name: "pipelinetemplates-zensical-site"
+      artifact-retention-days: 7
+      artifact-if-no-files-found: "error"
+
+      debug-state: true
+
+  release:
+    if: ${{ inputs.create-github-release }}
+    needs: build
+    uses: ./.github/workflows/zensical-gh-release.yml
+    with:
+      versioned: false
+      artifact-name: "pipelinetemplates-zensical-site"
+      build-run-id: ${{ github.run_id }}
+
+      release-prefix: "zensical-test"
+      release-tag: ${{ inputs.release-tag }}
+      release-name: ${{ inputs.release-tag }}
+
+      checkout-ref: ${{ github.sha }}
+      create-github-release: true
+      runner-image: "ubuntu-latest"
+    secrets:
+      release-bot-pat: ${{ secrets.RELEASE_BOT_PAT }}
