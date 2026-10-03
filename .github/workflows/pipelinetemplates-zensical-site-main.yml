@@ -1,13 +1,15 @@
 ---
 ################################################################################
-# Build, release, and optionally publish PipelineTemplates Zensical docs       #
+# Build, release, and publish PipelineTemplates Zensical documentation         #
 #                                                                              #
-# This is a repository-local caller for zensical-site-main.yml. It builds the  #
-# documentation source in docs/ using the UV project in docs-site/.            #
+# This repository-local caller builds docs/ using the UV project in docs-site/ #
+# and the repository-root zensical.toml configuration.                         #
 #                                                                              #
-# PipelineTemplates Zensical docs are unversioned. Every qualifying automatic  #
-# build uses a short Git SHA release tag, such as:                             #
+# This site is intentionally unversioned. Every qualifying build produces a    #
+# short-SHA release tag, for example:                                          #
 #   pipelinetemplates-docs-a1b2c3d                                             #
+#                                                                              #
+# The generated artifact is published to both gh-pages and GitHub Pages.       #
 ################################################################################
 
 name: PipelineTemplates Zensical Site Main
@@ -21,10 +23,10 @@ on:
       - "docs-site/**"
       - "zensical.toml"
 
-      ## The local composite action used to build this repository's docs
+      ## Local composite action used by the reusable build workflow.
       - ".github/actions/zensical-build/**"
 
-      ## Reusable Zensical workflow implementation
+      ## Reusable Zensical workflow implementation.
       - ".github/workflows/zensical-build.yml"
       - ".github/workflows/zensical-gh-release.yml"
       - ".github/workflows/zensical-publish-branch.yml"
@@ -33,17 +35,18 @@ on:
       - ".github/workflows/zensical-publish-gh-pages.yml"
       - ".github/workflows/zensical-publish-router.yml"
       - ".github/workflows/zensical-site-main.yml"
+      - ".github/workflows/zensical-version-bump.yml"
 
-      ## This caller itself
+      ## This repository-local caller.
       - ".github/workflows/pipelinetemplates-zensical-site-main.yml"
 
   workflow_dispatch:
     inputs:
       publish-targets:
-        description: 'JSON array of targets: [], ["github-pages"], ["cloudflare-pages"], ["branch"], or a combination.'
+        description: 'JSON array of targets. Default: ["branch","github-pages"].'
         required: false
         type: string
-        default: "[]"
+        default: '["branch","github-pages"]'
 
       branch-name:
         description: "Deployment branch used only when publish-targets includes branch."
@@ -52,7 +55,7 @@ on:
         default: "gh-pages"
 
       branch-commit-message:
-        description: "Commit message used when publishing to a deployment branch."
+        description: "Commit message used when publishing to the deployment branch."
         required: false
         type: string
         default: "docs: publish PipelineTemplates Zensical site"
@@ -127,7 +130,7 @@ jobs:
     name: Build, Release, and Publish PipelineTemplates Documentation
     uses: ./.github/workflows/zensical-site-main.yml
     with:
-      ## Python/UV/Zensical layout in this repository.
+      ## PipelineTemplates Python/UV/Zensical layout.
       python-version: "3.13"
       working-directory: "."
       python-project-dir: "docs-site"
@@ -135,25 +138,23 @@ jobs:
       docs-dir: "docs"
       output-dir: "docs-site/site"
 
-      ## This documentation site is intentionally unversioned.
+      ## PipelineTemplates documentation is not bump-my-version versioned.
       versioned: false
 
-      ## Always produce the raw static-site artifact.
+      ## Build artifact.
       artifact-name: "pipelinetemplates-zensical-site"
       artifact-retention-days: 7
       artifact-if-no-files-found: "error"
 
-      ## Non-versioned tags/releases use:
-      #  pipelinetemplates-docs-<short-sha>
+      ## Standard/non-versioned tags and releases use pipelinetemplates-docs-<short-sha>
       release-prefix: "pipelinetemplates-docs"
 
-      ## The automatic push lane does not use workflow_dispatch inputs.
-      #  Its deliberate safe default builds/releases without publishing.
+      ## Default to publishing the same generated artifact to both targets.
       publish-targets: >-
         ${{
           github.event_name == 'workflow_dispatch' &&
           inputs.publish-targets ||
-          '[]'
+          '["branch","github-pages"]'
         }}
 
       branch-name: >-
@@ -170,6 +171,8 @@ jobs:
           'docs: publish PipelineTemplates Zensical site'
         }}
 
+      ## Available only when a manual run includes cloudflare-pages in
+      #  publish-targets. Automatic runs leave the project unset.
       cloudflare-pages-project: >-
         ${{
           github.event_name == 'workflow_dispatch' &&
@@ -198,7 +201,6 @@ jobs:
           'ubuntu-latest'
         }}
 
-      ## For automatic pushes, retain safe initial defaults.
       strict: >-
         ${{
           github.event_name == 'workflow_dispatch' &&
@@ -222,8 +224,8 @@ jobs:
 
       cache-key-suffix: "pipelinetemplates-zensical-docs"
 
-      ## The outer push path filter determines whether an automatic run begins.
-      #  Do not independently skip artifact/release processing in the inner build.
+      ## The outer push path filter chooses qualifying automatic builds.
+      #  Always build in the inner reusable workflow once invoked.
       check-changed: false
 
       create-github-release: >-
