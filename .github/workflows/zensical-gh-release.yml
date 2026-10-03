@@ -184,7 +184,7 @@ jobs:
           name: ${{ inputs.artifact-name }}
           path: ./_published
           run-id: ${{ inputs.build-run-id }}
-          github-token: ${{ secrets.release-bot-pat }}
+          github-token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Verify downloaded site artifact
         shell: bash
@@ -252,7 +252,7 @@ jobs:
         if: ${{ inputs.create-github-release }}
         uses: softprops/action-gh-release@v3
         env:
-          GITHUB_TOKEN: ${{ secrets.release-bot-pat }}
+          GITHUB_TOKEN: ${{ secrets.release-bot-pat || github.token }}
         with:
           tag_name: ${{ needs.meta.outputs.release-tag }}
           name: ${{ needs.meta.outputs.release-name }}
