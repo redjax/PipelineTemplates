@@ -1,0 +1,257 @@
+---
+name: Bump Zensical Site Version
+
+on:
+  workflow_call:
+    inputs:
+      version-file:
+        description: "Repository-relative file containing the current static-site version."
+        required: false
+        type: string
+        default: ".version"
+
+      bump-config:
+        description: "Repository-relative bump-my-version configuration file."
+        required: false
+        type: string
+        default: ".bumpversion.toml"
+
+      bump-script:
+        description: "PipelineTemplates-relative Zensical version-bump script path."
+        required: false
+        type: string
+        default: "shared/scripts/ci-cd/zensical/bump-site-version.sh"
+
+      changed-paths-file:
+        description: "Optional repository-relative file containing newline-delimited Git pathspecs that trigger site version bumps."
+        required: false
+        type: string
+        default: ""
+
+      changed-paths:
+        description: "Optional newline-delimited Git pathspecs that trigger site version bumps."
+        required: false
+        type: string
+        default: ""
+
+      pr-branch:
+        description: "Branch used for the automated version-bump pull request."
+        required: false
+        type: string
+        default: "bump/zensical-site-version"
+
+      base-branch:
+        description: "Target branch for the automated version-bump pull request."
+        required: false
+        type: string
+        default: "main"
+
+      pr-title:
+        description: "Automated version-bump pull-request title and commit message."
+        required: false
+        type: string
+        default: "chore(release): bump Zensical site version [zensical-version-bump]"
+
+      pr-body:
+        description: "Automated version-bump pull-request body."
+        required: false
+        type: string
+        default: "Automated version bump for Zensical site changes."
+
+      pr-labels:
+        description: "Comma-separated labels applied to the automated version-bump pull request."
+        required: false
+        type: string
+        default: "automated,release"
+
+      dry-run:
+        description: "Calculate a version bump but do not modify files or create/merge a pull request."
+        required: false
+        type: boolean
+        default: false
+
+      python-version:
+        description: "Python version used to run bump-my-version."
+        required: false
+        type: string
+        default: "3.13"
+
+      bump-my-version-version:
+        description: "Pinned bump-my-version version used by this workflow."
+        required: false
+        type: string
+        default: "1.5.1"
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+      templates-ref:
+        description: "PipelineTemplates branch, tag, or commit containing bump-script."
+        required: false
+        type: string
+        default: "topic/zensical-pipeline"
+
+    secrets:
+      release-bot-pat:
+        description: "Optional PAT or GitHub App token used to create/update and auto-merge the bump pull request."
+        required: false
+
+    outputs:
+      bumped:
+        description: "Whether versioned files were changed by bump-my-version."
+        value: ${{ jobs.bump.outputs.bumped }}
+
+      bump-type:
+        description: "Calculated version bump type: major, minor, or patch."
+        value: ${{ jobs.bump.outputs.bump-type }}
+
+      pull-request-number:
+        description: "Created or updated automated version-bump pull request number."
+        value: ${{ jobs.bump.outputs.pull-request-number }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: zensical-version-bump-${{ github.repository }}-${{ inputs.base-branch }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump Zensical site version
+    runs-on: ${{ inputs.runner-image }}
+
+    outputs:
+      bumped: ${{ steps.bump.outputs.bumped }}
+      bump-type: ${{ steps.bump.outputs.bump-type }}
+      pull-request-number: ${{ steps.create-pr.outputs.pull-request-number }}
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Checkout PipelineTemplates
+        uses: actions/checkout@v7
+        with:
+          repository: redjax/pipelinetemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 1
+          token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Set up UV
+        uses: astral-sh/setup-uv@v7
+
+      - name: Create pinned bump-my-version wrapper
+        shell: bash
+        env:
+          PYTHON_VERSION: ${{ inputs.python-version }}
+          BUMP_MY_VERSION_VERSION: ${{ inputs.bump-my-version-version }}
+        run: |
+          set -Eeuo pipefail
+
+          wrapper_dir="${RUNNER_TEMP}/zensical-bump-bin"
+          mkdir -p "${wrapper_dir}"
+
+          cat > "${wrapper_dir}/bump-my-version" <<EOF
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          exec uvx \
+            --python "${PYTHON_VERSION}" \
+            "bump-my-version==${BUMP_MY_VERSION_VERSION}" \
+            "\$@"
+          EOF
+
+          chmod +x "${wrapper_dir}/bump-my-version"
+
+          echo "${wrapper_dir}" >> "${GITHUB_PATH}"
+
+      - name: Verify bump-my-version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          command -v bump-my-version
+          bump-my-version --version
+
+      - name: Calculate and apply version bump
+        id: bump
+        shell: bash
+        env:
+          ZENSICAL_VERSION_FILE: ${{ inputs.version-file }}
+          ZENSICAL_BUMP_CONFIG: ${{ inputs.bump-config }}
+          ZENSICAL_CHANGED_PATHS_FILE: ${{ inputs.changed-paths-file }}
+          ZENSICAL_CHANGED_PATHS: ${{ inputs.changed-paths }}
+          BUMP_SCRIPT: pipelinetemplates/${{ inputs.bump-script }}
+        run: |
+          set -Eeuo pipefail
+
+          test -f "${BUMP_SCRIPT}"
+          chmod +x "${BUMP_SCRIPT}"
+
+          output_file="$(mktemp)"
+          "${BUMP_SCRIPT}" | tee "${output_file}"
+
+          bumped="$(awk -F= '/^bump-required=/{value=$2} END{print value}' "${output_file}")"
+          bump_type="$(awk -F= '/^bump-type=/{value=$2} END{print value}' "${output_file}")"
+
+          echo "bumped=${bumped:-false}" >> "${GITHUB_OUTPUT}"
+          echo "bump-type=${bump_type}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure Git identity
+        if: ${{ steps.bump.outputs.bumped == 'true' && !inputs.dry-run }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create or update version-bump pull request
+        id: create-pr
+        if: ${{ steps.bump.outputs.bumped == 'true' && !inputs.dry-run }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.release-bot-pat || github.token }}
+          base: ${{ inputs.base-branch }}
+          branch: ${{ inputs.pr-branch }}
+          delete-branch: true
+          title: ${{ inputs.pr-title }}
+          body: ${{ inputs.pr-body }}
+          commit-message: ${{ inputs.pr-title }}
+          add-paths: |
+            ${{ inputs.version-file }}
+            ${{ inputs.bump-config }}
+          labels: ${{ inputs.pr-labels }}
+
+      - name: Enable pull-request auto-merge
+        if: >-
+          ${{
+            steps.bump.outputs.bumped == 'true' &&
+            !inputs.dry-run &&
+            steps.create-pr.outputs.pull-request-number != ''
+          }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.release-bot-pat || github.token }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+        run: |
+          set -Eeuo pipefail
+
+          gh pr merge "${PR_NUMBER}" \
+            --merge \
+            --auto \
+            --delete-branch

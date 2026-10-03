@@ -1,0 +1,94 @@
+---
+name: Publish Zensical Site to Branch
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: "Generated-site artifact to publish."
+        required: false
+        type: string
+        default: "zensical-site"
+
+      run-id:
+        description: "Workflow run ID containing artifact-name."
+        required: true
+        type: string
+
+      branch-name:
+        description: "Repository branch that will contain generated static site files."
+        required: false
+        type: string
+        default: "gh-pages"
+
+      commit-message:
+        description: "Commit message used for deployment-branch updates."
+        required: false
+        type: string
+        default: "Deploy Zensical site"
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+    secrets:
+      push-token:
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish deployment branch
+    runs-on: ${{ inputs.runner-image }}
+
+    steps:
+      - name: Download generated site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.push-token }}
+
+      - name: Verify downloaded site artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f ./_published/index.html
+
+      - name: Force-update deployment branch
+        shell: bash
+        working-directory: ./_published
+        env:
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          PUSH_TOKEN: ${{ secrets.push-token }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${PUSH_TOKEN:?push-token is required}"
+
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add origin \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git fetch origin "${BRANCH_NAME}" || true
+          git checkout -B "${BRANCH_NAME}"
+
+          git add --all
+
+          if git diff --cached --quiet; then
+            echo "[INFO] No deployment-branch changes to publish."
+            exit 0
+          fi
+
+          git commit -m "${COMMIT_MESSAGE}"
+          git push --force origin "HEAD:refs/heads/${BRANCH_NAME}"

@@ -1,0 +1,262 @@
+---
+name: Create Zensical Site Release
+
+on:
+  workflow_call:
+    inputs:
+      versioned:
+        description: "Whether the site version comes from version-file."
+        required: false
+        type: boolean
+        default: true
+
+      version-file:
+        description: "Repository-relative version-file path."
+        required: false
+        type: string
+        default: ".version"
+
+      artifact-name:
+        description: "Build artifact name to download."
+        required: false
+        type: string
+        default: "zensical-site"
+
+      release-prefix:
+        description: "Prefix for generated non-versioned release tags."
+        required: false
+        type: string
+        default: "site"
+
+      release-version:
+        description: "Optional explicit release version."
+        required: false
+        type: string
+        default: ""
+
+      release-name:
+        description: "Optional explicit GitHub Release name."
+        required: false
+        type: string
+        default: ""
+
+      release-tag:
+        description: "Optional explicit Git tag."
+        required: false
+        type: string
+        default: ""
+
+      build-run-id:
+        description: "Workflow run ID containing artifact-name."
+        required: true
+        type: string
+
+      checkout-ref:
+        description: "Repository ref to tag. Empty uses the triggering ref."
+        required: false
+        type: string
+        default: ""
+
+      create-github-release:
+        description: "Create a GitHub Release and upload packaged site archives."
+        required: false
+        type: boolean
+        default: true
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+    secrets:
+      release-bot-pat:
+        description: "Optional PAT used instead of GITHUB_TOKEN for tag/release operations."
+        required: false
+
+    outputs:
+      release-version:
+        description: "Resolved release version without a leading v."
+        value: ${{ jobs.meta.outputs.release-version }}
+
+      release-name:
+        description: "Resolved GitHub Release name."
+        value: ${{ jobs.meta.outputs.release-name }}
+
+      release-tag:
+        description: "Resolved Git tag."
+        value: ${{ jobs.meta.outputs.release-tag }}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  meta:
+    name: Resolve release metadata
+    runs-on: ${{ inputs.runner-image }}
+
+    outputs:
+      release-version: ${{ steps.metadata.outputs.release-version }}
+      release-name: ${{ steps.metadata.outputs.release-name }}
+      release-tag: ${{ steps.metadata.outputs.release-tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
+          token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Resolve release metadata
+        id: metadata
+        shell: bash
+        env:
+          VERSIONED: ${{ inputs.versioned }}
+          VERSION_FILE: ${{ inputs.version-file }}
+          INPUT_VERSION: ${{ inputs.release-version }}
+          INPUT_NAME: ${{ inputs.release-name }}
+          INPUT_TAG: ${{ inputs.release-tag }}
+          RELEASE_PREFIX: ${{ inputs.release-prefix }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -n "${INPUT_TAG}" ]]; then
+            tag="${INPUT_TAG}"
+            name="${INPUT_NAME:-${tag}}"
+
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              version="${INPUT_VERSION#v}"
+            else
+              version="${tag#${RELEASE_PREFIX}-}"
+              version="${version#v}"
+            fi
+          elif [[ "${VERSIONED}" == "true" ]]; then
+            if [[ ! -f "${VERSION_FILE}" ]]; then
+              echo "::error::Version file not found: ${VERSION_FILE}" >&2
+              exit 1
+            fi
+
+            version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+            version="${version#v}"
+
+            if [[ -z "${version}" ]]; then
+              echo "::error::Version file is empty: ${VERSION_FILE}" >&2
+              exit 1
+            fi
+
+            tag="${RELEASE_PREFIX}-v${version}"
+            name="${INPUT_NAME:-${tag}}"
+          else
+            if [[ -n "${INPUT_VERSION}" ]]; then
+              version="${INPUT_VERSION#v}"
+            else
+              version="$(git rev-parse --short=7 "${GIT_SHA}")"
+            fi
+
+            tag="${RELEASE_PREFIX}-${version}"
+            name="${INPUT_NAME:-${tag}}"
+          fi
+
+          {
+            echo "release-version=${version}"
+            echo "release-name=${name}"
+            echo "release-tag=${tag}"
+          } >> "${GITHUB_OUTPUT}"
+
+  release:
+    name: Create tag and GitHub Release
+    needs: meta
+    runs-on: ${{ inputs.runner-image }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
+          token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Download generated site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.build-run-id }}
+          github-token: ${{ secrets.release-bot-pat || github.token }}
+
+      - name: Verify downloaded site artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          test -d ./_published
+
+          if [[ -z "$(find ./_published -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+            echo "::error::Downloaded site artifact is empty." >&2
+            exit 1
+          fi
+
+          echo "=== Artifact preview ==="
+          find ./_published -maxdepth 2 -type f -print | sort | head -200
+
+      - name: Create annotated Git tag
+        shell: bash
+        env:
+          TAG: ${{ needs.meta.outputs.release-tag }}
+          PUSH_TOKEN: ${{ secrets.release-bot-pat || github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${PUSH_TOKEN:?No GitHub token is available}"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "[INFO] Tag already exists: ${TAG}"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "${TAG}" -m "${TAG}"
+
+          git push \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "refs/tags/${TAG}:refs/tags/${TAG}"
+
+      - name: Package static site archives
+        shell: bash
+        env:
+          RELEASE_NAME: ${{ needs.meta.outputs.release-name }}
+        run: |
+          set -Eeuo pipefail
+
+          mkdir -p ./_release
+
+          tar \
+            --directory ./_published \
+            --create \
+            --gzip \
+            --file "./_release/${RELEASE_NAME}.tar.gz" \
+            .
+
+          (
+            cd ./_published
+            zip -qr "../_release/${RELEASE_NAME}.zip" .
+          )
+
+          ls -lh ./_release
+
+      - name: Create GitHub Release
+        if: ${{ inputs.create-github-release }}
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.release-bot-pat || github.token }}
+        with:
+          tag_name: ${{ needs.meta.outputs.release-tag }}
+          name: ${{ needs.meta.outputs.release-name }}
+          files: |
+            ./_release/${{ needs.meta.outputs.release-name }}.tar.gz
+            ./_release/${{ needs.meta.outputs.release-name }}.zip
