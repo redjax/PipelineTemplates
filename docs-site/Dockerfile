@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_IMG_TAG=3.13-slim
-ARG UV_IMG_TAG=0.12.18
+ARG UV_IMG_TAG=0.12.22
 ARG NGINX_IMG_TAG=1.31-alpine
 
 FROM ghcr.io/astral-sh/uv:${UV_IMG_TAG} AS uv
