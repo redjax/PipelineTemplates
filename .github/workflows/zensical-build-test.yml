@@ -1,0 +1,83 @@
+---
+name: Test Zensical Build Action
+
+on:
+  push:
+    branches:
+      - feat/zensical-build-gh-workflow
+
+  workflow_dispatch:
+    inputs:
+      clean:
+        description: "Remove the previous generated site before building."
+        required: false
+        type: boolean
+        default: true
+
+      strict:
+        description: "Fail the build when Zensical reports warnings."
+        required: false
+        type: boolean
+        default: true
+
+      debug-state:
+        description: "Print path, tool-version, config, and output diagnostics."
+        required: false
+        type: boolean
+        default: true
+
+      publish-artifact:
+        description: "Upload the built Zensical site as a workflow artifact."
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    name: Build PipelineTemplates Zensical Docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PipelineTemplates test branch
+        uses: actions/checkout@v7
+        with:
+          ref: feat/zensical-build-gh-workflow
+          fetch-depth: 0
+
+      - name: Build Zensical documentation site
+        uses: redjax/pipelinetemplates/.github/actions/zensical-build@feat/zensical-build-gh-action
+        with:
+          python-version: "3.13"
+
+          ## Run Zensical from the repository root so it discovers ./zensical.toml
+          working-directory: "."
+
+          ## UV dependencies and the Zensical executable are defined here:
+          #  ./docs-site/pyproject.toml
+          #  ./docs-site/uv.lock
+          python-project-dir: "docs-site"
+
+          ## Repository layout for PipelineTemplates:
+          zensical-config: "zensical.toml"
+          docs-dir: "docs"
+          output-dir: "docs-site/site"
+
+          clean: ${{ inputs.clean && 'true' || 'false' }}
+          strict: ${{ inputs.strict && 'true' || 'false' }}
+
+          use-cache: "true"
+          cache-key-suffix: "pipelinetemplates-docs"
+
+          ## For the initial validation, always build instead of using incremental change detection.
+          check-changed: "false"
+
+          publish-artifact: ${{ inputs.publish-artifact && 'true' || 'false' }}
+          artifact-name: "pipelinetemplates-zensical-site"
+          artifact-retention-days: "7"
+          artifact-if-no-files-found: "error"
+
+          debug-state: ${{ inputs.debug-state && 'true' || 'false' }}
