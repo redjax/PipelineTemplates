@@ -1,0 +1,106 @@
+---
+################################################################################
+# Build PipelineTemplates Zensical documentation site                          #
+#                                                                              #
+# This workflow is repository-local. It validates the Zensical documentation   #
+# build on pull requests and supports manual build/artifact testing.           #
+#                                                                              #
+################################################################################
+
+name: Build PipelineTemplates Zensical Site
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - "docs/**"
+      - "docs-site/**"
+      - "zensical.toml"
+      - ".github/actions/zensical-build/**"
+      - ".github/workflows/zensical-build.yml"
+      - ".github/workflows/zensical-gh-release.yml"
+      - ".github/workflows/zensical-publish-branch.yml"
+      - ".github/workflows/zensical-publish-cloudflare-pages.yml"
+      - ".github/workflows/zensical-publish-dispatch.yml"
+      - ".github/workflows/zensical-publish-gh-pages.yml"
+      - ".github/workflows/zensical-publish-router.yml"
+      - ".github/workflows/zensical-site-main.yml"
+      - ".github/workflows/zensical-version-bump.yml"
+      - ".github/workflows/pipelinetemplates-zensical-build.yml"
+      - ".github/workflows/pipelinetemplates-zensical-site-main.yml"
+
+  workflow_dispatch:
+    inputs:
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+      strict:
+        description: "Fail the build when Zensical reports documentation warnings."
+        required: false
+        type: boolean
+        default: false
+
+      use-cache:
+        description: "Enable UV dependency cache restore/save."
+        required: false
+        type: boolean
+        default: true
+
+      clean:
+        description: "Remove the existing generated site before building."
+        required: false
+        type: boolean
+        default: true
+
+      debug-state:
+        description: "Print resolved paths, config, tool versions, and output diagnostics."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    name: Build Zensical Documentation Site
+    uses: ./.github/workflows/zensical-build.yml
+    with:
+      python-version: "3.13"
+
+      ## Execute Zensical from repository root, where zensical.toml exists.
+      working-directory: "."
+
+      ## The UV project defining Zensical and locked Python dependencies.
+      python-project-dir: "docs-site"
+
+      zensical-config: "zensical.toml"
+      docs-dir: "docs"
+      output-dir: "docs-site/site"
+
+      ## workflow_dispatch inputs are absent on pull_request events.
+      strict: ${{ github.event_name == 'workflow_dispatch' && inputs.strict || false }}
+      clean: ${{ github.event_name == 'workflow_dispatch' && inputs.clean || true }}
+      use-cache: ${{ github.event_name == 'workflow_dispatch' && inputs.use-cache || true }}
+      cache-key-suffix: "pipelinetemplates-zensical-docs"
+
+      ## Always build the PR state whenever this workflow is selected by its
+      #  path filter. This avoids comparing only HEAD~1 in PR history.
+      check-changed: false
+
+      artifact-name: "pipelinetemplates-zensical-site"
+      artifact-retention-days: 7
+      artifact-if-no-files-found: "error"
+
+      checkout-ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      runner-image: ${{ github.event_name == 'workflow_dispatch' && inputs.runner-image || 'ubuntu-latest' }}
+      debug-state: ${{ github.event_name == 'workflow_dispatch' && inputs.debug-state || false }}

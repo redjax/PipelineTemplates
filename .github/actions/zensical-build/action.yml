@@ -1,0 +1,282 @@
+---
+name: "Zensical Build Site"
+description: "Build a Zensical static site with UV, optional change detection, caching, and artifact publishing."
+
+inputs:
+  python-version:
+    description: "Python version to install."
+    required: false
+    default: "3.13"
+
+  uv-version:
+    description: "Optional UV version to install. Leave empty for the setup-uv action default."
+    required: false
+    default: ""
+
+  working-directory:
+    description: "Repository-relative directory from which Zensical runs and config discovery occurs."
+    required: false
+    default: "."
+
+  python-project-dir:
+    description: "Repository-relative UV/Python project directory containing pyproject.toml."
+    required: false
+    default: "."
+
+  zensical-config:
+    description: "Optional repository-relative path to zensical.toml or compatible MkDocs config. Leave empty to use Zensical config discovery."
+    required: false
+    default: ""
+
+  docs-dir:
+    description: "Optional repository-relative docs source directory to validate and use for change detection. The path must agree with docs_dir in the Zensical config."
+    required: false
+    default: ""
+
+  output-dir:
+    description: "Optional repository-relative generated site directory. Used for validation, cleanup, and artifact upload. The path must agree with site_dir in the Zensical config."
+    required: false
+    default: "site"
+
+  clean:
+    description: "Remove output-dir before building and pass --clean to Zensical."
+    required: false
+    default: "true"
+
+  strict:
+    description: "Pass --strict to Zensical and fail the build on warnings."
+    required: false
+    default: "false"
+
+  build-flags:
+    description: "Additional whitespace-delimited flags passed to zensical build."
+    required: false
+    default: ""
+
+  use-cache:
+    description: "Enable UV dependency caching."
+    required: false
+    default: "true"
+
+  cache-key-suffix:
+    description: "Optional cache-key suffix for separating dependency caches."
+    required: false
+    default: ""
+
+  check-changed:
+    description: "When true, detect relevant changes and skip the Zensical build when nothing relevant changed."
+    required: false
+    default: "false"
+
+  changed-paths-mode:
+    description: "How changed-paths is applied: default, replace, or append."
+    required: false
+    default: "default"
+
+  changed-paths:
+    description: "Newline-delimited repository-relative pathspecs. Used with replace or append."
+    required: false
+    default: ""
+
+  publish-artifact:
+    description: "Upload the generated site as a workflow artifact."
+    required: false
+    default: "false"
+
+  artifact-name:
+    description: "Workflow artifact name for the generated static site."
+    required: false
+    default: "zensical-site"
+
+  artifact-retention-days:
+    description: "Number of days to retain the generated site artifact."
+    required: false
+    default: "7"
+
+  artifact-if-no-files-found:
+    description: "Behavior when output-dir is absent or empty: error, warn, or ignore."
+    required: false
+    default: "error"
+
+  debug-state:
+    description: "Print resolved paths, tool versions, selected configuration, and output-tree diagnostics."
+    required: false
+    default: "false"
+
+outputs:
+  zensical-changed:
+    description: "Whether files relevant to the configured Zensical site changed."
+    value: ${{ steps.changed.outputs.zensical-changed }}
+
+  output-dir:
+    description: "Absolute resolved path to the configured generated-site directory."
+    value: ${{ steps.paths.outputs.output-dir }}
+
+  should-build:
+    description: "Whether the action ran or should run a build."
+    value: ${{ steps.paths.outputs.should-build }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Resolve Zensical paths
+      id: paths
+      shell: bash
+      env:
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_PYTHON_PROJECT_DIR: ${{ inputs.python-project-dir }}
+        INPUT_ZENSICAL_CONFIG: ${{ inputs.zensical-config }}
+        INPUT_DOCS_DIR: ${{ inputs.docs-dir }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_CHECK_CHANGED: ${{ inputs.check-changed }}
+      run: bash "${{ github.action_path }}/scripts/resolve-paths.sh"
+
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Set up UV
+      uses: astral-sh/setup-uv@v7
+      with:
+        version: ${{ inputs.uv-version }}
+        enable-cache: ${{ inputs.use-cache == 'true' }}
+        cache-dependency-glob: |
+          ${{ inputs.python-project-dir }}/pyproject.toml
+          ${{ inputs.python-project-dir }}/uv.lock
+
+    - name: Verify Zensical project
+      shell: bash
+      env:
+        PYTHON_PROJECT_DIR: ${{ steps.paths.outputs.python-project-dir }}
+        ZENSICAL_CONFIG: ${{ steps.paths.outputs.zensical-config }}
+        DOCS_DIR: ${{ steps.paths.outputs.docs-dir }}
+      run: |
+        set -Eeuo pipefail
+
+        test -f "${PYTHON_PROJECT_DIR}/pyproject.toml"
+
+        if [[ -n "${ZENSICAL_CONFIG}" ]]; then
+          test -f "${ZENSICAL_CONFIG}"
+        fi
+
+        if [[ -n "${DOCS_DIR}" ]]; then
+          test -d "${DOCS_DIR}"
+        fi
+
+    - name: Synchronize UV project
+      shell: bash
+      working-directory: ${{ inputs.python-project-dir }}
+      run: |
+        set -Eeuo pipefail
+
+        if [[ -f uv.lock ]]; then
+          uv sync --locked
+        else
+          uv sync
+        fi
+
+    - name: Determine changed paths
+      id: changed
+      if: ${{ inputs.check-changed == 'true' }}
+      shell: bash
+      env:
+        ZENSICAL_WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
+        ZENSICAL_PYTHON_PROJECT_DIR: ${{ steps.paths.outputs.python-project-dir }}
+        ZENSICAL_CONFIG: ${{ steps.paths.outputs.zensical-config }}
+        ZENSICAL_DOCS_DIR: ${{ steps.paths.outputs.docs-dir }}
+        CHANGED_PATHS_MODE: ${{ inputs.changed-paths-mode }}
+        CHANGED_PATHS: ${{ inputs.changed-paths }}
+      run: bash "${{ github.action_path }}/scripts/check-changed.sh"
+
+    - name: Debug Zensical build state
+      if: ${{ inputs.debug-state == 'true' }}
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
+        PYTHON_PROJECT_DIR: ${{ steps.paths.outputs.python-project-dir }}
+        ZENSICAL_CONFIG: ${{ steps.paths.outputs.zensical-config }}
+        DOCS_DIR: ${{ steps.paths.outputs.docs-dir }}
+        OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}
+      run: |
+        set -Eeuo pipefail
+
+        echo "=== Repository state ==="
+        echo "Workspace: ${GITHUB_WORKSPACE}"
+        echo "Git SHA: $(git rev-parse HEAD)"
+        echo "Git status:"
+        git status --short
+
+        echo
+        echo "=== Resolved paths ==="
+        echo "Working directory: ${WORKING_DIRECTORY}"
+        echo "Python project directory: ${PYTHON_PROJECT_DIR}"
+        echo "Zensical config: ${ZENSICAL_CONFIG:-<auto-discover>}"
+        echo "Docs directory: ${DOCS_DIR:-<not validated by action>}"
+        echo "Output directory: ${OUTPUT_DIR}"
+
+        echo
+        echo "=== Tool versions ==="
+        python --version
+        uv --version
+        uv run --project "${PYTHON_PROJECT_DIR}" zensical --version
+
+        echo
+        echo "=== Python project files ==="
+        ls -la "${PYTHON_PROJECT_DIR}"
+
+        if [[ -n "${ZENSICAL_CONFIG}" ]]; then
+          echo
+          echo "=== Zensical config ==="
+          sed -n '1,240p' "${ZENSICAL_CONFIG}"
+        fi
+
+    - name: Build Zensical site
+      if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.zensical-changed == 'true' }}
+      shell: bash
+      env:
+        ZENSICAL_WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
+        ZENSICAL_PYTHON_PROJECT_DIR: ${{ steps.paths.outputs.python-project-dir }}
+        ZENSICAL_CONFIG: ${{ steps.paths.outputs.zensical-config }}
+        ZENSICAL_OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}
+        ZENSICAL_CLEAN: ${{ inputs.clean }}
+        ZENSICAL_STRICT: ${{ inputs.strict }}
+        ZENSICAL_BUILD_FLAGS: ${{ inputs.build-flags }}
+      run: bash "${{ github.action_path }}/scripts/build-zensical.sh"
+
+    - name: Verify Zensical build output
+      if: ${{ inputs.check-changed != 'true' || steps.changed.outputs.zensical-changed == 'true' }}
+      shell: bash
+      env:
+        OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}
+      run: |
+        set -Eeuo pipefail
+
+        if [[ ! -d "${OUTPUT_DIR}" ]]; then
+          echo "::error::Zensical output directory was not created: ${OUTPUT_DIR}"
+          exit 1
+        fi
+
+        if [[ -z "$(find "${OUTPUT_DIR}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+          echo "::error::Zensical output directory is empty: ${OUTPUT_DIR}"
+          exit 1
+        fi
+
+        echo "=== Zensical output preview ==="
+        find "${OUTPUT_DIR}" -maxdepth 2 -type f -print | sort | head -200
+
+    - name: Upload Zensical site artifact
+      if: ${{ inputs.publish-artifact == 'true' && (inputs.check-changed != 'true' || steps.changed.outputs.zensical-changed == 'true') }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.paths.outputs.output-dir }}
+        if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+        retention-days: ${{ inputs.artifact-retention-days }}
+
+    - name: Report skipped Zensical build
+      if: ${{ inputs.check-changed == 'true' && steps.changed.outputs.zensical-changed != 'true' }}
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+        echo "[INFO] No relevant Zensical files changed; build skipped."

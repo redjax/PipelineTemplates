@@ -1,0 +1,246 @@
+---
+################################################################################
+# Build, release, and optionally publish PipelineTemplates Zensical docs       #
+#                                                                              #
+# This is a repository-local caller for zensical-site-main.yml. It builds the  #
+# documentation source in docs/ using the UV project in docs-site/.            #
+#                                                                              #
+# PipelineTemplates Zensical docs are unversioned. Every qualifying automatic  #
+# build uses a short Git SHA release tag, such as:                             #
+#   pipelinetemplates-docs-a1b2c3d                                             #
+################################################################################
+
+name: PipelineTemplates Zensical Site Main
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "docs-site/**"
+      - "zensical.toml"
+
+      ## The local composite action used to build this repository's docs
+      - ".github/actions/zensical-build/**"
+
+      ## Reusable Zensical workflow implementation
+      - ".github/workflows/zensical-build.yml"
+      - ".github/workflows/zensical-gh-release.yml"
+      - ".github/workflows/zensical-publish-branch.yml"
+      - ".github/workflows/zensical-publish-cloudflare-pages.yml"
+      - ".github/workflows/zensical-publish-dispatch.yml"
+      - ".github/workflows/zensical-publish-gh-pages.yml"
+      - ".github/workflows/zensical-publish-router.yml"
+      - ".github/workflows/zensical-site-main.yml"
+
+      ## This caller itself
+      - ".github/workflows/pipelinetemplates-zensical-site-main.yml"
+
+  workflow_dispatch:
+    inputs:
+      publish-targets:
+        description: 'JSON array of targets: [], ["github-pages"], ["cloudflare-pages"], ["branch"], or a combination.'
+        required: false
+        type: string
+        default: "[]"
+
+      branch-name:
+        description: "Deployment branch used only when publish-targets includes branch."
+        required: false
+        type: string
+        default: "gh-pages"
+
+      branch-commit-message:
+        description: "Commit message used when publishing to a deployment branch."
+        required: false
+        type: string
+        default: "docs: publish PipelineTemplates Zensical site"
+
+      cloudflare-pages-project:
+        description: "Cloudflare Pages project name. Required only when publish-targets includes cloudflare-pages."
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        description: "Cloudflare Pages production or preview branch."
+        required: false
+        type: string
+        default: "main"
+
+      cloudflare-wrangler-version:
+        description: "Pinned Wrangler version used for Cloudflare Pages deployment."
+        required: false
+        type: string
+        default: "4.51.0"
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+      strict:
+        description: "Fail when Zensical validation reports warnings."
+        required: false
+        type: boolean
+        default: false
+
+      use-cache:
+        description: "Enable UV dependency cache restore/save."
+        required: false
+        type: boolean
+        default: true
+
+      clean:
+        description: "Remove generated output before building."
+        required: false
+        type: boolean
+        default: true
+
+      create-github-release:
+        description: "Create a GitHub Release with .tar.gz and .zip static-site assets."
+        required: false
+        type: boolean
+        default: true
+
+      debug-state:
+        description: "Print resolved paths, configuration, tool versions, and output diagnostics."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pipelinetemplates-zensical-site-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    name: Build, Release, and Publish PipelineTemplates Documentation
+    uses: ./.github/workflows/zensical-site-main.yml
+    with:
+      ## Python/UV/Zensical layout in this repository.
+      python-version: "3.13"
+      working-directory: "."
+      python-project-dir: "docs-site"
+      zensical-config: "zensical.toml"
+      docs-dir: "docs"
+      output-dir: "docs-site/site"
+
+      ## This documentation site is intentionally unversioned.
+      versioned: false
+
+      ## Always produce the raw static-site artifact.
+      artifact-name: "pipelinetemplates-zensical-site"
+      artifact-retention-days: 7
+      artifact-if-no-files-found: "error"
+
+      ## Non-versioned tags/releases use:
+      #  pipelinetemplates-docs-<short-sha>
+      release-prefix: "pipelinetemplates-docs"
+
+      ## The automatic push lane does not use workflow_dispatch inputs.
+      #  Its deliberate safe default builds/releases without publishing.
+      publish-targets: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.publish-targets ||
+          '[]'
+        }}
+
+      branch-name: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.branch-name ||
+          'gh-pages'
+        }}
+
+      branch-commit-message: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.branch-commit-message ||
+          'docs: publish PipelineTemplates Zensical site'
+        }}
+
+      cloudflare-pages-project: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.cloudflare-pages-project ||
+          ''
+        }}
+
+      cloudflare-pages-branch: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.cloudflare-pages-branch ||
+          'main'
+        }}
+
+      cloudflare-wrangler-version: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.cloudflare-wrangler-version ||
+          '4.51.0'
+        }}
+
+      runner-image: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.runner-image ||
+          'ubuntu-latest'
+        }}
+
+      ## For automatic pushes, retain safe initial defaults.
+      strict: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.strict ||
+          false
+        }}
+
+      clean: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.clean ||
+          true
+        }}
+
+      use-cache: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.use-cache ||
+          true
+        }}
+
+      cache-key-suffix: "pipelinetemplates-zensical-docs"
+
+      ## The outer push path filter determines whether an automatic run begins.
+      #  Do not independently skip artifact/release processing in the inner build.
+      check-changed: false
+
+      create-github-release: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.create-github-release ||
+          true
+        }}
+
+      checkout-ref: ${{ github.sha }}
+
+      debug-state: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.debug-state ||
+          false
+        }}
+
+    secrets:
+      cloudflare-api-token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      cloudflare-account-id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,64 @@
+---
+name: Publish Zensical Site to GitHub Pages
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: "Generated-site artifact to deploy."
+        required: false
+        type: string
+        default: "zensical-site"
+
+      run-id:
+        description: "Workflow run ID containing artifact-name."
+        required: true
+        type: string
+
+      runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
+        required: false
+        type: string
+        default: "ubuntu-latest"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+jobs:
+  deploy:
+    name: Deploy GitHub Pages
+    runs-on: ${{ inputs.runner-image }}
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download generated site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify downloaded site artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f ./_published/index.html
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ./_published
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
