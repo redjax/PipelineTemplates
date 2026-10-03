@@ -234,7 +234,7 @@ on:
         description: "PipelineTemplates ref used for the Zensical version-bump script."
         required: false
         type: string
-        default: "topic/zensical-pipeline"
+        default: "main"
 
       checkout-ref:
         description: "Optional repository ref to build. Empty builds the triggering ref."

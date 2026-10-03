@@ -92,7 +92,7 @@ on:
         description: "PipelineTemplates branch, tag, or commit containing bump-script."
         required: false
         type: string
-        default: "topic/zensical-pipeline"
+        default: "main"
 
     secrets:
       release-bot-pat:
