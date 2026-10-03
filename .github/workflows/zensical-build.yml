@@ -184,7 +184,7 @@ jobs:
 
       - name: Build Zensical site
         id: zensical
-        uses: redjax/pipelinetemplates/.github/actions/zensical-build@gh/zensical-build/v0.0.2
+        uses: redjax/pipelinetemplates/.github/actions/zensical-build@gh/zensical-build/v0.1.0
         with:
           python-version: ${{ inputs.python-version }}
           uv-version: ${{ inputs.uv-version }}
