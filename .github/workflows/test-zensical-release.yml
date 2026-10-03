@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feat/zensical-build-gh-workflow
+
   workflow_dispatch:
     inputs:
       create-github-release:
@@ -14,7 +15,7 @@ on:
         default: false
 
       release-tag:
-        description: "Required when create-github-release is true. Example: zensical-test-20261003-0257."
+        description: "Optional explicit release tag for a manual release."
         required: false
         type: string
         default: ""
@@ -48,7 +49,14 @@ jobs:
       debug-state: true
 
   release:
-    if: ${{ inputs.create-github-release }}
+    if: >-
+      ${{
+        github.event_name == 'push' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          inputs.create-github-release
+        )
+      }}
     needs: build
     uses: ./.github/workflows/zensical-gh-release.yml
     with:
@@ -57,8 +65,23 @@ jobs:
       build-run-id: ${{ github.run_id }}
 
       release-prefix: "zensical-test"
-      release-tag: ${{ inputs.release-tag }}
-      release-name: ${{ inputs.release-tag }}
+
+      ## Manual dispatch may supply an explicit tag.
+      #  Push builds use the release workflow's normal fallback:
+      #  zensical-test-<short-sha>
+      release-tag: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.release-tag ||
+          ''
+        }}
+
+      release-name: >-
+        ${{
+          github.event_name == 'workflow_dispatch' &&
+          inputs.release-tag ||
+          ''
+        }}
 
       checkout-ref: ${{ github.sha }}
       create-github-release: true
