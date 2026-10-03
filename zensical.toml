@@ -1,0 +1,58 @@
+[project]
+
+site_name = "PipelineTemplates"
+docs_dir = "docs"
+site_dir = "docs-site/site"
+dev_addr = "127.0.0.1:8118"
+
+## Use /dir/name instead of /dir/name/index.html
+use_directory_urls = true
+
+#########
+# Theme #
+#########
+
+[project.theme]
+language = "en"
+## Disable requesting fonts from Google
+font = false
+
+features = [
+    ## Highlight matched text when searching
+    "search.highlight",
+    ## Show previous/next pages at bottom of page
+    "navigation.footer",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Use light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"
+
+##############
+# Extensions #
+##############
+
+## Add support for syntax like > [!NOTE]
+[project.markdown_extensions.pymdownx.quotes]
+callouts = true
+
+[project.markdown_extensions]
+## Integrate Markdown tables
+tables = {}
+## Convert - [ ] and - [x] to checked boxes
+pymdownx.tasklist.custom_checkbox = true
+## Disable by setting to 0
+toc.toc_depth = 3

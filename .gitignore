@@ -3,6 +3,24 @@ tmp/
 *.tmp
 *.out
 
+## Python
+.python-version
+.venv/
+__pycache__/
+*.py[cod]
+
+## Secrets
+.env
+*.env
+env/*
+.env/*
+*.local
+*.local.*
+local.*
+[.]secret[s]/*
+[.]secret[s].*
+*.secret[s]
+
 ## Misc
 .ansible/
 
