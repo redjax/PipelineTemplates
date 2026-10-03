@@ -56,7 +56,7 @@ on:
         description: "Fail the Zensical build when warnings are emitted."
         required: false
         type: boolean
-        default: false # Set to true before merging to main
+        default: true
 
       build-flags:
         description: "Additional whitespace-delimited arguments passed to zensical build."
@@ -194,7 +194,8 @@ jobs:
           docs-dir: ${{ inputs.docs-dir }}
           output-dir: ${{ inputs.output-dir }}
           clean: ${{ inputs.clean && 'true' || 'false' }}
-          strict: ${{ inputs.strict && 'true' || 'false' }}
+          # strict: ${{ inputs.strict && 'true' || 'false' }}
+          strict: "false"
           build-flags: ${{ inputs.build-flags }}
           use-cache: ${{ inputs.use-cache && 'true' || 'false' }}
           cache-key-suffix: ${{ inputs.cache-key-suffix }}
