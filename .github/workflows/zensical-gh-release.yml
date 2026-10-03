@@ -106,6 +106,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
+          token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Resolve release metadata
         id: metadata
