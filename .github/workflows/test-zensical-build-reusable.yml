@@ -1,0 +1,36 @@
+---
+name: Test Reusable Zensical Build Workflow
+
+on:
+  push:
+    branches:
+      - feat/zensical-build-gh-workflow
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    uses: redjax/pipelinetemplates/.github/workflows/zensical-build.yml@feat/zensical-build-gh-workflow
+    with:
+      runner-image: ubuntu-latest
+      python-version: "3.13"
+
+      working-directory: "."
+      python-project-dir: "docs-site"
+      zensical-config: "zensical.toml"
+      docs-dir: "docs"
+      output-dir: "docs-site/site"
+
+      clean: true
+      strict: true
+      use-cache: true
+      cache-key-suffix: "pipelinetemplates-docs"
+
+      artifact-name: "pipelinetemplates-zensical-site"
+      artifact-retention-days: 7
+      artifact-if-no-files-found: error
+
+      debug-state: true
