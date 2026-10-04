@@ -35,7 +35,7 @@ on:
         required: false
         type: string
         # renovate: datasource=golang-version depName=golang/go versioning=semver
-        default: "1.26.4"
+        default: "1.27.1"
 
       goreleaser-version:
         description: "GoReleaser version."
