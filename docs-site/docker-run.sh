@@ -160,6 +160,8 @@ fi
 run_cmd=(
   docker
   run
+  -d
+  --rm
   --init
   --name "${IMAGE_NAME}-${TARGET}"
   --publish "${HOST_PORT}:${CONTAINER_PORT}"
