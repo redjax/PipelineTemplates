@@ -156,7 +156,7 @@ on:
         required: false
         type: string
         # renovate: datasource=github-releases depName=google/osv-scanner versioning=semver
-        default: "2.5.0"
+        default: "2.6.0"
 
       osvSource:
         description: Repository-relative OSV-Scanner source path
