@@ -7,7 +7,7 @@ _REPOSITORY_ROOT="$(cd "${_DIR}/../../../.." && pwd)"
 source "${_REPOSITORY_ROOT}/shared/scripts/bash/_util/is-installed.sh"
 
 # renovate: datasource=github-releases depName=mvdan/sh versioning=semver
-SHELLFMT_VERSION="${SHELLFMT_VERSION:-3.10.0}"
+SHELLFMT_VERSION="${SHELLFMT_VERSION:-3.14.1}"
 SHELLFMT_INSTALL_DIR="${SHELLFMT_INSTALL_DIR:-${HOME}/.local/bin}"
 SHELLFMT_BIN="${SHELLFMT_BIN:-}"
 SHELLFMT_CONFIG_PATH="${SHELLFMT_CONFIG_PATH:-}"
