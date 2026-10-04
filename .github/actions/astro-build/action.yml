@@ -1,0 +1,153 @@
+---
+name: Astro build
+description: Detect Astro changes and build a static Astro site.
+
+inputs:
+  working-directory:
+    description: Repository-relative directory from which the build command runs.
+    required: false
+    default: "."
+
+  astro-project-dir:
+    description: Repository-relative directory containing package.json and Astro configuration.
+    required: false
+    default: "."
+
+  output-dir:
+    description: Repository-relative Astro static output directory.
+    required: false
+    default: "dist"
+
+  node-version:
+    description: Node.js version to install.
+    required: false
+    default: "24"
+
+  install-command:
+    description: Command used to install locked dependencies in astro-project-dir.
+    required: false
+    default: "npm ci"
+
+  build-command:
+    description: Command run from working-directory to build the Astro site.
+    required: false
+    default: "npm run build"
+
+  clean:
+    description: Remove existing generated output before building.
+    required: false
+    default: "true"
+
+  check-changed:
+    description: Detect Astro-relevant changes before building.
+    required: false
+    default: "false"
+
+  changed-paths-mode:
+    description: "Change path mode: default, replace, or append."
+    required: false
+    default: "default"
+
+  changed-paths:
+    description: Optional newline-separated repository-relative paths for change detection.
+    required: false
+    default: ""
+
+  use-node-cache:
+    description: Enable npm dependency caching.
+    required: false
+    default: "true"
+
+  debug-build:
+    description: Print Astro build diagnostics.
+    required: false
+    default: "false"
+
+outputs:
+  astro-changed:
+    description: Whether Astro build-relevant files changed.
+    value: ${{ steps.changed.outputs.astro-changed }}
+
+  should-build:
+    description: Whether the action determined that a build should run.
+    value: ${{ steps.decision.outputs.should-build }}
+
+  working-directory:
+    description: Absolute resolved build working directory.
+    value: ${{ steps.paths.outputs.working-directory }}
+
+  astro-project-dir:
+    description: Absolute resolved Astro project directory.
+    value: ${{ steps.paths.outputs.astro-project-dir }}
+
+  output-dir:
+    description: Absolute resolved Astro static output directory.
+    value: ${{ steps.paths.outputs.output-dir }}
+
+runs:
+  using: composite
+
+  steps:
+    - name: Resolve Astro paths
+      id: paths
+      shell: bash
+      env:
+        INPUT_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        INPUT_ASTRO_PROJECT_DIR: ${{ inputs.astro-project-dir }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_CHECK_CHANGED: ${{ inputs.check-changed }}
+      run: ${{ github.action_path }}/scripts/astro-resolve-paths.sh
+
+    - name: Setup Node
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.use-node-cache == 'true' && 'npm' || '' }}
+        cache-dependency-path: ${{ steps.paths.outputs.astro-project-dir }}/package-lock.json
+
+    - name: Check Astro changes
+      id: changed
+      if: ${{ inputs.check-changed == 'true' }}
+      shell: bash
+      env:
+        ASTRO_WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
+        ASTRO_PROJECT_DIR: ${{ steps.paths.outputs.astro-project-dir }}
+        ASTRO_OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}
+        CHANGED_PATHS_MODE: ${{ inputs.changed-paths-mode }}
+        CHANGED_PATHS: ${{ inputs.changed-paths }}
+      run: ${{ github.action_path }}/scripts/astro-check-changed.sh
+
+    - name: Decide whether to build
+      id: decision
+      shell: bash
+      run: |
+        set -Eeuo pipefail
+
+        should_build="${{ steps.paths.outputs.should-build }}"
+
+        if [[ "${{ inputs.check-changed }}" == "true" ]]; then
+          should_build="${{ steps.changed.outputs.astro-changed }}"
+        fi
+
+        echo "should-build=${should_build}" >>"${GITHUB_OUTPUT}"
+        echo "[INFO] should-build=${should_build}"
+
+    - name: Install Astro dependencies
+      if: ${{ steps.decision.outputs.should-build == 'true' }}
+      shell: bash
+      working-directory: ${{ steps.paths.outputs.astro-project-dir }}
+      run: |
+        set -Eeuo pipefail
+        ${{ inputs.install-command }}
+
+    - name: Build Astro site
+      if: ${{ steps.decision.outputs.should-build == 'true' }}
+      shell: bash
+      env:
+        ASTRO_WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
+        ASTRO_PROJECT_DIR: ${{ steps.paths.outputs.astro-project-dir }}
+        ASTRO_OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}
+        ASTRO_BUILD_COMMAND: ${{ inputs.build-command }}
+        ASTRO_CLEAN: ${{ inputs.clean }}
+        ASTRO_DEBUG_BUILD: ${{ inputs.debug-build }}
+      run: ${{ github.action_path }}/scripts/astro-build.sh
