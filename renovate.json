@@ -37,7 +37,19 @@
                 "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
                 "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*[A-Za-z][A-Za-z0-9_.-]*:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
                 "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:ARG|ENV)\\s+[A-Za-z_][A-Za-z0-9_]*[=:][\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
-                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?"
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[^\\s:]+(?:/[^\\s:]+)*:(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"'][^\"']+:(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']"
+            ]
+        },
+        {
+            "customType": "regex",
+            "description": "Update annotated shell variable defaults",
+            "managerFilePatterns": [
+                "/(^|/).*\\.sh$/"
+            ],
+            "matchStrings": [
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=\"\\$\\{[A-Za-z_][A-Za-z0-9_]*:-(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)\\}\""
             ]
         }
     ],
