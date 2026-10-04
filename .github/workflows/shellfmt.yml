@@ -15,6 +15,7 @@ on:
       shellfmt-version:
         required: false
         type: string
+        # renovate: datasource=github-releases depName=mvdan/sh versioning=semver
         default: "3.10.0"
       include-patterns:
         required: false

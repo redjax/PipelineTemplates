@@ -23,6 +23,7 @@ on:
           Trivy version to install, without a leading "v".
         required: false
         type: string
+        # renovate: datasource=github-releases depName=aquasecurity/trivy versioning=semver
         default: "0.73.0"
 
       scan-type:

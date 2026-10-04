@@ -14,6 +14,7 @@ on:
           Example: "2.5.0". Check latest version at https://github.com/google/osv-scanner/releases
         required: false
         type: string
+        # renovate: datasource=github-releases depName=google/osv-scanner versioning=semver
         default: "2.5.0"
 
       source:
