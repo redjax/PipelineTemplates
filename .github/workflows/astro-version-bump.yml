@@ -27,18 +27,6 @@ on:
         type: string
         default: main
 
-      bump-script:
-        description: Path to the Astro bump script within PipelineTemplates.
-        required: false
-        type: string
-        default: shared/scripts/ci-cd/astro/bump-site-version.sh
-
-      templates-repository:
-        description: Repository containing the shared PipelineTemplates scripts.
-        required: false
-        type: string
-        default: redjax/PipelineTemplates
-
       templates-ref:
         description: PipelineTemplates branch, tag, or commit SHA to check out.
         required: false
@@ -164,7 +152,7 @@ jobs:
       - name: Checkout PipelineTemplates repository
         uses: actions/checkout@v7
         with:
-          repository: ${{ inputs.templates-repository }}
+          repository: redjax/PipelineTemplates
           ref: ${{ inputs.templates-ref }}
           path: pipelinetemplates
           fetch-depth: 1
@@ -176,7 +164,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          bump_script="pipelinetemplates/${{ inputs.bump-script }}"
+          bump_script="pipelinetemplates/shared/scripts/ci-cd/astro/bump-site-version.sh"
 
           if [[ ! -f "${bump_script}" ]]; then
             echo "::error::Astro version-bump script not found: ${bump_script}" >&2
@@ -211,6 +199,7 @@ jobs:
 
       - name: Run Astro version-bump script
         id: bump
+        if: ${{ !inputs.dry-run }}
         shell: bash
         env:
           ASTRO_VERSION_FILE: ${{ inputs.version-file }}
@@ -220,7 +209,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          bump_script="pipelinetemplates/${{ inputs.bump-script }}"
+          bump_script="pipelinetemplates/shared/scripts/ci-cd/astro/bump-site-version.sh"
           temporary_output="$(mktemp)"
 
           cleanup() {
