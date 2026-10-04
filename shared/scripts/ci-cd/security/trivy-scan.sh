@@ -37,6 +37,7 @@ _REPOSITORY_ROOT="$(cd "${_DIR}/../../../.." && pwd)"
 
 source "${_REPOSITORY_ROOT}/shared/scripts/bash/_util/is-installed.sh"
 
+# renovate: datasource=github-releases depName=aquasecurity/trivy versioning=semver
 TRIVY_VERSION="${TRIVY_VERSION:-0.68.1}"
 TRIVY_INSTALL_DIR="${TRIVY_INSTALL_DIR:-${HOME}/.local/bin}"
 TRIVY_BIN="${TRIVY_BIN:-}"
