@@ -98,7 +98,7 @@ on:
 
     secrets:
       release-bot-pat:
-        description: "Optional PAT or GitHub App token used to create/update and auto-merge the bump pull request."
+        description: "Optional PAT or GitHub App token used to create/update and merge the bump pull request."
         required: false
 
     outputs:
@@ -239,7 +239,7 @@ jobs:
             ${{ inputs.bump-config }}
           labels: ${{ inputs.pr-labels }}
 
-      - name: Enable pull-request auto-merge
+      - name: Merge or enable auto-merge for version-bump pull request
         if: >-
           ${{
             steps.bump.outputs.bumped == 'true' &&
@@ -253,7 +253,68 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          gh pr merge "${PR_NUMBER}" \
-            --merge \
-            --auto \
-            --delete-branch
+          : "${GH_TOKEN:?No GitHub token is available}"
+
+          state="$(gh pr view "${PR_NUMBER}" --json state --jq '.state')"
+
+          if [[ "${state}" != "OPEN" ]]; then
+            echo "[INFO] Pull request #${PR_NUMBER} is not open; state=${state}."
+            exit 0
+          fi
+
+          merge_state_status="UNKNOWN"
+
+          for attempt in {1..12}; do
+            merge_state_status="$(gh pr view "${PR_NUMBER}" \
+              --json mergeStateStatus \
+              --jq '.mergeStateStatus')"
+
+            echo "[INFO] PR #${PR_NUMBER} attempt=${attempt} mergeStateStatus=${merge_state_status}"
+
+            if [[ "${merge_state_status}" != "UNKNOWN" ]]; then
+              break
+            fi
+
+            sleep 5
+          done
+
+          mergeable="$(gh pr view "${PR_NUMBER}" \
+            --json mergeable \
+            --jq '.mergeable')"
+
+          echo "[INFO] PR #${PR_NUMBER} mergeable=${mergeable}"
+          echo "[INFO] PR #${PR_NUMBER} mergeStateStatus=${merge_state_status}"
+
+          case "${merge_state_status}" in
+            CLEAN)
+              echo "[INFO] PR is clean; merging immediately."
+
+              gh pr merge "${PR_NUMBER}" \
+                --merge \
+                --delete-branch
+              ;;
+
+            BLOCKED|BEHIND|UNSTABLE|UNKNOWN)
+              echo "[INFO] PR is awaiting merge requirements; enabling auto-merge."
+
+              gh pr merge "${PR_NUMBER}" \
+                --merge \
+                --auto \
+                --delete-branch
+              ;;
+
+            DIRTY)
+              echo "::error::PR #${PR_NUMBER} has merge conflicts and cannot be merged automatically." >&2
+              exit 1
+              ;;
+
+            DRAFT)
+              echo "::error::PR #${PR_NUMBER} is a draft and cannot be merged automatically." >&2
+              exit 1
+              ;;
+
+            *)
+              echo "::error::Unexpected merge state for PR #${PR_NUMBER}: ${merge_state_status}" >&2
+              exit 1
+              ;;
+          esac
