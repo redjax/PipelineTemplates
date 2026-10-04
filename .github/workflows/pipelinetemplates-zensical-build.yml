@@ -76,7 +76,7 @@ jobs:
     uses: ./.github/workflows/zensical-build.yml
     with:
       # renovate: datasource=python-version depName=python versioning=pep440
-      python-version: "3.13"
+      python-version: "3.14.8"
 
       ## Execute Zensical from repository root, where zensical.toml exists.
       working-directory: "."

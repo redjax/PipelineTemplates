@@ -9,7 +9,7 @@ on:
         required: false
         type: string
         # renovate: datasource=python-version depName=python versioning=pep440
-        default: "3.13"
+        default: "3.14.8"
 
       uv-version:
         description: "Optional UV version. Leave empty for the setup action default."
