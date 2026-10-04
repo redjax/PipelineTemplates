@@ -20,25 +20,9 @@ on:
       - main
     paths:
       - "docs/**"
-      - "docs-site/**"
       - "zensical.toml"
-
-      ## Local composite action used by the reusable build workflow.
-      - ".github/actions/zensical-build/**"
-
-      ## Reusable Zensical workflow implementation.
-      - ".github/workflows/zensical-build.yml"
-      - ".github/workflows/zensical-gh-release.yml"
-      - ".github/workflows/zensical-publish-branch.yml"
-      - ".github/workflows/zensical-publish-cloudflare-pages.yml"
-      - ".github/workflows/zensical-publish-dispatch.yml"
-      - ".github/workflows/zensical-publish-gh-pages.yml"
-      - ".github/workflows/zensical-publish-router.yml"
-      - ".github/workflows/zensical-site-main.yml"
-      - ".github/workflows/zensical-version-bump.yml"
-
-      ## This repository-local caller.
-      - ".github/workflows/pipelinetemplates-zensical-site-main.yml"
+      - "docs-site/pyproject.toml"
+      - "docs-site/uv.lock"
 
   workflow_dispatch:
     inputs:
@@ -76,6 +60,7 @@ on:
         description: "Pinned Wrangler version used for Cloudflare Pages deployment."
         required: false
         type: string
+        # renovate: datasource=npm depName=wrangler
         default: "4.51.0"
 
       runner-image:
@@ -131,6 +116,7 @@ jobs:
     uses: ./.github/workflows/zensical-site-main.yml
     with:
       ## PipelineTemplates Python/UV/Zensical layout.
+      # renovate: datasource=python-version depName=python versioning=pep440
       python-version: "3.13"
       working-directory: "."
       python-project-dir: "docs-site"

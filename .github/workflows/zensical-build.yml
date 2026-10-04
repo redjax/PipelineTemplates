@@ -8,13 +8,15 @@ on:
         description: "Python version used for the Zensical build."
         required: false
         type: string
+        # renovate: datasource=python-version depName=python versioning=pep440
         default: "3.13"
 
       uv-version:
         description: "Optional UV version. Leave empty for the setup action default."
         required: false
         type: string
-        default: ""
+        # renovate: datasource=pypi depName=uv versioning=pep440
+        default: "0.12.18"
 
       working-directory:
         description: "Repository-relative directory in which Zensical runs."
@@ -194,8 +196,7 @@ jobs:
           docs-dir: ${{ inputs.docs-dir }}
           output-dir: ${{ inputs.output-dir }}
           clean: ${{ inputs.clean && 'true' || 'false' }}
-          # strict: ${{ inputs.strict && 'true' || 'false' }}
-          strict: "false"
+          strict: ${{ inputs.strict && 'true' || 'false' }}
           build-flags: ${{ inputs.build-flags }}
           use-cache: ${{ inputs.use-cache && 'true' || 'false' }}
           cache-key-suffix: ${{ inputs.cache-key-suffix }}

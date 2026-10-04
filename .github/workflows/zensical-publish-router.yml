@@ -36,6 +36,7 @@ on:
       cloudflare-wrangler-version:
         required: false
         type: string
+        # renovate: datasource=npm depName=wrangler
         default: "4.51.0"
 
       branch-name:
