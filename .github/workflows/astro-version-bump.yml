@@ -1,0 +1,263 @@
+---
+################################################################################
+# Detect Astro release-relevant changes, invoke the consuming repository's     #
+# bump-my-version wrapper, and create or update a version-bump pull request.   #
+#                                                                              #
+# This workflow does not build, package, tag, release, or deploy the site.     #
+################################################################################
+
+name: Astro version bump
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: GitHub Actions runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      base-branch:
+        description: Branch against which the version-bump pull request is opened.
+        required: false
+        type: string
+        default: main
+
+      bump-script:
+        description: Repository-relative Astro version-bump script.
+        required: false
+        type: string
+        default: shared/scripts/ci-cd/astro/bump-site-version.sh
+
+      bump-script-arguments:
+        description: Optional arguments passed to bump-script.
+        required: false
+        type: string
+        default: ""
+
+      bump-branch:
+        description: Branch created or updated for the version bump.
+        required: false
+        type: string
+        default: ci/astro-version-bump
+
+      commit-message:
+        description: Commit message for the version-bump commit.
+        required: false
+        type: string
+        default: "chore(astro): bump site version"
+
+      pull-request-title:
+        description: Title for the version-bump pull request.
+        required: false
+        type: string
+        default: "chore(astro): bump site version"
+
+      pull-request-body:
+        description: Body for the version-bump pull request.
+        required: false
+        type: string
+        default: |
+          Automated Astro site version bump.
+
+          This pull request was created by the shared Astro version-bump workflow.
+
+      pull-request-labels:
+        description: Newline-delimited labels to apply to the pull request.
+        required: false
+        type: string
+        default: automated
+
+      delete-branch:
+        description: Request deletion of the version-bump branch after merge.
+        required: false
+        type: boolean
+        default: true
+
+      auto-merge:
+        description: Enable GitHub auto-merge for the created or updated pull request.
+        required: false
+        type: boolean
+        default: true
+
+      auto-merge-method:
+        description: "GitHub merge method: merge, squash, or rebase."
+        required: false
+        type: string
+        default: merge
+
+    secrets:
+      release-bot-pat:
+        description: Token authorized to create/update pull requests and enable auto-merge.
+
+    outputs:
+      bump-required:
+        description: Whether the repository bump script performed a version bump.
+        value: ${{ jobs.bump.outputs.bump-required }}
+
+      bump-type:
+        description: The selected semantic-version bump type, if any.
+        value: ${{ jobs.bump.outputs.bump-type }}
+
+      pull-request-number:
+        description: Created or updated version-bump pull request number, if any.
+        value: ${{ jobs.bump.outputs.pull-request-number }}
+
+      pull-request-url:
+        description: Created or updated version-bump pull request URL, if any.
+        value: ${{ jobs.bump.outputs.pull-request-url }}
+
+jobs:
+  bump:
+    name: Bump Astro site version
+    runs-on: ${{ inputs.runner }}
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    outputs:
+      bump-required: ${{ steps.bump.outputs.bump-required }}
+      bump-type: ${{ steps.bump.outputs.bump-type }}
+      pull-request-number: ${{ steps.create-pr.outputs.pull-request-number }}
+      pull-request-url: ${{ steps.create-pr.outputs.pull-request-url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.base-branch }}
+          fetch-depth: 0
+          token: ${{ secrets.release-bot-pat }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install bump-my-version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          python -m pip install --upgrade pip
+          python -m pip install bump-my-version
+          bump-my-version --version
+
+      - name: Validate Astro bump script
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          script="${{ inputs.bump-script }}"
+
+          if [[ ! -f "${script}" ]]; then
+            echo "::error::Astro version-bump script not found: ${script}" >&2
+            exit 1
+          fi
+
+          if [[ ! -x "${script}" ]]; then
+            echo "[INFO] Making Astro version-bump script executable: ${script}"
+            chmod +x "${script}"
+          fi
+
+      - name: Run Astro version-bump script
+        id: bump
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          temporary_output="$(mktemp)"
+
+          cleanup() {
+            rm -f "${temporary_output}"
+          }
+          trap cleanup EXIT
+
+          set +e
+          "${{ inputs.bump-script }}" ${{ inputs.bump-script-arguments }} \
+            | tee "${temporary_output}"
+          status="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "${status}" -ne 0 ]]; then
+            echo "[ERROR] Astro version-bump script failed with exit code ${status}." >&2
+            exit "${status}"
+          fi
+
+          bump_required="$(
+            sed -n 's/^bump-required=//p' "${temporary_output}" \
+              | tail -n 1
+          )"
+
+          bump_type="$(
+            sed -n 's/^bump-type=//p' "${temporary_output}" \
+              | tail -n 1
+          )"
+
+          case "${bump_required}" in
+            true|false)
+              ;;
+            *)
+              echo "[ERROR] Astro bump script did not emit a valid 'bump-required=true|false' result." >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "${bump_required}" == "true" && -z "${bump_type}" ]]; then
+            echo "[ERROR] Astro bump script reported bump-required=true without bump-type." >&2
+            exit 1
+          fi
+
+          {
+            echo "bump-required=${bump_required}"
+            echo "bump-type=${bump_type}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "[INFO] bump-required=${bump_required}"
+          echo "[INFO] bump-type=${bump_type:-<none>}"
+
+      - name: Create or update version-bump pull request
+        id: create-pr
+        if: ${{ steps.bump.outputs.bump-required == 'true' }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.release-bot-pat }}
+
+          base: ${{ inputs.base-branch }}
+          branch: ${{ inputs.bump-branch }}
+          delete-branch: ${{ inputs.delete-branch }}
+
+          commit-message: ${{ inputs.commit-message }}
+          title: ${{ inputs.pull-request-title }}
+          body: ${{ inputs.pull-request-body }}
+          labels: ${{ inputs.pull-request-labels }}
+
+      - name: Enable pull request auto-merge
+        if: >-
+          ${{
+            steps.bump.outputs.bump-required == 'true' &&
+            inputs.auto-merge &&
+            steps.create-pr.outputs.pull-request-number != ''
+          }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.release-bot-pat }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          MERGE_METHOD: ${{ inputs.auto-merge-method }}
+        run: |
+          set -Eeuo pipefail
+
+          case "${MERGE_METHOD}" in
+            merge|squash|rebase)
+              ;;
+            *)
+              echo "::error::Invalid auto-merge-method: ${MERGE_METHOD}" >&2
+              exit 1
+              ;;
+          esac
+
+          gh pr merge "${PR_NUMBER}" \
+            --"${MERGE_METHOD}" \
+            --auto \
+            --delete-branch
