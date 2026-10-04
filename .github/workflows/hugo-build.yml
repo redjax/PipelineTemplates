@@ -16,7 +16,7 @@ on:
         required: false
         type: string
         # renovate: datasource=github-releases depName=gohugoio/hugo versioning=semver
-        default: "0.161.1"
+        default: "0.167.0"
 
       site-root:
         description: "Path to the Hugo site root."

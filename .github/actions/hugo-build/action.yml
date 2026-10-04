@@ -7,7 +7,7 @@ inputs:
     description: "Hugo version to install (e.g. 0.161.1)."
     required: false
     # renovate: datasource=github-releases depName=gohugoio/hugo versioning=semver
-    default: "0.161.1"
+    default: "0.167.0"
 
   extended:
     description: "Use the extended Hugo binary (required for SCSS/SASS, etc.)."
