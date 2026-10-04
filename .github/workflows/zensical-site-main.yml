@@ -1,4 +1,12 @@
 ---
+################################################################################
+# Reusable orchestration workflow for Zensical static documentation sites      #
+#                                                                              #
+# Coordinates optional bump-my-version automation, Zensical builds, static     #
+# site artifact releases, and optional publishing to GitHub Pages, Cloudflare  #
+# Pages, and/or a deployment branch.                                           #
+################################################################################
+
 name: Zensical Site Main Pipeline
 
 on:
@@ -14,13 +22,15 @@ on:
         description: "Python version used by Zensical."
         required: false
         type: string
+        # renovate: datasource=python-version depName=python versioning=pep440
         default: "3.13"
 
       uv-version:
-        description: "Optional UV version."
+        description: "UV version used for the Zensical build."
         required: false
         type: string
-        default: ""
+        # renovate: datasource=pypi depName=uv versioning=pep440
+        default: "0.12.18"
 
       working-directory:
         description: "Repository-relative directory from which Zensical runs."
@@ -83,19 +93,19 @@ on:
         default: ""
 
       check-changed:
-        description: "Enable Zensical changed-path detection."
+        description: "Enable Zensical changed-path detection for the standard build lane."
         required: false
         type: boolean
         default: false
 
       changed-paths-mode:
-        description: "default, replace, or append."
+        description: "How changed-paths is applied: default, replace, or append."
         required: false
         type: string
         default: "default"
 
       changed-paths:
-        description: "Newline-delimited Git pathspecs."
+        description: "Newline-delimited repository-relative Git pathspecs used for standard build change detection."
         required: false
         type: string
         default: ""
@@ -107,11 +117,13 @@ on:
         default: "zensical-site"
 
       artifact-retention-days:
+        description: "Generated site artifact retention period in days."
         required: false
         type: number
         default: 7
 
       artifact-if-no-files-found:
+        description: "Behavior when generated site output is absent: error, warn, or ignore."
         required: false
         type: string
         default: "error"
@@ -123,55 +135,55 @@ on:
         default: false
 
       version-file:
-        description: "Repository-relative version file."
+        description: "Repository-relative version file used by versioned sites."
         required: false
         type: string
         default: ".version"
 
       bump-config:
-        description: "Repository-relative bump-my-version config."
+        description: "Repository-relative bump-my-version configuration file."
         required: false
         type: string
         default: ".bumpversion.toml"
 
       bump-script:
-        description: "PipelineTemplates-relative Zensical version bump script."
+        description: "PipelineTemplates-relative Zensical version-bump script path."
         required: false
         type: string
         default: "shared/scripts/ci-cd/zensical/bump-site-version.sh"
 
       bump-changed-paths-file:
-        description: "Optional repository-relative version-bump paths file."
+        description: "Optional repository-relative file containing newline-delimited Git pathspecs that trigger a version bump."
         required: false
         type: string
         default: ""
 
       bump-changed-paths:
-        description: "Optional newline-delimited Git pathspecs that trigger a Zensical site version bump."
+        description: "Optional inline newline-delimited Git pathspecs that trigger a version bump."
         required: false
         type: string
         default: ""
 
       bump-pr-branch:
-        description: "Automated version bump PR branch."
+        description: "Automated version-bump pull request branch."
         required: false
         type: string
         default: "bump/zensical-site-version"
 
       bump-base-branch:
-        description: "Branch targeted by automated version bump PR."
+        description: "Target branch for the automated version-bump pull request."
         required: false
         type: string
         default: "main"
 
       bump-commit-marker:
-        description: "Unique marker added to automated bump commits."
+        description: "Unique marker added to automated version-bump commits."
         required: false
         type: string
         default: "[zensical-version-bump]"
 
       release-prefix:
-        description: "Prefix used in release tags."
+        description: "Prefix used for generated release tags."
         required: false
         type: string
         default: "site"
@@ -183,7 +195,7 @@ on:
         default: ""
 
       release-name:
-        description: "Optional explicit release name."
+        description: "Optional explicit GitHub Release name."
         required: false
         type: string
         default: ""
@@ -195,66 +207,77 @@ on:
         default: ""
 
       create-github-release:
-        description: "Create a GitHub Release with site archives."
+        description: "Create a GitHub Release with static-site archives."
         required: false
         type: boolean
         default: true
 
       cloudflare-pages-project:
+        description: "Cloudflare Pages project name. Required when cloudflare-pages is selected."
         required: false
         type: string
         default: ""
 
       cloudflare-pages-branch:
+        description: "Cloudflare Pages production or preview branch."
         required: false
         type: string
         default: "main"
 
       cloudflare-wrangler-version:
+        description: "Wrangler version used for Cloudflare Pages deployment."
         required: false
         type: string
+        # renovate: datasource=npm depName=wrangler versioning=npm
         default: "4.51.0"
 
       branch-name:
+        description: "Target branch used when branch publishing is selected."
         required: false
         type: string
         default: "gh-pages"
 
       branch-commit-message:
+        description: "Commit message used for deployment-branch updates."
         required: false
         type: string
         default: "Deploy Zensical site"
 
       runner-image:
+        description: "GitHub-hosted runner image or self-hosted runner label."
         required: false
         type: string
         default: "ubuntu-latest"
 
       templates-ref:
-        description: "PipelineTemplates ref used for the Zensical version-bump script."
+        description: "PipelineTemplates ref containing the shared Zensical version-bump script."
         required: false
         type: string
         default: "main"
 
       checkout-ref:
-        description: "Optional repository ref to build. Empty builds the triggering ref."
+        description: "Optional repository ref to build. Empty uses the triggering ref."
         required: false
         type: string
         default: ""
 
       debug-state:
+        description: "Enable detailed build path, configuration, tool-version, and output diagnostics."
         required: false
         type: boolean
         default: false
 
     secrets:
       release-bot-pat:
+        description: "Optional PAT or GitHub App token used for bump pull requests, tags, releases, and branch publishing."
         required: false
 
       cloudflare-api-token:
+        description: "Cloudflare API token required when cloudflare-pages is selected."
         required: false
 
       cloudflare-account-id:
+        description: "Cloudflare account ID required when cloudflare-pages is selected."
         required: false
 
 permissions:
@@ -268,6 +291,7 @@ jobs:
   decide:
     name: Decide Zensical pipeline lane
     runs-on: ${{ inputs.runner-image }}
+
     outputs:
       event-is-push: ${{ steps.decide.outputs.event-is-push }}
       bump-marker-commit: ${{ steps.decide.outputs.bump-marker-commit }}
@@ -348,11 +372,7 @@ jobs:
       version-file: ${{ inputs.version-file }}
       bump-config: ${{ inputs.bump-config }}
       bump-script: ${{ inputs.bump-script }}
-
       changed-paths-file: ${{ inputs.bump-changed-paths-file }}
-
-      ## Optional inline source/dependency/action paths that should trigger
-      #  a site version bump.
       changed-paths: ${{ inputs.bump-changed-paths }}
 
       pr-branch: ${{ inputs.bump-pr-branch }}
@@ -360,9 +380,9 @@ jobs:
       pr-title: "chore(release): bump Zensical site version ${{ inputs.bump-commit-marker }}"
       pr-body: "Automated version bump for Zensical site changes."
 
-      python-version: "3.13"
-      bump-my-version-version: "1.5.1"
-
+      # Do not explicitly forward python-version or
+      # bump-my-version-version here. The called workflow owns those
+      # Renovate-managed defaults, preventing duplicate hard-coded pins.
       runner-image: ${{ inputs.runner-image }}
       templates-ref: ${{ inputs.templates-ref }}
     secrets:
@@ -381,15 +401,20 @@ jobs:
       zensical-config: ${{ inputs.zensical-config }}
       docs-dir: ${{ inputs.docs-dir }}
       output-dir: ${{ inputs.output-dir }}
+
       clean: ${{ inputs.clean }}
       strict: ${{ inputs.strict }}
       build-flags: ${{ inputs.build-flags }}
       use-cache: ${{ inputs.use-cache }}
       cache-key-suffix: ${{ inputs.cache-key-suffix }}
+
+      # The post-bump merge must always build the release artifact.
       check-changed: false
+
       artifact-name: ${{ inputs.artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
       artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+
       checkout-ref: ${{ inputs.checkout-ref }}
       runner-image: ${{ inputs.runner-image }}
       debug-state: ${{ inputs.debug-state }}
@@ -407,17 +432,21 @@ jobs:
       zensical-config: ${{ inputs.zensical-config }}
       docs-dir: ${{ inputs.docs-dir }}
       output-dir: ${{ inputs.output-dir }}
+
       clean: ${{ inputs.clean }}
       strict: ${{ inputs.strict }}
       build-flags: ${{ inputs.build-flags }}
       use-cache: ${{ inputs.use-cache }}
       cache-key-suffix: ${{ inputs.cache-key-suffix }}
+
       check-changed: ${{ inputs.check-changed }}
       changed-paths-mode: ${{ inputs.changed-paths-mode }}
       changed-paths: ${{ inputs.changed-paths }}
+
       artifact-name: ${{ inputs.artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
       artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+
       checkout-ref: ${{ inputs.checkout-ref }}
       runner-image: ${{ inputs.runner-image }}
       debug-state: ${{ inputs.debug-state }}
@@ -435,10 +464,12 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       build-run-id: ${{ github.run_id }}
       checkout-ref: ${{ inputs.checkout-ref }}
+
       release-prefix: ${{ inputs.release-prefix }}
       release-tag: ${{ inputs.release-tag }}
       release-name: ${{ inputs.release-name }}
       release-version: ${{ inputs.release-version }}
+
       create-github-release: ${{ inputs.create-github-release }}
       runner-image: ${{ inputs.runner-image }}
     secrets:
@@ -457,10 +488,17 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       build-run-id: ${{ github.run_id }}
       checkout-ref: ${{ inputs.checkout-ref }}
+
       release-prefix: ${{ inputs.release-prefix }}
-      release-tag: ${{ inputs.release-tag != '' && inputs.release-tag || format('{0}-{1}', inputs.release-prefix, needs.decide.outputs.short-sha) }}
+      release-tag: >-
+        ${{
+          inputs.release-tag != '' &&
+          inputs.release-tag ||
+          format('{0}-{1}', inputs.release-prefix, needs.decide.outputs.short-sha)
+        }}
       release-name: ${{ inputs.release-name }}
       release-version: ${{ inputs.release-version }}
+
       create-github-release: ${{ inputs.create-github-release }}
       runner-image: ${{ inputs.runner-image }}
     secrets:
@@ -482,9 +520,11 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
+
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       cloudflare-wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+
       branch-name: ${{ inputs.branch-name }}
       branch-commit-message: ${{ inputs.branch-commit-message }}
     secrets:
@@ -508,9 +548,11 @@ jobs:
       artifact-name: ${{ inputs.artifact-name }}
       run-id: ${{ github.run_id }}
       runner-image: ${{ inputs.runner-image }}
+
       cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
       cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
       cloudflare-wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+
       branch-name: ${{ inputs.branch-name }}
       branch-commit-message: ${{ inputs.branch-commit-message }}
     secrets:

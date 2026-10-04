@@ -16,6 +16,19 @@
             "depNameTemplate": "netlify-cli",
             "datasourceTemplate": "npm",
             "versioningTemplate": "npm"
+        },
+        {
+            "customType": "regex",
+            "description": "Update Renovate-annotated Zensical pipeline tool versions.",
+            "managerFilePatterns": [
+                "/^\\.github/workflows/(?:zensical-.+|pipelinetemplates-zensical-.+)\\.ya?ml$/",
+                "/^\\.github/actions/zensical-build/.+\\.(?:ya?ml|sh)$/",
+                "/^shared/scripts/ci-cd/zensical/.+\\.sh$/"
+            ],
+            "matchStrings": [
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,2}(?:[-+][0-9A-Za-z.-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*[A-Za-z][A-Za-z0-9_-]*:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,2}(?:[-+][0-9A-Za-z.-]+)?)[\"']?"
+            ]
         }
     ],
     "gitlabci": {

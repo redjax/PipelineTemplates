@@ -30,6 +30,7 @@ on:
         description: "Wrangler package version."
         required: false
         type: string
+        # renovate: datasource=npm depName=wrangler
         default: "4.51.0"
 
       runner-image:
