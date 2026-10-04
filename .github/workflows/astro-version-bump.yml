@@ -197,6 +197,49 @@ jobs:
           python -m pip install bump-my-version
           bump-my-version --version
 
+      - name: Debug Astro version-bump inputs
+        shell: bash
+        env:
+          ASTRO_VERSION_FILE: ${{ inputs.version-file }}
+          ASTRO_BUMP_CONFIG: ${{ inputs.bump-config }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "===== Current directory ====="
+          pwd
+
+          echo
+          echo "===== Repository root ====="
+          git rev-parse --show-toplevel
+
+          echo
+          echo "===== Version file input ====="
+          printf '%s\n' "${ASTRO_VERSION_FILE}"
+
+          echo
+          echo "===== Version file contents ====="
+          cat "${ASTRO_VERSION_FILE}"
+
+          echo
+          echo "===== Bump config input ====="
+          printf '%s\n' "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== Bump config contents ====="
+          cat "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== Config current_version ====="
+          grep -nE '^[[:space:]]*current_version[[:space:]]*=' "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== All bump configs in workspace ====="
+          find "${GITHUB_WORKSPACE}" -name '.bumpversion.toml' -type f -print
+
+          echo
+          echo "===== Git tags near current release ====="
+          git tag --sort=-version:refname | head -n 20
+
       - name: Run Astro version-bump script
         id: bump
         if: ${{ !inputs.dry-run }}
