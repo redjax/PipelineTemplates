@@ -51,6 +51,12 @@ on:
         type: string
         default: npm run build
 
+      build-env:
+        description: Newline-delimited NAME=value environment entries exported for the Astro build command.
+        required: false
+        type: string
+        default: ""
+
       clean:
         description: Remove existing generated output before building.
         required: false
@@ -146,6 +152,8 @@ jobs:
         id: astro
         uses: redjax/PipelineTemplates/.github/actions/astro-build@feat/astro-workflows
         with:
+          build-env: ${{ inputs.build-env }}
+
           working-directory: ${{ inputs.working-directory }}
           astro-project-dir: ${{ inputs.astro-project-dir }}
           output-dir: ${{ inputs.output-dir }}

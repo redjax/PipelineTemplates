@@ -54,6 +54,12 @@ on:
         type: string
         default: npm run build
 
+      build-env:
+        description: Newline-delimited NAME=value environment entries exported while building the Astro site.
+        required: false
+        type: string
+        default: ""
+
       clean:
         description: Remove existing generated output before building.
         required: false
@@ -367,6 +373,8 @@ jobs:
     if: ${{ needs.decide.outputs.should-release-versioned == 'true' }}
     uses: ./.github/workflows/astro-build.yml
     with:
+      build-env: ${{ inputs.build-env }}
+
       runner: ${{ inputs.runner }}
 
       working-directory: ${{ inputs.working-directory }}
@@ -393,6 +401,8 @@ jobs:
     if: ${{ needs.decide.outputs.should-run-standard == 'true' }}
     uses: ./.github/workflows/astro-build.yml
     with:
+      build-env: ${{ inputs.build-env }}
+
       runner: ${{ inputs.runner }}
 
       working-directory: ${{ inputs.working-directory }}

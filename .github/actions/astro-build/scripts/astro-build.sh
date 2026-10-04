@@ -13,6 +13,7 @@ set -Eeuo pipefail
 #   ASTRO_DEBUG_BUILD        (default false)           #
 ########################################################
 
+build_env="${ASTRO_BUILD_ENV:-}"
 working_directory="${ASTRO_WORKING_DIRECTORY:?ASTRO_WORKING_DIRECTORY is required}"
 astro_project_dir="${ASTRO_PROJECT_DIR:?ASTRO_PROJECT_DIR is required}"
 output_dir="${ASTRO_OUTPUT_DIR:?ASTRO_OUTPUT_DIR is required}"
@@ -82,6 +83,31 @@ if [[ "${debug_build}" == "true" ]]; then
     \) \
     -print |
     sort
+fi
+
+if [[ -n "${build_env}" ]]; then
+  echo "[INFO] Exporting configured Astro build environment variable names:"
+
+  while IFS= read -r entry; do
+    [[ -z "${entry}" ]] && continue
+    [[ "${entry}" =~ ^[[:space:]]*# ]] && continue
+
+    if [[ "${entry}" != *=* ]]; then
+      echo "[ERROR] Invalid ASTRO_BUILD_ENV entry; expected NAME=value." >&2
+      exit 1
+    fi
+
+    name="${entry%%=*}"
+    value="${entry#*=}"
+
+    if [[ ! "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      echo "[ERROR] Invalid environment variable name in ASTRO_BUILD_ENV: ${name}" >&2
+      exit 1
+    fi
+
+    export "${name}=${value}"
+    echo "  - ${name}"
+  done <<<"${build_env}"
 fi
 
 cd "${working_directory}"
