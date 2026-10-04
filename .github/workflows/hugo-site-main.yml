@@ -25,6 +25,7 @@ on:
       hugo-version:
         type: string
         required: false
+        # renovate: datasource=github-releases depName=gohugoio/hugo versioning=semver
         default: "0.161.1"
 
       site-root:

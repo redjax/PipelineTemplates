@@ -6,6 +6,7 @@ inputs:
   hugo-version:
     description: "Hugo version to install (e.g. 0.161.1)."
     required: false
+    # renovate: datasource=github-releases depName=gohugoio/hugo versioning=semver
     default: "0.161.1"
 
   extended:
