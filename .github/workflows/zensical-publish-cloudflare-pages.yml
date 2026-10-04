@@ -31,7 +31,7 @@ on:
         required: false
         type: string
         # renovate: datasource=npm depName=wrangler
-        default: "4.51.0"
+        default: "4.147.0"
 
       runner-image:
         description: "GitHub-hosted runner image or self-hosted runner label."

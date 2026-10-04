@@ -37,7 +37,7 @@ on:
         required: false
         type: string
         # renovate: datasource=npm depName=wrangler
-        default: "4.51.0"
+        default: "4.147.0"
 
       branch-name:
         required: false
