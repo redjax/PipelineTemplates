@@ -18,6 +18,12 @@ on:
         type: boolean
         default: true
 
+      versioned-tag-prefix:
+        description: Prefix used before versioned release versions.
+        required: false
+        type: string
+        default: v
+
       version-file:
         description: Repository-relative path to the version file.
         required: false
@@ -126,6 +132,7 @@ jobs:
         shell: bash
         env:
           VERSIONED: ${{ inputs.versioned }}
+          VERSIONED_TAG_PREFIX: ${{ inputs.versioned-tag-prefix }}
           VERSION_FILE: ${{ inputs.version-file }}
           INPUT_VERSION: ${{ inputs.release-version }}
           INPUT_NAME: ${{ inputs.release-name }}
@@ -160,7 +167,7 @@ jobs:
               exit 1
             fi
 
-            tag="${RELEASE_PREFIX}-v${version}"
+            tag="${VERSIONED_TAG_PREFIX}${version}"
             name="${INPUT_NAME:-${tag}}"
 
           else
