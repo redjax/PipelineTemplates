@@ -33,20 +33,29 @@ EXPOSE 8118
 
 CMD ["zensical", "serve", "--dev-addr", "0.0.0.0:8118"]
 
-FROM stage AS build
+FROM base AS build
 
 WORKDIR /workspace
 
+COPY docs-site/pyproject.toml docs-site/uv.lock docs-site/
+
+RUN uv sync \
+  --locked \
+  --project /workspace/docs-site
+
 COPY . .
 
-ENV PATH="/workspace/docs-site/.venv/bin:$PATH"
+RUN uv run \
+  --project /workspace/docs-site \
+  zensical build \
+  --config-file /workspace/zensical.toml
 
-RUN zensical build
-
-FROM nginx:${NGINX_IMG_TAG} AS prod
+FROM nginxinc/nginx-unprivileged:${NGINX_IMG_TAG} AS prod
 
 COPY --from=build /workspace/docs-site/site /usr/share/nginx/html
 
-EXPOSE 80
+USER 101:101
+
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
