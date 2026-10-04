@@ -26,7 +26,7 @@ on:
         required: false
         type: string
         # renovate: datasource=github-releases depName=aquasecurity/trivy versioning=semver
-        default: "0.73.0"
+        default: "0.75.0"
 
       trivyScanType:
         description: Trivy scan target
