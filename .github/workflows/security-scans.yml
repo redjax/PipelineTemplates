@@ -25,6 +25,7 @@ on:
         description: Trivy version without a leading v
         required: false
         type: string
+        # renovate: datasource=github-releases depName=aquasecurity/trivy versioning=semver
         default: "0.73.0"
 
       trivyScanType:
@@ -101,6 +102,7 @@ on:
         description: Gitleaks version without a leading v
         required: false
         type: string
+        # renovate: datasource=github-releases depName=gitleaks/gitleaks versioning=semver
         default: "8.30.1"
 
       gitleaksMode:
@@ -153,6 +155,7 @@ on:
         description: OSV-Scanner version without a leading v
         required: false
         type: string
+        # renovate: datasource=github-releases depName=google/osv-scanner versioning=semver
         default: "2.5.0"
 
       osvSource:
@@ -275,6 +278,7 @@ on:
         description: TruffleHog version without a leading v
         required: false
         type: string
+        # renovate: datasource=github-releases depName=trufflesecurity/trufflehog versioning=semver
         default: "3.96.0"
 
       trufflehogMode:

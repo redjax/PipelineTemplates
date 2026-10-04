@@ -19,10 +19,11 @@ spec:
       type: string
       default: maintenance
 
-    image:
+    imageVersion:
       description: Renovate container image.
       type: string
-      default: renovate/renovate:44.27.0
+      # renovate: datasource=docker depName=renovate/renovate versioning=docker
+      default: "44.27.0"
 
     mode:
       description: Renovate mode.
@@ -86,7 +87,7 @@ spec:
 renovate:
   stage: $[[ inputs.stage ]]
   image:
-    name: $[[ inputs.image ]]
+    name: "renovate/renovate:$[[ inputs.imageVersion ]]"
     entrypoint: [""]
 
   tags: $[[ inputs.runner-tags ]]

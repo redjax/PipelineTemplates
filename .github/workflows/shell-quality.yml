@@ -60,6 +60,7 @@ on:
       shellcheck-version:
         required: false
         type: string
+        # renovate: datasource=github-releases depName=koalaman/shellcheck versioning=semver
         default: "0.10.0"
       shellcheck-severity:
         description: Minimum ShellCheck severity to report.
@@ -69,6 +70,7 @@ on:
       shellfmt-version:
         required: false
         type: string
+        # renovate: datasource=github-releases depName=mvdan/sh versioning=semver
         default: "3.10.0"
       shellfmt-mode:
         required: false

@@ -19,15 +19,37 @@
         },
         {
             "customType": "regex",
-            "description": "Update Renovate-annotated Zensical pipeline tool versions.",
+            "description": "Update explicitly Renovate-annotated CI/CD and automation tool versions.",
             "managerFilePatterns": [
-                "/^\\.github/workflows/(?:zensical-.+|pipelinetemplates-zensical-.+)\\.ya?ml$/",
-                "/^\\.github/actions/zensical-build/.+\\.(?:ya?ml|sh)$/",
-                "/^shared/scripts/ci-cd/zensical/.+\\.sh$/"
+                "/^\\.github/workflows/.+\\.ya?ml$/",
+                "/^\\.github/actions/.+\\.(?:ya?ml|json|sh|bash)$/",
+                "/^\\.forgejo/workflows/.+\\.ya?ml$/",
+                "/^\\.forgejo/actions/.+\\.(?:ya?ml|json|sh|bash)$/",
+                "/^\\.gitlab/.+\\.(?:ya?ml|json|sh|bash)$/",
+                "/^\\.gitlab-ci\\.ya?ml$/",
+                "/^shared/scripts/.+\\.(?:sh|bash)$/",
+                "/^docs-site/.+\\.(?:sh|bash)$/",
+                "/^docs-site/(?:Dockerfile|Containerfile)(?:\\.[^/]+)?$/",
+                "/(^|/)(?:Dockerfile|Containerfile)(?:\\.[^/]+)?$/",
+                "/(^|/)(?:docker-)?compose(?:\\.[^/]+)?\\.ya?ml$/"
             ],
             "matchStrings": [
-                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,2}(?:[-+][0-9A-Za-z.-]+)?)[\"']?",
-                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*[A-Za-z][A-Za-z0-9_-]*:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,2}(?:[-+][0-9A-Za-z.-]+)?)[\"']?"
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*[A-Za-z][A-Za-z0-9_.-]*:\\s*[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:ARG|ENV)\\s+[A-Za-z_][A-Za-z0-9_]*[=:][\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=[\"']?(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']?",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[^\\s:]+(?:/[^\\s:]+)*:(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)",
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*default:\\s*[\"'][^\"']+:(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)[\"']"
+            ]
+        },
+        {
+            "customType": "regex",
+            "description": "Update annotated shell variable defaults",
+            "managerFilePatterns": [
+                "/(^|/).*\\.sh$/"
+            ],
+            "matchStrings": [
+                "# renovate: datasource=(?<datasource>[^\\s]+) depName=(?<depName>[^\\s]+)(?: versioning=(?<versioning>[^\\s]+))?\\s*\\r?\\n\\s*(?:export\\s+)?[A-Za-z_][A-Za-z0-9_]*=\"\\$\\{[A-Za-z_][A-Za-z0-9_]*:-(?<currentValue>v?\\d+(?:\\.\\d+){0,3}(?:[-+][0-9A-Za-z._-]+)?)\\}\""
             ]
         }
     ],

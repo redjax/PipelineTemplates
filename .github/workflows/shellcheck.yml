@@ -15,6 +15,7 @@ on:
       shellcheck-version:
         required: false
         type: string
+        # renovate: datasource=github-releases depName=koalaman/shellcheck versioning=semver
         default: "0.10.0"
       shellcheck-severity:
         required: false

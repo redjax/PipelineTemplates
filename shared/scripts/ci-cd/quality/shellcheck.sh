@@ -6,6 +6,7 @@ _REPOSITORY_ROOT="$(cd "${_DIR}/../../../.." && pwd)"
 
 source "${_REPOSITORY_ROOT}/shared/scripts/bash/_util/is-installed.sh"
 
+# renovate: datasource=github-releases depName=koalaman/shellcheck versioning=semver
 SHELLCHECK_VERSION="${SHELLCHECK_VERSION:-0.10.0}"
 SHELLCHECK_SEVERITY="${SHELLCHECK_SEVERITY:-error}"
 SHELLCHECK_INSTALL_DIR="${SHELLCHECK_INSTALL_DIR:-${HOME}/.local/bin}"

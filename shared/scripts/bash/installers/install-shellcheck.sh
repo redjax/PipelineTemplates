@@ -17,6 +17,7 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${_DIR}/../_util/is-installed.sh"
 
+# renovate: datasource=github-releases depName=koalaman/shellcheck versioning=semver
 SHELLCHECK_VERSION="${SHELLCHECK_VERSION:-0.10.0}"
 SHELLCHECK_INSTALL_DIR="${SHELLCHECK_INSTALL_DIR:-${HOME}/.local/bin}"
 SHELLCHECK_FORCE_INSTALL="${SHELLCHECK_FORCE_INSTALL:-false}"

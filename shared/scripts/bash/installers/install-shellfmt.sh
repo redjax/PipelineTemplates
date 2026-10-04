@@ -17,6 +17,7 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "${_DIR}/../_util/is-installed.sh"
 
+# renovate: datasource=github-releases depName=mvdan/sh versioning=semver
 SHELLFMT_VERSION="${SHELLFMT_VERSION:-3.10.0}"
 SHELLFMT_INSTALL_DIR="${SHELLFMT_INSTALL_DIR:-${HOME}/.local/bin}"
 SHELLFMT_FORCE_INSTALL="${SHELLFMT_FORCE_INSTALL:-false}"

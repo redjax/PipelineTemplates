@@ -12,7 +12,8 @@ inputs:
   uv-version:
     description: "Optional UV version to install. Leave empty for the setup-uv action default."
     required: false
-    default: ""
+    # renovate: datasource=pypi depName=uv versioning=pep440
+    default: "0.12.23"
 
   working-directory:
     description: "Repository-relative directory from which Zensical runs and config discovery occurs."
