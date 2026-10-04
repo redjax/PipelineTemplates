@@ -279,7 +279,7 @@ on:
         required: false
         type: string
         # renovate: datasource=github-releases depName=trufflesecurity/trufflehog versioning=semver
-        default: "3.96.0"
+        default: "3.97.9"
 
       trufflehogMode:
         description: TruffleHog scan mode
