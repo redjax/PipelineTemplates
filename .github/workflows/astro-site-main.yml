@@ -260,6 +260,10 @@ on:
         description: Cloudflare account ID required for cloudflare-pages.
         required: false
 
+      build-env:
+        description: Newline-delimited NAME=value entries exported during the Astro build.
+        required: false
+
 permissions:
   contents: write
   actions: write

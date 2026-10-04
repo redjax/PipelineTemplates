@@ -101,13 +101,13 @@ if [[ -n "${build_env}" ]]; then
     value="${entry#*=}"
 
     if [[ ! "${name}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-      echo "[ERROR] Invalid environment variable name in ASTRO_BUILD_ENV: ${name}" >&2
+      echo "[ERROR] Invalid environment variable name: ${name}" >&2
       exit 1
     fi
 
     export "${name}=${value}"
-    echo "  - ${name}"
-  done <<<"${build_env}"
+    echo "[INFO] Exported build environment variable: ${name}"
+  done <<<"${ASTRO_BUILD_ENV:-}"
 fi
 
 cd "${working_directory}"
