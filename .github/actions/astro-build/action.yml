@@ -33,6 +33,11 @@ inputs:
     required: false
     default: "npm run build"
 
+  build-env:
+    description: Newline-delimited NAME=value environment entries exported for the build command.
+    required: false
+    default: ""
+
   clean:
     description: Remove existing generated output before building.
     required: false
@@ -144,6 +149,7 @@ runs:
       if: ${{ steps.decision.outputs.should-build == 'true' }}
       shell: bash
       env:
+        ASTRO_BUILD_ENV: ${{ inputs.build-env }}
         ASTRO_WORKING_DIRECTORY: ${{ steps.paths.outputs.working-directory }}
         ASTRO_PROJECT_DIR: ${{ steps.paths.outputs.astro-project-dir }}
         ASTRO_OUTPUT_DIR: ${{ steps.paths.outputs.output-dir }}

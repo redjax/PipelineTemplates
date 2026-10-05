@@ -1,0 +1,106 @@
+---
+################################################################################
+# Publish a built Astro static-site artifact to a Git branch                   #
+#                                                                              #
+# Downloads an existing artifact from a specified workflow run and force-      #
+# updates a deployment branch, commonly gh-pages.                              #
+################################################################################
+
+name: Publish Astro Site to Branch
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        description: Generated Astro static-site artifact to publish.
+        required: false
+        type: string
+        default: astro-site
+
+      run-id:
+        description: Workflow run ID containing artifact-name.
+        required: true
+        type: string
+
+      branch-name:
+        description: Branch that will contain generated static-site files.
+        required: false
+        type: string
+        default: gh-pages
+
+      commit-message:
+        description: Commit message used for deployment-branch updates.
+        required: false
+        type: string
+        default: Deploy Astro site
+
+      runner:
+        description: GitHub-hosted runner image or self-hosted runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+    secrets:
+      push-token:
+        description: Optional PAT or GitHub App token used instead of GITHUB_TOKEN.
+        required: false
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish Astro deployment branch
+    runs-on: ${{ inputs.runner }}
+
+    steps:
+      - name: Download generated Astro site artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ./_published
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.push-token || github.token }}
+
+      - name: Verify downloaded Astro site artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ ! -f ./_published/index.html ]]; then
+            echo "::error::Generated Astro site artifact does not contain ./_published/index.html" >&2
+            exit 1
+          fi
+
+      - name: Force-update Astro deployment branch
+        shell: bash
+        working-directory: ./_published
+        env:
+          BRANCH_NAME: ${{ inputs.branch-name }}
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          PUSH_TOKEN: ${{ secrets.push-token || github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          : "${PUSH_TOKEN:?No token is available for deployment-branch publishing}"
+
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git remote add origin \
+            "https://x-access-token:${PUSH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git fetch origin "${BRANCH_NAME}" || true
+          git checkout -B "${BRANCH_NAME}"
+
+          git add --all
+
+          if git diff --cached --quiet; then
+            echo "[INFO] No deployment-branch changes to publish."
+            exit 0
+          fi
+
+          git commit -m "${COMMIT_MESSAGE}"
+          git push --force origin "HEAD:refs/heads/${BRANCH_NAME}"

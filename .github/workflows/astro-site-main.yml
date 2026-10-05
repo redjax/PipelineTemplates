@@ -1,0 +1,539 @@
+---
+################################################################################
+# Reusable orchestration workflow for static Astro sites                       #
+#                                                                              #
+# Coordinates optional bump-my-version automation, one Astro build, optional   #
+# GitHub tag/release creation, and optional multi-target publishing.           #
+################################################################################
+
+name: Astro Site Main Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      publish-targets:
+        description: 'JSON array of publishing targets, e.g. ["github-pages","cloudflare-pages","branch"].'
+        required: false
+        type: string
+        default: "[]"
+
+      working-directory:
+        description: Repository-relative directory from which build-command runs.
+        required: false
+        type: string
+        default: "."
+
+      astro-project-dir:
+        description: Repository-relative directory containing package.json and Astro config.
+        required: false
+        type: string
+        default: "."
+
+      output-dir:
+        description: Repository-relative generated static-site output directory.
+        required: false
+        type: string
+        default: dist
+
+      node-version:
+        description: Node.js version used for the Astro build.
+        required: false
+        type: string
+        # renovate: datasource=node-version depName=node versioning=node
+        default: "24"
+
+      install-command:
+        description: Dependency-install command run from astro-project-dir.
+        required: false
+        type: string
+        default: npm ci
+
+      build-command:
+        description: Build command run from working-directory.
+        required: false
+        type: string
+        default: npm run build
+
+      build-env:
+        description: Newline-delimited NAME=value environment entries exported while building the Astro site.
+        required: false
+        type: string
+        default: ""
+
+      clean:
+        description: Remove existing generated output before building.
+        required: false
+        type: boolean
+        default: true
+
+      check-changed:
+        description: Enable Astro changed-path detection for the standard build lane.
+        required: false
+        type: boolean
+        default: false
+
+      changed-paths-mode:
+        description: "How changed-paths is applied: default, replace, or append."
+        required: false
+        type: string
+        default: default
+
+      changed-paths:
+        description: Newline-delimited repository-relative Git pathspecs for Astro change detection.
+        required: false
+        type: string
+        default: ""
+
+      use-node-cache:
+        description: Enable npm dependency caching.
+        required: false
+        type: boolean
+        default: true
+
+      artifact-name:
+        description: Generated Astro site workflow artifact name.
+        required: false
+        type: string
+        default: astro-site
+
+      artifact-retention-days:
+        description: Generated site artifact retention period in days.
+        required: false
+        type: number
+        default: 7
+
+      artifact-if-no-files-found:
+        description: "Behavior when generated output is absent: error, warn, or ignore."
+        required: false
+        type: string
+        default: error
+
+      versioned:
+        description: Whether this Astro site uses bump-my-version versioning.
+        required: false
+        type: boolean
+        default: false
+
+      version-file:
+        description: Repository-relative version file used by versioned sites.
+        required: false
+        type: string
+        default: VERSION
+
+      bump-config:
+        description: Repository-relative bump-my-version configuration file.
+        required: false
+        type: string
+        default: .bumpversion.toml
+
+      bump-changed-paths-file:
+        description: Optional repository-relative file listing paths that trigger version bumps.
+        required: false
+        type: string
+        default: ""
+
+      bump-changed-paths:
+        description: Optional inline newline-delimited paths that trigger version bumps.
+        required: false
+        type: string
+        default: ""
+
+      bump-pr-branch:
+        description: Automated Astro version-bump pull request branch.
+        required: false
+        type: string
+        default: bump/astro-site-version
+
+      bump-base-branch:
+        description: Target branch for the automated version-bump pull request.
+        required: false
+        type: string
+        default: main
+
+      bump-commit-marker:
+        description: Unique marker added to automated Astro version-bump commits.
+        required: false
+        type: string
+        default: "[astro-version-bump]"
+
+      release-prefix:
+        description: Prefix used for generated non-versioned release tags.
+        required: false
+        type: string
+        default: site
+
+      versioned-tag-prefix:
+        description: Prefix used before versioned release versions; use v for vX.Y.Z.
+        required: false
+        type: string
+        default: v
+
+      release-tag:
+        description: Optional explicit Git tag.
+        required: false
+        type: string
+        default: ""
+
+      release-name:
+        description: Optional explicit GitHub Release name.
+        required: false
+        type: string
+        default: ""
+
+      release-version:
+        description: Optional explicit release version.
+        required: false
+        type: string
+        default: ""
+
+      create-github-release:
+        description: Create a GitHub Release with static-site archives.
+        required: false
+        type: boolean
+        default: true
+
+      cloudflare-pages-project:
+        description: Cloudflare Pages project name; required when cloudflare-pages is selected.
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        description: Cloudflare Pages production or preview branch.
+        required: false
+        type: string
+        default: main
+
+      cloudflare-wrangler-version:
+        description: Wrangler version used for Cloudflare Pages publishing.
+        required: false
+        type: string
+        # renovate: datasource=npm depName=wrangler
+        default: "4.147.0"
+
+      branch-name:
+        description: Deployment branch when branch publishing is selected.
+        required: false
+        type: string
+        default: gh-pages
+
+      branch-commit-message:
+        description: Commit message used for deployment-branch updates.
+        required: false
+        type: string
+        default: Deploy Astro site
+
+      runner:
+        description: GitHub-hosted runner image or self-hosted runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      templates-ref:
+        description: PipelineTemplates ref containing shared Astro version-bump scripts.
+        required: false
+        type: string
+        default: main
+
+      checkout-ref:
+        description: Optional repository ref to build/tag. Empty uses the triggering ref.
+        required: false
+        type: string
+        default: ""
+
+      debug-build:
+        description: Enable detailed Astro build diagnostics.
+        required: false
+        type: boolean
+        default: false
+
+    secrets:
+      release-bot-pat:
+        description: Optional PAT or GitHub App token for bump PRs, tags, releases, and branch publishing.
+        required: false
+
+      cloudflare-api-token:
+        description: Cloudflare API token required for cloudflare-pages.
+        required: false
+
+      cloudflare-account-id:
+        description: Cloudflare account ID required for cloudflare-pages.
+        required: false
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+  pages: write
+  id-token: write
+
+jobs:
+  decide:
+    name: Decide Astro pipeline lane
+    runs-on: ${{ inputs.runner }}
+
+    outputs:
+      event-is-push: ${{ steps.decide.outputs.event-is-push }}
+      bump-marker-commit: ${{ steps.decide.outputs.bump-marker-commit }}
+      should-bump: ${{ steps.decide.outputs.should-bump }}
+      should-release-versioned: ${{ steps.decide.outputs.should-release-versioned }}
+      should-run-standard: ${{ steps.decide.outputs.should-run-standard }}
+      short-sha: ${{ steps.decide.outputs.short-sha }}
+
+    steps:
+      - name: Checkout triggering commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
+
+      - name: Decide Astro pipeline lane
+        id: decide
+        shell: bash
+        env:
+          VERSIONED: ${{ inputs.versioned }}
+          BUMP_MARKER: ${{ inputs.bump-commit-marker }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -Eeuo pipefail
+
+          head_subject="$(git log -1 --format=%s)"
+          short_sha="$(git rev-parse --short=7 HEAD)"
+
+          event_is_push="false"
+          bump_marker_commit="false"
+          should_bump="false"
+          should_release_versioned="false"
+          should_run_standard="false"
+
+          if [[ "${EVENT_NAME}" == "push" ]]; then
+            event_is_push="true"
+          fi
+
+          if [[ "${VERSIONED}" == "true" &&
+                "${head_subject}" == *"${BUMP_MARKER}"* ]]; then
+            bump_marker_commit="true"
+          fi
+
+          if [[ "${VERSIONED}" == "true" &&
+                "${event_is_push}" == "true" &&
+                "${bump_marker_commit}" != "true" ]]; then
+            should_bump="true"
+          fi
+
+          if [[ "${VERSIONED}" == "true" &&
+                "${event_is_push}" == "true" &&
+                "${bump_marker_commit}" == "true" ]]; then
+            should_release_versioned="true"
+          fi
+
+          if [[ "${VERSIONED}" != "true" ||
+                "${event_is_push}" != "true" ]]; then
+            should_run_standard="true"
+          fi
+
+          {
+            echo "event-is-push=${event_is_push}"
+            echo "bump-marker-commit=${bump_marker_commit}"
+            echo "should-bump=${should_bump}"
+            echo "should-release-versioned=${should_release_versioned}"
+            echo "should-run-standard=${should_run_standard}"
+            echo "short-sha=${short_sha}"
+          } >> "${GITHUB_OUTPUT}"
+
+  bump:
+    name: Create Astro version-bump pull request
+    needs: decide
+    if: ${{ needs.decide.outputs.should-bump == 'true' }}
+    uses: ./.github/workflows/astro-version-bump.yml
+    with:
+      base-branch: ${{ inputs.bump-base-branch }}
+      templates-ref: ${{ inputs.templates-ref }}
+
+      version-file: ${{ inputs.version-file }}
+      bump-config: ${{ inputs.bump-config }}
+      changed-paths-file: ${{ inputs.bump-changed-paths-file }}
+      changed-paths: ${{ inputs.bump-changed-paths }}
+
+      pr-branch: ${{ inputs.bump-pr-branch }}
+      pr-title: "chore(release): bump Astro site version ${{ inputs.bump-commit-marker }}"
+      pr-body: Automated version bump for Astro site changes.
+
+      dry-run: false
+      auto-merge: true
+      auto-merge-method: merge
+
+      runner: ${{ inputs.runner }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  build-versioned:
+    name: Build versioned Astro site
+    needs: decide
+    if: ${{ needs.decide.outputs.should-release-versioned == 'true' }}
+    uses: ./.github/workflows/astro-build.yml
+    with:
+      build-env: ${{ inputs.build-env }}
+
+      runner: ${{ inputs.runner }}
+
+      working-directory: ${{ inputs.working-directory }}
+      astro-project-dir: ${{ inputs.astro-project-dir }}
+      output-dir: ${{ inputs.output-dir }}
+
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      build-command: ${{ inputs.build-command }}
+
+      clean: ${{ inputs.clean }}
+      check-changed: false
+
+      use-node-cache: ${{ inputs.use-node-cache }}
+      debug-build: ${{ inputs.debug-build }}
+
+      artifact-name: ${{ inputs.artifact-name }}
+      artifact-retention-days: ${{ inputs.artifact-retention-days }}
+      artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+
+  build-standard:
+    name: Build standard Astro site
+    needs: decide
+    if: ${{ needs.decide.outputs.should-run-standard == 'true' }}
+    uses: ./.github/workflows/astro-build.yml
+    with:
+      build-env: ${{ inputs.build-env }}
+
+      runner: ${{ inputs.runner }}
+
+      working-directory: ${{ inputs.working-directory }}
+      astro-project-dir: ${{ inputs.astro-project-dir }}
+      output-dir: ${{ inputs.output-dir }}
+
+      node-version: ${{ inputs.node-version }}
+      install-command: ${{ inputs.install-command }}
+      build-command: ${{ inputs.build-command }}
+
+      clean: ${{ inputs.clean }}
+      check-changed: ${{ inputs.check-changed }}
+      changed-paths-mode: ${{ inputs.changed-paths-mode }}
+      changed-paths: ${{ inputs.changed-paths }}
+
+      use-node-cache: ${{ inputs.use-node-cache }}
+      debug-build: ${{ inputs.debug-build }}
+
+      artifact-name: ${{ inputs.artifact-name }}
+      artifact-retention-days: ${{ inputs.artifact-retention-days }}
+      artifact-if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+
+  release-versioned:
+    name: Release versioned Astro site
+    needs:
+      - decide
+      - build-versioned
+    if: ${{ needs.decide.outputs.should-release-versioned == 'true' }}
+    uses: ./.github/workflows/astro-gh-release.yml
+    with:
+      versioned: true
+      version-file: ${{ inputs.version-file }}
+
+      artifact-name: ${{ inputs.artifact-name }}
+      build-run-id: ${{ github.run_id }}
+      checkout-ref: ${{ inputs.checkout-ref }}
+
+      release-prefix: ${{ inputs.release-prefix }}
+      versioned-tag-prefix: ${{ inputs.versioned-tag-prefix }}
+      release-tag: ${{ inputs.release-tag }}
+      release-name: ${{ inputs.release-name }}
+      release-version: ${{ inputs.release-version }}
+
+      create-github-release: ${{ inputs.create-github-release }}
+      runner: ${{ inputs.runner }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  release-standard:
+    name: Release standard Astro site
+    needs:
+      - decide
+      - build-standard
+    if: ${{ needs.decide.outputs.should-run-standard == 'true' }}
+    uses: ./.github/workflows/astro-gh-release.yml
+    with:
+      versioned: false
+      version-file: ${{ inputs.version-file }}
+
+      artifact-name: ${{ inputs.artifact-name }}
+      build-run-id: ${{ github.run_id }}
+      checkout-ref: ${{ inputs.checkout-ref }}
+
+      release-prefix: ${{ inputs.release-prefix }}
+      versioned-tag-prefix: ${{ inputs.versioned-tag-prefix }}
+      release-tag: >-
+        ${{
+          inputs.release-tag != '' &&
+          inputs.release-tag ||
+          format('{0}-{1}', inputs.release-prefix, needs.decide.outputs.short-sha)
+        }}
+      release-name: ${{ inputs.release-name }}
+      release-version: ${{ inputs.release-version }}
+
+      create-github-release: ${{ inputs.create-github-release }}
+      runner: ${{ inputs.runner }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+
+  publish-versioned:
+    name: Publish versioned Astro site
+    needs:
+      - decide
+      - release-versioned
+    if: >-
+      ${{
+        needs.decide.outputs.should-release-versioned == 'true' &&
+        inputs.publish-targets != '[]'
+      }}
+    uses: ./.github/workflows/astro-publish-dispatch.yml
+    with:
+      publish-targets: ${{ inputs.publish-targets }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner: ${{ inputs.runner }}
+
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      cloudflare-wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+
+      branch-name: ${{ inputs.branch-name }}
+      branch-commit-message: ${{ inputs.branch-commit-message }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  publish-standard:
+    name: Publish standard Astro site
+    needs:
+      - decide
+      - release-standard
+    if: >-
+      ${{
+        needs.decide.outputs.should-run-standard == 'true' &&
+        inputs.publish-targets != '[]'
+      }}
+    uses: ./.github/workflows/astro-publish-dispatch.yml
+    with:
+      publish-targets: ${{ inputs.publish-targets }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ github.run_id }}
+      runner: ${{ inputs.runner }}
+
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      cloudflare-wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+
+      branch-name: ${{ inputs.branch-name }}
+      branch-commit-message: ${{ inputs.branch-commit-message }}
+    secrets:
+      release-bot-pat: ${{ secrets.release-bot-pat }}
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
