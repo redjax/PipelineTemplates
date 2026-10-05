@@ -1,0 +1,95 @@
+---
+name: Route Astro Site Publish Target
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: "Publishing target: github-pages, cloudflare-pages, or branch."
+        required: true
+        type: string
+
+      artifact-name:
+        required: false
+        type: string
+        default: astro-site
+
+      run-id:
+        required: true
+        type: string
+
+      runner:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      cloudflare-pages-project:
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        required: false
+        type: string
+        default: main
+
+      cloudflare-wrangler-version:
+        required: false
+        type: string
+        # renovate: datasource=npm depName=wrangler
+        default: "4.147.0"
+
+      branch-name:
+        required: false
+        type: string
+        default: gh-pages
+
+      branch-commit-message:
+        required: false
+        type: string
+        default: Deploy Astro site
+
+    secrets:
+      cloudflare-api-token:
+        required: false
+
+      cloudflare-account-id:
+        required: false
+
+      release-bot-pat:
+        required: false
+
+jobs:
+  github-pages:
+    if: ${{ inputs.target == 'github-pages' }}
+    uses: ./.github/workflows/astro-publish-gh-pages.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner: ${{ inputs.runner }}
+
+  cloudflare-pages:
+    if: ${{ inputs.target == 'cloudflare-pages' }}
+    uses: ./.github/workflows/astro-publish-cloudflare-pages.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner: ${{ inputs.runner }}
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+
+  branch:
+    if: ${{ inputs.target == 'branch' }}
+    uses: ./.github/workflows/astro-publish-branch.yml
+    with:
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner: ${{ inputs.runner }}
+      branch-name: ${{ inputs.branch-name }}
+      commit-message: ${{ inputs.branch-commit-message }}
+    secrets:
+      push-token: ${{ secrets.release-bot-pat }}

@@ -1,0 +1,366 @@
+---
+################################################################################
+# Bump versioned Astro sites.                                                   #
+#                                                                              #
+# Uses the PipelineTemplates shared Astro bump script to inspect Git history,  #
+# decide major/minor/patch, update the calling repository's version files,     #
+# and open or update a version-bump pull request.                              #
+#                                                                              #
+# This workflow does not build, package, tag, create a GitHub release, or      #
+# deploy the Astro site.                                                       #
+################################################################################
+
+name: Bump Astro Site Version
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: GitHub Actions runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      base-branch:
+        description: Branch against which the version-bump pull request is opened.
+        required: false
+        type: string
+        default: main
+
+      templates-ref:
+        description: PipelineTemplates branch, tag, or commit SHA to check out.
+        required: false
+        type: string
+        default: main
+
+      version-file:
+        description: Caller repository-relative version file.
+        required: false
+        type: string
+        default: VERSION
+
+      bump-config:
+        description: Caller repository-relative bump-my-version config file.
+        required: false
+        type: string
+        default: .bumpversion.toml
+
+      changed-paths-file:
+        description: Optional caller repository-relative file listing Astro release-relevant paths.
+        required: false
+        type: string
+        default: ""
+
+      changed-paths:
+        description: Optional newline-delimited Astro release-relevant paths.
+        required: false
+        type: string
+        default: ""
+
+      pr-branch:
+        description: Branch created or updated for the version bump.
+        required: false
+        type: string
+        default: bump/astro-site-version
+
+      pr-title:
+        description: Title for the version-bump pull request.
+        required: false
+        type: string
+        default: "chore(release): bump Astro site version [skip ci]"
+
+      pr-body:
+        description: Body for the version-bump pull request.
+        required: false
+        type: string
+        default: Automated version bump for Astro site changes.
+
+      pr-labels:
+        description: Comma-separated labels applied to the version-bump pull request.
+        required: false
+        type: string
+        default: automated,release
+
+      dry-run:
+        description: Do not modify version files or create/update a pull request.
+        required: false
+        type: boolean
+        default: false
+
+      auto-merge:
+        description: Enable GitHub auto-merge for a created/updated bump pull request.
+        required: false
+        type: boolean
+        default: true
+
+      auto-merge-method:
+        description: "GitHub merge method: merge, squash, or rebase."
+        required: false
+        type: string
+        default: merge
+
+    secrets:
+      release-bot-pat:
+        description: Token used to push the bump branch and create/update the pull request.
+        required: true
+
+    outputs:
+      bump-required:
+        description: Whether Astro release-relevant changes caused a version bump.
+        value: ${{ jobs.bump.outputs.bump-required }}
+
+      bump-type:
+        description: Selected semantic-version bump type, if a bump occurred.
+        value: ${{ jobs.bump.outputs.bump-type }}
+
+      pull-request-number:
+        description: Created or updated bump pull request number, if any.
+        value: ${{ jobs.bump.outputs.pull-request-number }}
+
+      pull-request-url:
+        description: Created or updated bump pull request URL, if any.
+        value: ${{ jobs.bump.outputs.pull-request-url }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: astro-version-bump-${{ github.repository }}-${{ inputs.base-branch }}
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump Astro site version
+    runs-on: ${{ inputs.runner }}
+
+    outputs:
+      bump-required: ${{ steps.bump.outputs.bump-required }}
+      bump-type: ${{ steps.bump.outputs.bump-type }}
+      pull-request-number: ${{ steps.create-pr.outputs.pull-request-number }}
+      pull-request-url: ${{ steps.create-pr.outputs.pull-request-url }}
+
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.base-branch }}
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ secrets.release-bot-pat }}
+
+      - name: Checkout PipelineTemplates repository
+        uses: actions/checkout@v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 1
+          persist-credentials: false
+          token: ${{ secrets.release-bot-pat }}
+
+      - name: Verify Astro bump script exists
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          bump_script="pipelinetemplates/shared/scripts/ci-cd/astro/bump-site-version.sh"
+
+          if [[ ! -f "${bump_script}" ]]; then
+            echo "::error::Astro version-bump script not found: ${bump_script}" >&2
+            exit 1
+          fi
+
+          chmod +x "${bump_script}"
+
+          echo "[INFO] Using Astro version-bump script: ${bump_script}"
+
+      - name: Configure Git author
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install bump-my-version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          python -m pip install --upgrade pip
+          python -m pip install bump-my-version
+          bump-my-version --version
+
+      - name: Debug Astro version-bump inputs
+        shell: bash
+        env:
+          ASTRO_VERSION_FILE: ${{ inputs.version-file }}
+          ASTRO_BUMP_CONFIG: ${{ inputs.bump-config }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "===== Current directory ====="
+          pwd
+
+          echo
+          echo "===== Repository root ====="
+          git rev-parse --show-toplevel
+
+          echo
+          echo "===== Version file input ====="
+          printf '%s\n' "${ASTRO_VERSION_FILE}"
+
+          echo
+          echo "===== Version file contents ====="
+          cat "${ASTRO_VERSION_FILE}"
+
+          echo
+          echo "===== Bump config input ====="
+          printf '%s\n' "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== Bump config contents ====="
+          cat "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== Config current_version ====="
+          grep -nE '^[[:space:]]*current_version[[:space:]]*=' "${ASTRO_BUMP_CONFIG}"
+
+          echo
+          echo "===== All bump configs in workspace ====="
+          find "${GITHUB_WORKSPACE}" -name '.bumpversion.toml' -type f -print
+
+          echo
+          echo "===== Git tags near current release ====="
+          git tag --sort=-version:refname | head -n 20
+
+      - name: Run Astro version-bump script
+        id: bump
+        if: ${{ !inputs.dry-run }}
+        shell: bash
+        env:
+          ASTRO_VERSION_FILE: ${{ inputs.version-file }}
+          ASTRO_BUMP_CONFIG: ${{ inputs.bump-config }}
+          ASTRO_CHANGED_PATHS_FILE: ${{ inputs.changed-paths-file }}
+          ASTRO_CHANGED_PATHS: ${{ inputs.changed-paths }}
+        run: |
+          set -Eeuo pipefail
+
+          bump_script="pipelinetemplates/shared/scripts/ci-cd/astro/bump-site-version.sh"
+          temporary_output="$(mktemp)"
+
+          cleanup() {
+            rm -f "${temporary_output}"
+          }
+          trap cleanup EXIT
+
+          set +e
+          "${bump_script}" | tee "${temporary_output}"
+          status="${PIPESTATUS[0]}"
+          set -e
+
+          if [[ "${status}" -ne 0 ]]; then
+            echo "[ERROR] Astro version-bump script failed with exit code ${status}." >&2
+            exit "${status}"
+          fi
+
+          bump_required="$(
+            sed -n 's/^bump-required=//p' "${temporary_output}" \
+              | tail -n 1
+          )"
+
+          bump_type="$(
+            sed -n 's/^bump-type=//p' "${temporary_output}" \
+              | tail -n 1
+          )"
+
+          case "${bump_required}" in
+            true|false)
+              ;;
+            *)
+              echo "::error::Astro bump script did not emit bump-required=true|false." >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "${bump_required}" == "true" && -z "${bump_type}" ]]; then
+            echo "::error::Astro bump script reported a required bump without a bump type." >&2
+            exit 1
+          fi
+
+          {
+            echo "bump-required=${bump_required}"
+            echo "bump-type=${bump_type}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "[INFO] bump-required=${bump_required}"
+          echo "[INFO] bump-type=${bump_type:-<none>}"
+
+      - name: Show changed version files
+        if: ${{ steps.bump.outputs.bump-required == 'true' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          echo "===== Version-file changes ====="
+          git diff -- "${{ inputs.version-file }}" "${{ inputs.bump-config }}"
+
+      - name: Create or update Astro version-bump pull request
+        id: create-pr
+        if: >-
+          ${{
+            steps.bump.outputs.bump-required == 'true' &&
+            !inputs.dry-run
+          }}
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.release-bot-pat }}
+
+          base: ${{ inputs.base-branch }}
+          branch: ${{ inputs.pr-branch }}
+          delete-branch: true
+
+          commit-message: ${{ inputs.pr-title }}
+          title: ${{ inputs.pr-title }}
+          body: ${{ inputs.pr-body }}
+          labels: ${{ inputs.pr-labels }}
+
+          add-paths: |
+            ${{ inputs.version-file }}
+            ${{ inputs.bump-config }}
+
+      - name: Enable bump pull request auto-merge
+        if: >-
+          ${{
+            steps.bump.outputs.bump-required == 'true' &&
+            !inputs.dry-run &&
+            inputs.auto-merge &&
+            steps.create-pr.outputs.pull-request-number != ''
+          }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.release-bot-pat }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          MERGE_METHOD: ${{ inputs.auto-merge-method }}
+        run: |
+          set -Eeuo pipefail
+
+          case "${MERGE_METHOD}" in
+            merge|squash|rebase)
+              ;;
+            *)
+              echo "::error::Invalid auto-merge-method: ${MERGE_METHOD}" >&2
+              exit 1
+              ;;
+          esac
+
+          gh pr merge "${PR_NUMBER}" \
+            --"${MERGE_METHOD}" \
+            --auto \
+            --delete-branch
