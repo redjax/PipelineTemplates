@@ -150,7 +150,7 @@ jobs:
 
       - name: Build Astro site
         id: astro
-        uses: redjax/PipelineTemplates/.github/actions/astro-build@feat/astro-workflows
+        uses: redjax/PipelineTemplates/.github/actions/astro-build@topic/astro-pipeline
         with:
           build-env: ${{ inputs.build-env }}
 
