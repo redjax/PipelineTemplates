@@ -229,7 +229,7 @@ on:
         required: false
         type: string
         # renovate: datasource=npm depName=wrangler versioning=npm
-        default: "4.147.0"
+        default: "4.148.0"
 
       branch-name:
         description: "Target branch used when branch publishing is selected."
