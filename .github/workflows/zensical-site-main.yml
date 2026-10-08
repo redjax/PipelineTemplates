@@ -30,7 +30,7 @@ on:
         required: false
         type: string
         # renovate: datasource=pypi depName=uv versioning=pep440
-        default: "0.12.23"
+        default: "0.12.24"
 
       working-directory:
         description: "Repository-relative directory from which Zensical runs."
