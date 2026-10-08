@@ -37,7 +37,7 @@ inputs:
     description: "Go toolchain version to install (default: 1.25.6)"
     required: false
     # renovate: datasource=golang-version depName=golang/go versioning=semver
-    default: "1.27.1"
+    default: "1.27.2"
 
   working-directory:
     description: "Working directory for the build (default: .)"

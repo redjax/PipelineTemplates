@@ -33,7 +33,7 @@ inputs:
     description: "Go toolchain version to install."
     required: false
     # renovate: datasource=golang-version depName=golang/go versioning=semver
-    default: "1.27.1"
+    default: "1.27.2"
   artifact-name:
     description: "Name for uploaded artifacts (default: <repo-name>-<binary-name>-dist)"
     required: false
