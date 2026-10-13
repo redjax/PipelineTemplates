@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_IMG_TAG=3.14-slim
+ARG PYTHON_IMG_TAG=3.15-slim
 ARG UV_IMG_TAG=0.13.0
 ARG NGINX_IMG_TAG=1.31-alpine
 
