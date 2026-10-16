@@ -3,6 +3,8 @@
     "extends": [
         "config:recommended"
     ],
+    "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
     "labels": [
         "dependencies"
     ],
@@ -13,10 +15,21 @@
         {
             "matchUpdateTypes": [
                 "minor",
-                "patch",
-                "digest"
+                "patch"
             ],
             "groupName": "non-major dependencies",
+            "minimumReleaseAge": "3 days",
+            "automerge": true,
+            "automergeType": "pr"
+        },
+        {
+            "matchUpdateTypes": [
+                "digest",
+                "pinDigest"
+            ],
+            "groupName": "non-major dependencies",
+            "minimumReleaseAge": "3 days",
+            "minimumReleaseAgeBehaviour": "timestamp-optional",
             "automerge": true,
             "automergeType": "pr"
         },
@@ -24,6 +37,7 @@
             "matchUpdateTypes": [
                 "major"
             ],
+            "minimumReleaseAge": "5 days",
             "automerge": false
         }
     ],
