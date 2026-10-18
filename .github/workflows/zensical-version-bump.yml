@@ -82,7 +82,7 @@ on:
         required: false
         type: string
         # renovate: datasource=pypi depName=bump-my-version versioning=pep440
-        default: "1.6.2"
+        default: "1.6.3"
 
       runner-image:
         description: "GitHub-hosted runner image or self-hosted runner label."
