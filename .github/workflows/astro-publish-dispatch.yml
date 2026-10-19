@@ -1,0 +1,157 @@
+---
+name: Dispatch Astro Site Publishing
+
+on:
+  workflow_call:
+    inputs:
+      publish-targets:
+        description: 'JSON array: ["github-pages"], ["branch"], or ["github-pages","cloudflare-pages","branch"].'
+        required: true
+        type: string
+
+      artifact-name:
+        description: Generated Astro site artifact to publish.
+        required: false
+        type: string
+        default: astro-site
+
+      run-id:
+        description: Workflow run ID containing artifact-name.
+        required: true
+        type: string
+
+      runner:
+        description: GitHub-hosted runner image or self-hosted runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      cloudflare-pages-project:
+        description: Cloudflare Pages project name when cloudflare-pages is selected.
+        required: false
+        type: string
+        default: ""
+
+      cloudflare-pages-branch:
+        description: Cloudflare Pages production or preview branch.
+        required: false
+        type: string
+        default: main
+
+      cloudflare-wrangler-version:
+        description: Wrangler version used for Cloudflare Pages publishing.
+        required: false
+        type: string
+        # renovate: datasource=npm depName=wrangler
+        default: "4.147.0"
+
+      branch-name:
+        description: Target branch used when branch publishing is selected.
+        required: false
+        type: string
+        default: gh-pages
+
+      branch-commit-message:
+        description: Commit message used for deployment-branch updates.
+        required: false
+        type: string
+        default: Deploy Astro site
+
+    secrets:
+      cloudflare-api-token:
+        required: false
+
+      cloudflare-account-id:
+        required: false
+
+      release-bot-pat:
+        required: false
+
+jobs:
+  validate:
+    name: Validate Astro publish targets
+    runs-on: ${{ inputs.runner }}
+
+    outputs:
+      publish-targets: ${{ steps.validate.outputs.publish-targets }}
+
+    steps:
+      - name: Validate targets
+        id: validate
+        shell: bash
+        env:
+          PUBLISH_TARGETS: ${{ inputs.publish-targets }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ inputs.cloudflare-pages-project }}
+        run: |
+          set -Eeuo pipefail
+
+          allowed_targets=(
+            github-pages
+            cloudflare-pages
+            branch
+          )
+
+          if ! jq --exit-status --compact-output \
+            'type == "array" and all(.[]; type == "string")' \
+            <<< "${PUBLISH_TARGETS}" >/dev/null; then
+            echo "::error::publish-targets must be a JSON array of strings." >&2
+            exit 1
+          fi
+
+          if [[ "$(jq 'length' <<< "${PUBLISH_TARGETS}")" -eq 0 ]]; then
+            echo "::error::publish-targets must contain at least one target." >&2
+            exit 1
+          fi
+
+          while IFS= read -r target; do
+            valid="false"
+
+            for allowed in "${allowed_targets[@]}"; do
+              if [[ "${target}" == "${allowed}" ]]; then
+                valid="true"
+                break
+              fi
+            done
+
+            if [[ "${valid}" != "true" ]]; then
+              echo "::error::Unsupported publish target: ${target}" >&2
+              exit 1
+            fi
+
+            if [[ "${target}" == "cloudflare-pages" &&
+                  -z "${CLOUDFLARE_PAGES_PROJECT}" ]]; then
+              echo "::error::cloudflare-pages requires cloudflare-pages-project." >&2
+              exit 1
+            fi
+          done < <(jq -r '.[]' <<< "${PUBLISH_TARGETS}")
+
+          echo "publish-targets=$(jq --compact-output '.' <<< "${PUBLISH_TARGETS}")" \
+            >> "${GITHUB_OUTPUT}"
+
+  publish:
+    name: Publish Astro Site
+    needs: validate
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.validate.outputs.publish-targets) }}
+
+    uses: ./.github/workflows/astro-publish-router.yml
+    with:
+      target: ${{ matrix.target }}
+      artifact-name: ${{ inputs.artifact-name }}
+      run-id: ${{ inputs.run-id }}
+      runner: ${{ inputs.runner }}
+
+      cloudflare-pages-project: ${{ inputs.cloudflare-pages-project }}
+      cloudflare-pages-branch: ${{ inputs.cloudflare-pages-branch }}
+      cloudflare-wrangler-version: ${{ inputs.cloudflare-wrangler-version }}
+
+      branch-name: ${{ inputs.branch-name }}
+      branch-commit-message: ${{ inputs.branch-commit-message }}
+
+    secrets:
+      cloudflare-api-token: ${{ secrets.cloudflare-api-token }}
+      cloudflare-account-id: ${{ secrets.cloudflare-account-id }}
+      release-bot-pat: ${{ secrets.release-bot-pat }}

@@ -1,0 +1,186 @@
+---
+#######################################################
+# Build a static Astro site once and                  #
+# publish its generated output as a pipeline artifact #
+#######################################################
+
+name: Astro build
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: GitHub Actions runner label.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      working-directory:
+        description: Repository-relative directory from which build-command runs.
+        required: false
+        type: string
+        default: "."
+
+      astro-project-dir:
+        description: Repository-relative directory containing package.json and Astro config.
+        required: false
+        type: string
+        default: "."
+
+      output-dir:
+        description: Repository-relative generated static-site directory.
+        required: false
+        type: string
+        default: dist
+
+      node-version:
+        description: Node.js version used by the Astro build.
+        required: false
+        type: string
+        default: "24"
+
+      install-command:
+        description: Dependency installation command run from astro-project-dir.
+        required: false
+        type: string
+        default: npm ci
+
+      build-command:
+        description: Build command run from working-directory.
+        required: false
+        type: string
+        default: npm run build
+
+      build-env:
+        description: Newline-delimited NAME=value environment entries exported for the Astro build command.
+        required: false
+        type: string
+        default: ""
+
+      clean:
+        description: Remove existing generated output before building.
+        required: false
+        type: boolean
+        default: true
+
+      check-changed:
+        description: Skip installation and build when no relevant files changed.
+        required: false
+        type: boolean
+        default: true
+
+      changed-paths-mode:
+        description: Apply custom change paths as default, replace, or append.
+        required: false
+        type: string
+        default: default
+
+      changed-paths:
+        description: Optional newline-delimited repository-relative Git pathspecs.
+        required: false
+        type: string
+        default: ""
+
+      use-node-cache:
+        description: Enable npm cache restoration through actions/setup-node.
+        required: false
+        type: boolean
+        default: true
+
+      debug-build:
+        description: Enable extra Astro build diagnostics.
+        required: false
+        type: boolean
+        default: false
+
+      artifact-name:
+        description: Name for the canonical built-site artifact.
+        required: false
+        type: string
+        default: astro-site
+
+      artifact-retention-days:
+        description: Number of days to retain the canonical artifact.
+        required: false
+        type: number
+        default: 7
+
+      artifact-if-no-files-found:
+        description: Artifact behavior when output is absent.
+        required: false
+        type: string
+        default: error
+
+    outputs:
+      built:
+        description: Whether an Astro build was performed in this workflow run.
+        value: ${{ jobs.build.outputs.built }}
+
+      astro-changed:
+        description: Whether Astro-relevant files changed.
+        value: ${{ jobs.build.outputs.astro-changed }}
+
+      artifact-name:
+        description: Name of the uploaded canonical site artifact.
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+      output-dir:
+        description: Repository-relative generated-site directory.
+        value: ${{ jobs.build.outputs.output-dir }}
+
+jobs:
+  build:
+    name: Build Astro site
+    runs-on: ${{ inputs.runner }}
+
+    permissions:
+      contents: read
+
+    outputs:
+      built: ${{ steps.astro.outputs.should-build }}
+      astro-changed: ${{ steps.astro.outputs.astro-changed }}
+      artifact-name: ${{ inputs.artifact-name }}
+      output-dir: ${{ inputs.output-dir }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Build Astro site
+        id: astro
+        uses: redjax/PipelineTemplates/.github/actions/astro-build@topic/astro-pipeline
+        with:
+          build-env: ${{ inputs.build-env }}
+
+          working-directory: ${{ inputs.working-directory }}
+          astro-project-dir: ${{ inputs.astro-project-dir }}
+          output-dir: ${{ inputs.output-dir }}
+
+          node-version: ${{ inputs.node-version }}
+          install-command: ${{ inputs.install-command }}
+          build-command: ${{ inputs.build-command }}
+
+          clean: ${{ inputs.clean && 'true' || 'false' }}
+          check-changed: ${{ inputs.check-changed && 'true' || 'false' }}
+          changed-paths-mode: ${{ inputs.changed-paths-mode }}
+          changed-paths: ${{ inputs.changed-paths }}
+
+          use-node-cache: ${{ inputs.use-node-cache && 'true' || 'false' }}
+          debug-build: ${{ inputs.debug-build && 'true' || 'false' }}
+
+      - name: Upload canonical Astro site
+        if: ${{ steps.astro.outputs.should-build == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ steps.astro.outputs.output-dir }}/
+          if-no-files-found: ${{ inputs.artifact-if-no-files-found }}
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Report skipped build
+        if: ${{ steps.astro.outputs.should-build != 'true' }}
+        shell: bash
+        run: |
+          echo "[INFO] No Astro-relevant changes detected; no site artifact was created."
