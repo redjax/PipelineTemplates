@@ -18,7 +18,7 @@ _DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_DIR}/../_util/is-installed.sh"
 
 # renovate: datasource=github-releases depName=aquasecurity/trivy versioning=semver
-TRIVY_VERSION="${TRIVY_VERSION:-0.76.0}"
+TRIVY_VERSION="${TRIVY_VERSION:-0.76.1}"
 TRIVY_INSTALL_DIR="${TRIVY_INSTALL_DIR:-${HOME}/.local/bin}"
 TRIVY_FORCE_INSTALL="${TRIVY_FORCE_INSTALL:-false}"
 
