@@ -23,7 +23,7 @@ spec:
       description: Renovate container image.
       type: string
       # renovate: datasource=docker depName=renovate/renovate versioning=docker
-      default: "44.168.0"
+      default: "44.175.0"
 
     mode:
       description: Renovate mode.
