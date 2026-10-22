@@ -19,12 +19,9 @@
   </a>
 </p>
 
-Reusable pipeline templates for CI/CD technologies like Github Actions, Gitlab Pipelines, and Concourse CI. [Check the docs](./docs/) for more information, including development documentation for creating new pipelines, usage documentation for each platform, & examples.
+Reusable pipeline templates for CI/CD platforms like Github Actions, Gitlab Pipelines, and Concourse CI. [Check the docs](./docs/) for more information, including development documentation for creating new pipelines, usage documentation for each platform, & examples.
 
-> [!TIP]
-> I use a separate repository, [`PipelineTemplates-Test`](https://github.com/redjax/PipelineTemplates-Test), to demonstrate and mock integrations with components from this repository. The test repository includes Docker containers, Go applications, and other supporting services, along with example pipelines that consume components from this repository for demonstration and validation runs.
-
-Documentation for this site is published from the [`docs/` directory](./docs/) to [https://redjax.github.io/PipelineTemplates](https://redjax.github.io/PipelineTemplates). The site is currently built with [Zensical](https://zensical.org); the Zensical project lives in the [`docs-site/` directory](./docs-site/).
+Documentation for this repository is published from the [`docs/` directory](./docs/) to [https://redjax.github.io/PipelineTemplates](https://redjax.github.io/PipelineTemplates). The site is currently built with [Zensical](https://zensical.org); the Zensical project lives in the [`docs-site/` directory](./docs-site/).
 
 ## Description
 
@@ -33,3 +30,13 @@ Centralized repository where I store my CI/CD pipelines & components. Each compo
 As much "business logic" as possible is separated into script files so they can be re-used in other CI/CD platforms. Pipelines/components are essentially wrappers around these scripts, so moving from i.e. Github Actions to Gitlab Pipelines is simpler, only the script calling logic and inputs need to be translated. Some more complex pipelines, like Github reusable workflows that use an execution matrix, may require additional engineering to convert between platforms.
 
 This repository currently has a bias towards Github (2026-05-25), as that is where the code is hosted and where most of my repositories live. As components for other platforms are added, I will update the documentation with differences and pipeline conversion examples.
+
+## Documentation
+
+The [`docs/` directory](./docs/) contains Markdown documentation files for the pipeline components and scripts.
+
+The Markdown files are rendered to a static site using [Zensical](https://zensical.org) and published to Github Pages at [https://redjax.github.io/PipelineTemplates/](https://redjax.github.io/PipelineTemplates/).
+
+## Testing Repository
+
+I use a separate repository, [`PipelineTemplates-Test`](https://github.com/redjax/PipelineTemplates-Test), to demonstrate and mock integrations with components from this repository. The test repository includes Docker containers, Go applications, and other supporting services, along with example pipelines that consume components from this repository for demonstration and validation runs.
