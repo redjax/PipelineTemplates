@@ -64,3 +64,7 @@ pymdownx.highlight.anchor_linenums = true
 pymdownx.highlight.line_spans = "__span"
 pymdownx.highlight.pygments_lang_class = true
 pymdownx.inlinehilite = {}
+
+[project.extra]
+## Hide 'made with zensical' footer
+generator = false
