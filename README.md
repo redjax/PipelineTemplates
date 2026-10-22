@@ -31,6 +31,12 @@ As much "business logic" as possible is separated into script files so they can 
 
 This repository currently has a bias towards Github (2026-05-25), as that is where the code is hosted and where most of my repositories live. As components for other platforms are added, I will update the documentation with differences and pipeline conversion examples.
 
+## Documentation
+
+The [`docs/` directory](./docs/) contains Markdown documentation files for the pipeline components and scripts.
+
+The Markdown files are rendered to a static site using [Zensical](https://zensical.org) and published to Github Pages at [https://redjax.github.io/PipelineTemplates/](https://redjax.github.io/PipelineTemplates/).
+
 ## Testing Repository
 
 I use a separate repository, [`PipelineTemplates-Test`](https://github.com/redjax/PipelineTemplates-Test), to demonstrate and mock integrations with components from this repository. The test repository includes Docker containers, Go applications, and other supporting services, along with example pipelines that consume components from this repository for demonstration and validation runs.
