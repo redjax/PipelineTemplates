@@ -117,7 +117,7 @@ jobs:
     with:
       ## PipelineTemplates Python/UV/Zensical layout.
       # renovate: datasource=python-version depName=python versioning=pep440
-      python-version: "3.15.0"
+      python-version: "3.15.1"
       working-directory: "."
       python-project-dir: "docs-site"
       zensical-config: "zensical.toml"
