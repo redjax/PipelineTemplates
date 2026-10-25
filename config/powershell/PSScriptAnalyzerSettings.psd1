@@ -7,6 +7,7 @@
 
     ## Formatting is handled separately by FormatterSettings.psd1.
     ExcludeRules = @(
+        'PSAvoidUsingWriteHost'
         'PSPlaceOpenBrace'
         'PSPlaceCloseBrace'
         'PSUseConsistentWhitespace'
