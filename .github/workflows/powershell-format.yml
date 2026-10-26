@@ -1,0 +1,181 @@
+---
+name: PowerShell format
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: >-
+          Files or folders to check, starting from the repository's main
+          folder. Put each file or folder on its own line. Use "." to
+          check the entire repository. Only files tracked by Git are checked.
+        required: false
+        type: string
+        default: "."
+
+      exclude-paths:
+        description: >-
+          Files or folders to skip. Put each entry on its own line.
+          Use "*" to match any characters. For example, "vendor/*"
+          skips files inside the vendor folder. Leave empty to skip nothing.
+        required: false
+        type: string
+        default: ""
+
+      settings-file:
+        description: >-
+          Path to your formatter settings file, starting from the
+          repository's main folder. For example,
+          "config/powershell/FormatterSettings.psd1". Leave empty to use
+          FormatterSettings.psd1 from the repository's main folder.
+          If that file is also missing, use PipelineTemplates' default
+          settings. If you provide a path, the file must exist.
+        required: false
+        type: string
+        default: ""
+
+      fix:
+        description: >-
+          Write formatted files in the runner workspace and upload a
+          patch. Does not commit or push.
+        required: false
+        type: boolean
+        default: false
+
+      fail-on-findings:
+        description: >-
+          Fail on formatting differences in check mode; false reports
+          warnings instead. Execution failures always fail.
+        required: false
+        type: boolean
+        default: true
+
+      psscriptanalyzer-version:
+        description: PSScriptAnalyzer version installed from PowerShell Gallery.
+        required: false
+        type: string
+        # renovate: datasource=powershell depName=PSScriptAnalyzer
+        default: "1.24.0"
+
+      runner-image:
+        description: GitHub-hosted runner image with pwsh available.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing the shared
+          script and fallback settings.
+        required: false
+        type: string
+        default: main
+
+      artifact-name:
+        description: Unique name for the formatting patch artifact.
+        required: false
+        type: string
+        default: powershell-format-patch
+
+      artifact-retention-days:
+        description: Number of days to retain the formatting patch artifact.
+        required: false
+        type: number
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Check or fix PowerShell formatting
+    runs-on: ${{ inputs.runner-image }}
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Checkout PipelineTemplates
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          persist-credentials: false
+
+      - name: Install PSScriptAnalyzer
+        env:
+          PSSA_VERSION: ${{ inputs.psscriptanalyzer-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Install-Module `
+            -Name PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -Repository PSGallery `
+            -Scope CurrentUser `
+            -Force `
+            -AllowClobber
+
+          Import-Module PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -ErrorAction Stop
+
+          Get-Module PSScriptAnalyzer |
+            Select-Object Name, Version |
+            Format-Table -AutoSize
+
+      - name: Check or fix formatting
+        env:
+          SCAN_PATHS: ${{ inputs.paths }}
+          EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SETTINGS_FILE: ${{ inputs.settings-file }}
+          FIX: ${{ inputs.fix }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+          PSSA_VERSION: ${{ inputs.psscriptanalyzer-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Import-Module PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -ErrorAction Stop
+
+          $parameters = @{
+            Root = Join-Path $env:GITHUB_WORKSPACE 'source'
+            Paths = @(
+              $env:SCAN_PATHS -split '\r?\n' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
+            )
+            ExcludePaths = @(
+              $env:EXCLUDE_PATHS -split '\r?\n' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
+            )
+            SettingsFile = $env:SETTINGS_FILE
+            Fix = [bool]::Parse($env:FIX)
+            FailOnFindings = [bool]::Parse($env:FAIL_ON_FINDINGS)
+            PatchFile = Join-Path $env:RUNNER_TEMP `
+              'powershell-format/format.patch'
+          }
+
+          $script = Join-Path $env:GITHUB_WORKSPACE `
+            'pipelinetemplates/shared/scripts/ci-cd/powershell/format.ps1'
+
+          & $script @parameters
+
+      - name: Upload formatting patch
+        if: ${{ always() && inputs.fix }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/powershell-format/format.patch
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.artifact-retention-days }}

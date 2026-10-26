@@ -1,0 +1,128 @@
+---
+name: Validate PowerShell
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: Newline-delimited Git pathspecs selecting tracked files.
+        required: false
+        type: string
+        default: "."
+
+      exclude-paths:
+        description: >-
+          Newline-delimited PowerShell wildcard patterns matching
+          repository-relative paths.
+        required: false
+        type: string
+        default: ""
+
+      lint-settings-file:
+        description: >-
+          Repository-relative lint settings file. Empty enables
+          repository-root configuration discovery and central fallback.
+        required: false
+        type: string
+        default: ""
+
+      format-settings-file:
+        description: >-
+          Repository-relative formatter settings file. Empty enables
+          repository-root configuration discovery and central fallback.
+        required: false
+        type: string
+        default: ""
+
+      severity:
+        description: Comma-delimited lint diagnostic severities to report.
+        required: false
+        type: string
+        default: "Error,Warning"
+
+      lint-fail-on-findings:
+        description: Fail on lint findings instead of reporting warnings only.
+        required: false
+        type: boolean
+        default: true
+
+      format-fail-on-findings:
+        description: >-
+          Fail on formatting differences in check mode instead of
+          reporting warnings only.
+        required: false
+        type: boolean
+        default: true
+
+      fix:
+        description: >-
+          Format files in the formatting job and upload a patch.
+          Does not commit, push, or change the lint job's checkout.
+        required: false
+        type: boolean
+        default: false
+
+      psscriptanalyzer-version:
+        description: PSScriptAnalyzer version used by both workflows.
+        required: false
+        type: string
+        # renovate: datasource=powershell depName=PSScriptAnalyzer
+        default: "1.24.0"
+
+      runner-image:
+        description: GitHub-hosted runner image with pwsh available.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing the shared
+          scripts and fallback settings.
+        required: false
+        type: string
+        default: main
+
+      artifact-name:
+        description: Unique name for the formatting patch artifact.
+        required: false
+        type: string
+        default: powershell-format-patch
+
+      artifact-retention-days:
+        description: Number of days to retain the formatting patch artifact.
+        required: false
+        type: number
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint PowerShell
+    uses: ./.github/workflows/powershell-lint.yml
+    with:
+      paths: ${{ inputs.paths }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      settings-file: ${{ inputs.lint-settings-file }}
+      severity: ${{ inputs.severity }}
+      fail-on-findings: ${{ inputs.lint-fail-on-findings }}
+      psscriptanalyzer-version: ${{ inputs.psscriptanalyzer-version }}
+      runner-image: ${{ inputs.runner-image }}
+      templates-ref: ${{ inputs.templates-ref }}
+
+  format:
+    name: Format PowerShell
+    uses: ./.github/workflows/powershell-format.yml
+    with:
+      paths: ${{ inputs.paths }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      settings-file: ${{ inputs.format-settings-file }}
+      fix: ${{ inputs.fix }}
+      fail-on-findings: ${{ inputs.format-fail-on-findings }}
+      psscriptanalyzer-version: ${{ inputs.psscriptanalyzer-version }}
+      runner-image: ${{ inputs.runner-image }}
+      templates-ref: ${{ inputs.templates-ref }}
+      artifact-name: ${{ inputs.artifact-name }}
+      artifact-retention-days: ${{ inputs.artifact-retention-days }}

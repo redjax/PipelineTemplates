@@ -1,0 +1,151 @@
+---
+name: PowerShell lint
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: Newline-delimited Git pathspecs selecting tracked files.
+        required: false
+        type: string
+        default: "."
+
+      exclude-paths:
+        description: >-
+          Newline-delimited PowerShell wildcard patterns matching
+          repository-relative paths.
+        required: false
+        type: string
+        default: ""
+
+      settings-file:
+        description: >-
+          Repository-relative analyzer settings file. When empty, use
+          PSScriptAnalyzerSettings.psd1 from the repository root, or the
+          central fallback if no local file exists.
+        required: false
+        type: string
+        default: ""
+
+      severity:
+        description: Comma-delimited diagnostic severities to report.
+        required: false
+        type: string
+        default: "Error,Warning"
+
+      fail-on-findings:
+        description: Fail on lint findings; false reports warnings instead.
+        required: false
+        type: boolean
+        default: true
+
+      psscriptanalyzer-version:
+        description: PSScriptAnalyzer version installed from PowerShell Gallery.
+        required: false
+        type: string
+        # renovate: datasource=powershell depName=PSScriptAnalyzer
+        default: "1.24.0"
+
+      runner-image:
+        description: GitHub-hosted runner image with pwsh available.
+        required: false
+        type: string
+        default: ubuntu-latest
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing the shared
+          script and fallback settings.
+        required: false
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint PowerShell
+    runs-on: ${{ inputs.runner-image }}
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Checkout PipelineTemplates
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          persist-credentials: false
+
+      - name: Install PSScriptAnalyzer
+        env:
+          PSSA_VERSION: ${{ inputs.psscriptanalyzer-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Install-Module `
+            -Name PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -Repository PSGallery `
+            -Scope CurrentUser `
+            -Force `
+            -AllowClobber
+
+          Import-Module PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -ErrorAction Stop
+
+          Get-Module PSScriptAnalyzer |
+            Select-Object Name, Version |
+            Format-Table -AutoSize
+
+      - name: Analyze PowerShell files
+        env:
+          SCAN_PATHS: ${{ inputs.paths }}
+          EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SETTINGS_FILE: ${{ inputs.settings-file }}
+          SEVERITIES: ${{ inputs.severity }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+          PSSA_VERSION: ${{ inputs.psscriptanalyzer-version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          Import-Module PSScriptAnalyzer `
+            -RequiredVersion $env:PSSA_VERSION `
+            -ErrorAction Stop
+
+          $parameters = @{
+            Root = Join-Path $env:GITHUB_WORKSPACE 'source'
+            Paths = @(
+              $env:SCAN_PATHS -split '\r?\n' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
+            )
+            ExcludePaths = @(
+              $env:EXCLUDE_PATHS -split '\r?\n' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
+            )
+            SettingsFile = $env:SETTINGS_FILE
+            Severity = @(
+              $env:SEVERITIES -split ',' |
+                ForEach-Object { $_.Trim() } |
+                Where-Object { $_ }
+            )
+            FailOnFindings = [bool]::Parse($env:FAIL_ON_FINDINGS)
+          }
+
+          $script = Join-Path $env:GITHUB_WORKSPACE `
+            'pipelinetemplates/shared/scripts/ci-cd/powershell/lint.ps1'
+
+          & $script @parameters
