@@ -54,7 +54,7 @@ on:
         description: PSScriptAnalyzer version installed from PowerShell Gallery.
         required: false
         type: string
-        # renovate: datasource=powershell depName=PSScriptAnalyzer
+        # renovate: datasource=nuget depName=PSScriptAnalyzer
         default: "1.24.0"
 
       runner-image:
