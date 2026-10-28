@@ -75,14 +75,14 @@ on:
         required: false
         type: string
         # renovate: datasource=python-version depName=python versioning=pep440
-        default: "3.15.1"
+        default: "3.15.2"
 
       bump-my-version-version:
         description: "Pinned bump-my-version version used by this workflow."
         required: false
         type: string
         # renovate: datasource=pypi depName=bump-my-version versioning=pep440
-        default: "1.6.3"
+        default: "1.6.5"
 
       runner-image:
         description: "GitHub-hosted runner image or self-hosted runner label."
