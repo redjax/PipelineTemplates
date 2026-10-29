@@ -20,14 +20,10 @@ if ! command -v luacheck >/dev/null; then
 fi
 
 REPORT_FILE="$REPORT_DIR/luacheck.txt"
-: >"$REPORT_FILE"
 
 printf 'Settings: %s\nSelected files: %s\n' \
   "$SETTINGS_PATH" \
-  "${#QUALITY_FILES[@]}" >>"$REPORT_FILE"
-
-warning_files=0
-error_files=0
+  "${#QUALITY_FILES[@]}" >"$REPORT_FILE"
 
 declare -a lint_files=()
 
@@ -35,7 +31,22 @@ for file in "${QUALITY_FILES[@]}"; do
   lint_files+=("./$file")
 done
 
-quality_log "Analyzing: $file"
+if [[ "${#lint_files[@]}" -eq 0 ]]; then
+  quality_log "No matching tracked Lua files."
+
+  printf '\nNo matching tracked Lua files.\n' >>"$REPORT_FILE"
+
+  quality_summary "## Lua lint
+
+- Files selected: 0
+- Result: No matching tracked Lua files; analysis skipped.
+- Settings: \`$SETTINGS_PATH\`
+"
+
+  exit 0
+fi
+
+quality_log "Analyzing ${#lint_files[@]} Lua files in one Luacheck invocation."
 
 status=0
 
@@ -46,52 +57,47 @@ luacheck \
   --no-color \
   --codes \
   --formatter plain \
-  "./$file" >"$QUALITY_TMP/current-report" 2>&1 || status=$?
+  "${lint_files[@]}" >"$QUALITY_TMP/current-report" 2>&1 || status=$?
 
 {
-  printf '\n=== %s ===\n' "$file"
+  printf '\n=== Luacheck output ===\n'
   cat -- "$QUALITY_TMP/current-report"
 } >>"$REPORT_FILE"
 
 quality_print_report "$QUALITY_TMP/current-report"
 
 case "$status" in
-0) ;;
+0)
+  result="Clean"
+  exit_code=0
+  quality_log "No lint warnings or errors."
+  ;;
 1)
-  warning_files=$((warning_files + 1))
+  result="Warnings detected"
+  exit_code=1
+  quality_log "Lint warnings detected. See the diagnostics above."
   ;;
 *)
-  error_files=$((error_files + 1))
-  quality_error "Luacheck returned exit code $status for: $file"
+  result="Errors or execution failure"
+  exit_code=2
+  quality_error "Luacheck reported errors or failed with exit code $status."
   ;;
 esac
 
-if [[ "${#QUALITY_FILES[@]}" -eq 0 ]]; then
-  quality_log "No matching tracked Lua files."
-fi
-
-quality_log "Files with warnings: $warning_files"
-quality_log "Files with errors: $error_files"
-
 {
-  printf '\nFiles with warnings: %s\n' "$warning_files"
-  printf 'Files with errors: %s\n' "$error_files"
+  printf '\nResult: %s\n' "$result"
+  printf 'Luacheck exit code: %s\n' "$status"
+  printf 'Script exit code: %s\n' "$exit_code"
 } >>"$REPORT_FILE"
 
 quality_summary "## Lua lint
 
-- Files selected: ${#QUALITY_FILES[@]}
-- Files with warnings: $warning_files
-- Files with errors: $error_files
+- Files selected: ${#lint_files[@]}
+- Result: $result
+- Luacheck exit code: $status
 - Settings: \`$SETTINGS_PATH\`
+
+Detailed diagnostics are available in the job log and lint report.
 "
 
-if [[ "$error_files" -gt 0 ]]; then
-  exit 2
-fi
-
-if [[ "$warning_files" -gt 0 ]]; then
-  exit 1
-fi
-
-exit 0
+exit "$exit_code"
