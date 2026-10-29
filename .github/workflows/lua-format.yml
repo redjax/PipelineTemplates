@@ -1,0 +1,162 @@
+---
+name: Lua format
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: >-
+          Files or folders to check, one per line, starting from the
+          repository's main folder. Use "." for the entire repository.
+          Only tracked Lua files are checked.
+        type: string
+        required: false
+        default: "."
+
+      exclude-paths:
+        description: >-
+          Files or folders to skip, one wildcard pattern per line.
+          For example, "vendor/*" skips files beneath vendor.
+        type: string
+        required: false
+        default: ""
+
+      settings-file:
+        description: >-
+          Path to your StyLua settings file. Leave empty to use the
+          repository-root .stylua.toml or stylua.toml, then the central
+          fallback. An explicitly requested file must exist.
+        type: string
+        required: false
+        default: ""
+
+      fix:
+        description: >-
+          Apply formatting in the runner and upload a patch.
+          Does not commit or push.
+        type: boolean
+        required: false
+        default: false
+
+      fail-on-findings:
+        description: >-
+          Fail on formatting differences in check mode. Defaults to
+          warning-only. Execution failures always fail.
+        type: boolean
+        required: false
+        default: false
+
+      stylua-version:
+        description: StyLua release version to install.
+        type: string
+        required: false
+        # renovate: datasource=github-releases depName=JohnnyMorganz/StyLua
+        default: "2.6.0"
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing shared
+          scripts and fallback configuration.
+        type: string
+        required: false
+        default: main
+
+      artifact-name:
+        description: Unique formatting report and patch artifact name.
+        type: string
+        required: false
+        default: lua-format-results
+
+      artifact-retention-days:
+        description: Number of days to retain reports and patches.
+        type: number
+        required: false
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Check or fix Lua formatting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Checkout PipelineTemplates
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          persist-credentials: false
+
+      - name: Install StyLua
+        uses: JohnnyMorganz/stylua-action@v5
+        with:
+          token: ${{ github.token }}
+          version: ${{ inputs.stylua-version }}
+          args: "false"
+
+      - name: Run Lua formatting
+        id: scan
+        shell: bash
+        env:
+          ROOT: ${{ github.workspace }}/source
+          TEMPLATES_ROOT: ${{ github.workspace }}/pipelinetemplates
+          REPORT_DIR: ${{ runner.temp }}/lua-format-results
+          SCAN_PATHS: ${{ inputs.paths }}
+          EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SETTINGS_FILE: ${{ inputs.settings-file }}
+          FIX: ${{ inputs.fix }}
+        run: |
+          set -euo pipefail
+
+          status=0
+
+          bash \
+            "$TEMPLATES_ROOT/shared/scripts/ci-cd/quality/lua-format.sh" \
+            || status=$?
+
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload formatting reports and patch
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/lua-format-results/
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Enforce formatting policy
+        if: ${{ always() && steps.scan.outcome == 'success' }}
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          case "$EXIT_CODE" in
+            0)
+              echo "Lua formatting passed or requested fixes completed."
+              ;;
+            1)
+              if [[ "$FAIL_ON_FINDINGS" == "true" ]]; then
+                echo "::error::Lua formatting differences detected. See the log and diff."
+                exit 1
+              fi
+
+              echo "::warning::Lua formatting differences detected. Enforcement is disabled."
+              ;;
+            *)
+              echo "::error::Lua formatting failed. See the log and report."
+              exit 2
+              ;;
+          esac
