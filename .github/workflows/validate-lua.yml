@@ -10,6 +10,12 @@ on:
         required: false
         default: true
 
+      use-lint-cache:
+        description: Enable Luacheck's analysis cache.
+        type: boolean
+        required: false
+        default: false
+
       format:
         description: Run Lua formatting checks or fixes.
         type: boolean
@@ -120,6 +126,7 @@ jobs:
       templates-ref: ${{ inputs.templates-ref }}
       artifact-name: ${{ inputs.lint-artifact-name }}
       artifact-retention-days: ${{ inputs.artifact-retention-days }}
+      use-cache: ${{ inputs['use-lint-cache'] }}
 
   format:
     name: Format Lua

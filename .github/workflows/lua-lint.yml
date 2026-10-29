@@ -38,6 +38,14 @@ on:
         required: false
         default: true
 
+      use-cache:
+        description: >-
+          Enable Luacheck's analysis cache. Cache persistence between
+          workflow runs requires a separate cache restore/save step.
+        type: boolean
+        required: false
+        default: false
+
       luacheck-version:
         description: Luacheck version installed through LuaRocks.
         type: string
@@ -112,6 +120,7 @@ jobs:
           SCAN_PATHS: ${{ inputs.paths }}
           EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
           SETTINGS_FILE: ${{ inputs.settings-file }}
+          USE_CACHE: ${{ inputs['use-cache'] }}
         run: |
           set -euo pipefail
 
