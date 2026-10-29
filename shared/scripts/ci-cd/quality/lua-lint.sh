@@ -29,38 +29,42 @@ printf 'Settings: %s\nSelected files: %s\n' \
 warning_files=0
 error_files=0
 
+declare -a lint_files=()
+
 for file in "${QUALITY_FILES[@]}"; do
-  quality_log "Analyzing: $file"
-
-  status=0
-
-  luacheck \
-    --config "$SETTINGS_PATH" \
-    --no-default-config \
-    --no-cache \
-    --no-color \
-    --codes \
-    --formatter plain \
-    "./$file" >"$QUALITY_TMP/current-report" 2>&1 || status=$?
-
-  {
-    printf '\n=== %s ===\n' "$file"
-    cat -- "$QUALITY_TMP/current-report"
-  } >>"$REPORT_FILE"
-
-  quality_print_report "$QUALITY_TMP/current-report"
-
-  case "$status" in
-  0) ;;
-  1)
-    warning_files=$((warning_files + 1))
-    ;;
-  *)
-    error_files=$((error_files + 1))
-    quality_error "Luacheck returned exit code $status for: $file"
-    ;;
-  esac
+  lint_files+=("./$file")
 done
+
+quality_log "Analyzing: $file"
+
+status=0
+
+luacheck \
+  --config "$SETTINGS_PATH" \
+  --no-default-config \
+  --no-cache \
+  --no-color \
+  --codes \
+  --formatter plain \
+  "./$file" >"$QUALITY_TMP/current-report" 2>&1 || status=$?
+
+{
+  printf '\n=== %s ===\n' "$file"
+  cat -- "$QUALITY_TMP/current-report"
+} >>"$REPORT_FILE"
+
+quality_print_report "$QUALITY_TMP/current-report"
+
+case "$status" in
+0) ;;
+1)
+  warning_files=$((warning_files + 1))
+  ;;
+*)
+  error_files=$((error_files + 1))
+  quality_error "Luacheck returned exit code $status for: $file"
+  ;;
+esac
 
 if [[ "${#QUALITY_FILES[@]}" -eq 0 ]]; then
   quality_log "No matching tracked Lua files."
