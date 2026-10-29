@@ -21,6 +21,22 @@ fi
 
 REPORT_FILE="$REPORT_DIR/luacheck.txt"
 
+USE_CACHE="${USE_CACHE:-false}"
+declare -a cache_args=()
+
+case "$USE_CACHE" in
+true)
+  cache_args=(--cache)
+  ;;
+false)
+  cache_args=(--no-cache)
+  ;;
+*)
+  quality_error "USE_CACHE must be true or false."
+  exit 2
+  ;;
+esac
+
 printf 'Settings: %s\nSelected files: %s\n' \
   "$SETTINGS_PATH" \
   "${#QUALITY_FILES[@]}" >"$REPORT_FILE"
@@ -53,7 +69,7 @@ status=0
 luacheck \
   --config "$SETTINGS_PATH" \
   --no-default-config \
-  --no-cache \
+  "${cache_args[@]}" \
   --no-color \
   --codes \
   --formatter plain \
@@ -95,6 +111,7 @@ quality_summary "## Lua lint
 - Files selected: ${#lint_files[@]}
 - Result: $result
 - Luacheck exit code: $status
+- Use cache: $USE_CACHE
 - Settings: \`$SETTINGS_PATH\`
 
 Detailed diagnostics are available in the job log and lint report.
