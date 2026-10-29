@@ -1,0 +1,137 @@
+---
+name: Validate Lua
+
+on:
+  workflow_call:
+    inputs:
+      lint:
+        description: Run Lua linting.
+        type: boolean
+        required: false
+        default: true
+
+      format:
+        description: Run Lua formatting checks or fixes.
+        type: boolean
+        required: false
+        default: true
+
+      paths:
+        description: >-
+          Files or folders to check, one per line, starting from the
+          repository's main folder. Use "." for the entire repository.
+        type: string
+        required: false
+        default: "."
+
+      exclude-paths:
+        description: Files or folders to skip, one wildcard pattern per line.
+        type: string
+        required: false
+        default: ""
+
+      lint-settings-file:
+        description: >-
+          Repository-relative Luacheck config. Empty enables local
+          discovery and central fallback.
+        type: string
+        required: false
+        default: ""
+
+      format-settings-file:
+        description: >-
+          Repository-relative StyLua config. Empty enables local
+          discovery and central fallback.
+        type: string
+        required: false
+        default: ""
+
+      lint-fail-on-findings:
+        description: Fail on lint warnings.
+        type: boolean
+        required: false
+        default: true
+
+      format-fail-on-findings:
+        description: Fail on formatting differences in check mode.
+        type: boolean
+        required: false
+        default: false
+
+      fix:
+        description: Apply formatting in the runner and upload a patch.
+        type: boolean
+        required: false
+        default: false
+
+      luacheck-version:
+        description: Luacheck version installed through LuaRocks.
+        type: string
+        required: false
+        default: "1.2.0"
+
+      stylua-version:
+        description: StyLua release version to install.
+        type: string
+        required: false
+        # renovate: datasource=github-releases depName=JohnnyMorganz/StyLua
+        default: "2.6.0"
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing shared
+          scripts and fallback configurations.
+        type: string
+        required: false
+        default: main
+
+      lint-artifact-name:
+        description: Unique lint report artifact name.
+        type: string
+        required: false
+        default: lua-lint-results
+
+      format-artifact-name:
+        description: Unique formatting report and patch artifact name.
+        type: string
+        required: false
+        default: lua-format-results
+
+      artifact-retention-days:
+        description: Number of days to retain reports and patches.
+        type: number
+        required: false
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Lua
+    if: ${{ inputs.lint }}
+    uses: ./.github/workflows/lua-lint.yml
+    with:
+      paths: ${{ inputs.paths }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      settings-file: ${{ inputs.lint-settings-file }}
+      fail-on-findings: ${{ inputs['lint-fail-on-findings'] }}
+      luacheck-version: ${{ inputs.luacheck-version }}
+      templates-ref: ${{ inputs.templates-ref }}
+      artifact-name: ${{ inputs.lint-artifact-name }}
+      artifact-retention-days: ${{ inputs.artifact-retention-days }}
+
+  format:
+    name: Format Lua
+    if: ${{ inputs.format }}
+    uses: ./.github/workflows/lua-format.yml
+    with:
+      paths: ${{ inputs.paths }}
+      exclude-paths: ${{ inputs.exclude-paths }}
+      settings-file: ${{ inputs.format-settings-file }}
+      fix: ${{ inputs.fix }}
+      fail-on-findings: ${{ inputs['format-fail-on-findings'] }}
+      stylua-version: ${{ inputs.stylua-version }}
+      templates-ref: ${{ inputs.templates-ref }}
+      artifact-name: ${{ inputs.format-artifact-name }}
+      artifact-retention-days: ${{ inputs.artifact-retention-days }}
