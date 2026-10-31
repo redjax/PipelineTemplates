@@ -82,13 +82,13 @@ jobs:
 
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: source
           persist-credentials: false
 
       - name: Checkout PipelineTemplates
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.templates-ref }}
