@@ -80,6 +80,17 @@
                 "forgejo/download-artifact"
             ],
             "enabled": false
+        },
+        {
+            "matchDatasources": [
+                "nuget"
+            ],
+            "matchPackageNames": [
+                "PSScriptAnalyzer"
+            ],
+            "registryUrls": [
+                "https://www.powershellgallery.com/api/v2"
+            ]
         }
     ]
 }
