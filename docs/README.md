@@ -1,7 +1,9 @@
 # PipelineTemplates Documentation
 
 > [!NOTE]
-> This repository is undergoing a significant refactor, and documentation may lag behind. The old `main` branch is archived in [`archive/2026-05-20`](https://github.com/redjax/PipelineTemplates/tree/archive/2026-05-20)
+> Some links on this site are broken. The pages for this site are generated  from [the repository's `docs/` directory](https://github.com/redjax/PipelineTemplates/tree/main/docs). When the pages link to a file above `docs/` in the repository, the link breaks because those files are not generated with the static site.
+>
+> Browse the `docs/` directory on Github if you want working links to individual definitions, scripts, etc.
 
 `PipelineTemplates` is a monorepo for my pipelines. Instead of copying and pasting the same pipelines across various projects, making small changes and manually porting them to other pipelines, it made more sense to consolidate them into components and pipelines in a central repository. This allows me keep all of my pipelines for the various platforms I've used (Github Actions, Gitlab Pipelines, Woodpecker/Drone CI, Concourse CI, etc) in 1 place and call them from whichever forge my code is hosted on.
 
