@@ -61,7 +61,7 @@ on:
         required: false
         type: string
         # renovate: datasource=npm depName=wrangler
-        default: "4.152.0"
+        default: "4.154.0"
 
       runner-image:
         description: "GitHub-hosted runner image or self-hosted runner label."
@@ -117,7 +117,7 @@ jobs:
     with:
       ## PipelineTemplates Python/UV/Zensical layout.
       # renovate: datasource=python-version depName=python versioning=pep440
-      python-version: "3.15.1"
+      python-version: "3.15.2"
       working-directory: "."
       python-project-dir: "docs-site"
       zensical-config: "zensical.toml"

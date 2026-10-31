@@ -1,0 +1,169 @@
+---
+name: Lua lint
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: >-
+          Files or folders to check, one per line, starting from the
+          repository's main folder. Use "." for the entire repository.
+          Only tracked Lua files are checked.
+        type: string
+        required: false
+        default: "."
+
+      exclude-paths:
+        description: >-
+          Files or folders to skip, one wildcard pattern per line.
+          For example, "vendor/*" skips files beneath vendor.
+        type: string
+        required: false
+        default: ""
+
+      settings-file:
+        description: >-
+          Path to your Luacheck settings file. Leave empty to use the
+          repository-root .luacheckrc, or the central fallback if absent.
+          An explicitly requested file must exist.
+        type: string
+        required: false
+        default: ""
+
+      fail-on-findings:
+        description: >-
+          Fail on lint warnings. Syntax errors and execution failures
+          always fail.
+        type: boolean
+        required: false
+        default: true
+
+      use-cache:
+        description: >-
+          Enable Luacheck's analysis cache. Cache persistence between
+          workflow runs requires a separate cache restore/save step.
+        type: boolean
+        required: false
+        default: false
+
+      luacheck-version:
+        description: Luacheck version installed through LuaRocks.
+        type: string
+        required: false
+        default: "1.2.0"
+
+      templates-ref:
+        description: >-
+          PipelineTemplates branch, tag, or SHA containing shared
+          scripts and fallback configuration.
+        type: string
+        required: false
+        default: main
+
+      artifact-name:
+        description: Unique lint report artifact name.
+        type: string
+        required: false
+        default: lua-lint-results
+
+      artifact-retention-days:
+        description: Number of days to retain the report.
+        type: number
+        required: false
+        default: 7
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Lua
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout consuming repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Checkout PipelineTemplates
+        uses: actions/checkout@v4
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.templates-ref }}
+          path: pipelinetemplates
+          persist-credentials: false
+
+      - name: Install Luacheck
+        shell: bash
+        env:
+          LUACHECK_VERSION: ${{ inputs.luacheck-version }}
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install --yes lua5.1 liblua5.1-0-dev luarocks
+
+          sudo luarocks --lua-version=5.1 install \
+            luacheck "$LUACHECK_VERSION"
+
+          luacheck --version
+
+      - name: Run Lua lint
+        id: scan
+        shell: bash
+        env:
+          ROOT: ${{ github.workspace }}/source
+          TEMPLATES_ROOT: ${{ github.workspace }}/pipelinetemplates
+          REPORT_DIR: ${{ runner.temp }}/lua-lint-results
+          SCAN_PATHS: ${{ inputs.paths }}
+          EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          SETTINGS_FILE: ${{ inputs.settings-file }}
+          USE_CACHE: ${{ inputs['use-cache'] }}
+        run: |
+          set -euo pipefail
+
+          status=0
+
+          bash \
+            "$TEMPLATES_ROOT/shared/scripts/ci-cd/quality/lua-lint.sh" \
+            || status=$?
+
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload lint report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/lua-lint-results/
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.artifact-retention-days }}
+
+      - name: Enforce lint policy
+        if: ${{ always() && steps.scan.outcome == 'success' }}
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.scan.outputs.exit_code }}
+          FAIL_ON_FINDINGS: ${{ inputs.fail-on-findings }}
+        run: |
+          set -euo pipefail
+
+          case "$EXIT_CODE" in
+            0)
+              echo "Lua lint passed."
+              ;;
+            1)
+              if [[ "$FAIL_ON_FINDINGS" == "true" ]]; then
+                echo "::error::Lua lint warnings detected. See the log and report."
+                exit 1
+              fi
+
+              echo "::warning::Lua lint warnings detected. Enforcement is disabled."
+              ;;
+            *)
+              echo "::error::Lua lint failed to execute or found syntax/configuration errors."
+              exit 2
+              ;;
+          esac

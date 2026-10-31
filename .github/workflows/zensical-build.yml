@@ -9,14 +9,14 @@ on:
         required: false
         type: string
         # renovate: datasource=python-version depName=python versioning=pep440
-        default: "3.15.1"
+        default: "3.15.2"
 
       uv-version:
         description: "Optional UV version. Leave empty for the setup action default."
         required: false
         type: string
         # renovate: datasource=pypi depName=uv versioning=pep440
-        default: "0.13.5"
+        default: "0.13.6"
 
       working-directory:
         description: "Repository-relative directory in which Zensical runs."
