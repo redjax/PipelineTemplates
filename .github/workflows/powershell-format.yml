@@ -173,7 +173,7 @@ jobs:
 
       - name: Upload formatting patch
         if: ${{ always() && inputs.fix }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: ${{ runner.temp }}/powershell-format/format.patch
