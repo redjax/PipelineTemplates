@@ -3,6 +3,9 @@
     "extends": [
         "github>redjax/PipelineTemplates//config/renovate/default#main"
     ],
+    "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "minimumReleaseAgeBehaviour": "timestamp-required",
     "customManagers": [
         {
             "customType": "regex",
