@@ -134,13 +134,13 @@ jobs:
 
     steps:
       - name: Checkout consuming repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Checkout PipelineTemplates
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: redjax/pipelinetemplates
           ref: ${{ inputs.templates-ref }}
@@ -149,12 +149,12 @@ jobs:
           token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Set up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: ${{ inputs.python-version }}
 
       - name: Set up UV
-        uses: astral-sh/setup-uv@v10.3.3
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
 
       - name: Create pinned bump-my-version wrapper
         shell: bash
@@ -225,7 +225,7 @@ jobs:
       - name: Create or update version-bump pull request
         id: create-pr
         if: ${{ steps.bump.outputs.bumped == 'true' && !inputs.dry-run }}
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           token: ${{ secrets.release-bot-pat || github.token }}
           base: ${{ inputs.base-branch }}

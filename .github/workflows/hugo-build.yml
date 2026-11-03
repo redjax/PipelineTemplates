@@ -105,7 +105,7 @@ jobs:
     runs-on: ${{ inputs.runner-image }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           ref: ${{ inputs.checkout-ref != '' && inputs.checkout-ref || github.ref }}
@@ -148,7 +148,7 @@ jobs:
           fi
 
       - name: Build Hugo site
-        uses: redjax/pipelinetemplates/.github/actions/hugo-build@gh/hugo-build/v0.0.5
+        uses: redjax/pipelinetemplates/.github/actions/hugo-build@e9106d5f376d2c6257dfefb75432bfcf310ea802 # gh/hugo-build/v0.0.5
         with:
           hugo-version: ${{ inputs.hugo-version }}
           source-dir: ${{ inputs.site-root }}

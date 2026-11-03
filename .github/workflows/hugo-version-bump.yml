@@ -109,7 +109,7 @@ jobs:
     runs-on: ${{ inputs.runner-image }}
     steps:
       - name: Checkout caller repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: true
@@ -117,7 +117,7 @@ jobs:
       ## Checkout the PipelineTemplates repository in
       #  the pipeline so shared scripts are available.
       - name: Checkout pipelinetemplates repo
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: redjax/pipelinetemplates
           ref: ${{ inputs.templates-ref }}
@@ -182,7 +182,7 @@ jobs:
       - name: Create or update bump PR
         if: ${{ !inputs.dry-run }}
         id: cpr
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
         with:
           token: ${{ secrets.release-bot-pat }}
           branch: ${{ inputs.pr-branch }}
