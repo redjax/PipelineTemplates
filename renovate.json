@@ -3,7 +3,8 @@
     "extends": [
         "github>redjax/PipelineTemplates//config/renovate/default#main",
         "helpers:pinGitHubActionDigests",
-        "docker:pinDigests"
+        "docker:pinDigests",
+        ":dependencyDashboard"
     ],
     "minimumReleaseAge": "7 days",
     "internalChecksFilter": "strict",
