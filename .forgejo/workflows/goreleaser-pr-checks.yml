@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: https://github.com/actions/checkout@v7
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -126,12 +126,12 @@ jobs:
     runs-on: forgejo-runner-base
     steps:
       - name: Checkout
-        uses: https://github.com/actions/checkout@v7
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
       - name: Checkout PipelineTemplates
-        uses: https://github.com/actions/checkout@v7
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: redjax/PipelineTemplates
           ref: ${{ inputs.pipelinetemplates-ref }}

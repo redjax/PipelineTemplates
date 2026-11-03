@@ -1,8 +1,8 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 
 ARG PYTHON_IMG_TAG=3.15-slim
 ARG UV_IMG_TAG=0.13.5
-ARG NGINX_IMG_TAG=1.31-alpine
+ARG NGINX_IMG_TAG=1.31-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
 
 FROM ghcr.io/astral-sh/uv:${UV_IMG_TAG} AS uv
 
