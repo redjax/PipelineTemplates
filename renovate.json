@@ -1,8 +1,18 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": [
-        "github>redjax/PipelineTemplates//config/renovate/default#main"
+        "github>redjax/PipelineTemplates//config/renovate/default#main",
+        "helpers:pinGitHubActionDigests",
+        "docker:pinDigests",
+        ":dependencyDashboard"
     ],
+    "labels": [
+        "dependencies",
+        "renovate"
+    ],
+    "minimumReleaseAge": "7 days",
+    "internalChecksFilter": "strict",
+    "minimumReleaseAgeBehaviour": "timestamp-required",
     "customManagers": [
         {
             "customType": "regex",
