@@ -6,6 +6,10 @@
         "docker:pinDigests",
         ":dependencyDashboard"
     ],
+    "labels": [
+        "dependencies",
+        "renovate"
+    ],
     "minimumReleaseAge": "7 days",
     "internalChecksFilter": "strict",
     "minimumReleaseAgeBehaviour": "timestamp-required",
