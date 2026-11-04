@@ -72,10 +72,6 @@ jobs:
       - name: Check out calling repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ## On an internal pull request, check out its actual source branch so
-          #  shellfmt changes can be committed and pushed back to that branch.
-          #
-          #  On push, schedule, and manual runs, use the triggering SHA.
           ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.sha }}
           fetch-depth: 0
           path: repository
@@ -238,6 +234,38 @@ jobs:
 
           BRANCH="chore/format-shell-scripts"
 
+          ## Merge immediately when GitHub reports the PR is clean.
+          #  Otherwise, enable auto-merge and let GitHub wait for requirements.
+          function merge_formatting_pr() {
+            local pr="$1"
+            local merge_state
+
+            merge_state="$(
+              gh pr view "${pr}" \
+                --json mergeStateStatus \
+                --jq '.mergeStateStatus'
+            )"
+
+            echo "[INFO] Formatting PR merge state: ${merge_state}"
+
+            if [[ "${merge_state}" == "CLEAN" ]]; then
+              echo "[INFO] PR is clean. Merging immediately."
+
+              gh pr merge \
+                "${pr}" \
+                --squash \
+                --delete-branch
+            else
+              echo "[INFO] PR has outstanding requirements. Enabling auto-merge."
+
+              gh pr merge \
+                "${pr}" \
+                --auto \
+                --squash \
+                --delete-branch
+            fi
+          }
+
           if git diff --quiet -- "${SCAN_PATH}"; then
             echo "[INFO] shellfmt made no tracked file changes."
             exit 0
@@ -248,12 +276,12 @@ jobs:
 
           echo "[INFO] shellfmt made formatting changes."
 
-          # Preserve the formatting changes while we prepare the branch.
+          ## Preserve the formatting changes while we prepare the branch.
           git stash push \
             --message "shellfmt formatting changes" \
             -- "${SCAN_PATH}"
 
-          # Check whether the formatting PR already exists.
+          ## Check whether the formatting PR already exists.
           EXISTING_PR="$(
             gh pr list \
               --base main \
@@ -270,10 +298,10 @@ jobs:
 
             git switch -C "${BRANCH}" "origin/${BRANCH}"
 
-            # Bring the existing formatting branch up to date with main.
+            ## Bring the existing formatting branch up to date with main.
             git rebase origin/main
 
-            # Apply the formatting generated from the current main.
+            ## Apply the formatting generated from the current main.
             git stash pop
 
             git add -- "${SCAN_PATH}"
@@ -291,21 +319,14 @@ jobs:
 
             echo "[INFO] Formatting PR #${EXISTING_PR} updated."
 
-            gh pr merge \
-              "${EXISTING_PR}" \
-              --auto \
-              --squash \
-              --delete-branch
+            merge_formatting_pr "${EXISTING_PR}"
 
-            echo "[INFO] Auto-merge enabled."
+            echo "[INFO] Formatting PR merge handling completed."
 
             exit 0
           fi
 
           ## The formatting branch may already exist even when there is no PR.
-          #
-          #  This can happen if a previous workflow run successfully pushed
-          #  the branch but failed before creating the pull request.
           if git ls-remote --exit-code --heads origin "${BRANCH}" >/dev/null 2>&1; then
             echo "[INFO] Formatting branch already exists: ${BRANCH}"
             echo "[INFO] No existing formatting PR was found."
@@ -353,13 +374,9 @@ jobs:
 
             echo "[INFO] Created formatting PR: ${PR_URL}"
 
-            gh pr merge \
-              "${PR_URL}" \
-              --auto \
-              --squash \
-              --delete-branch
+            merge_formatting_pr "${PR_URL}"
 
-            echo "[INFO] Auto-merge enabled."
+            echo "[INFO] Formatting PR merge handling completed."
 
             exit 0
           fi
@@ -400,13 +417,9 @@ jobs:
 
           echo "[INFO] Created formatting PR: ${PR_URL}"
 
-          gh pr merge \
-            "${PR_URL}" \
-            --auto \
-            --squash \
-            --delete-branch
+          merge_formatting_pr "${PR_URL}"
 
-          echo "[INFO] Auto-merge enabled."
+          echo "[INFO] Formatting PR merge handling completed."
 
       - name: Upload report
         if: always()
