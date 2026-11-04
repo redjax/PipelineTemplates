@@ -135,7 +135,7 @@ function read_options() {
 
 function main() {
   local exit_code=0
-  local write_exit_code=0
+  local _write_exit_code=0
   local -a shell_files=()
   local -a command=()
 
@@ -190,22 +190,28 @@ function main() {
     echo
     echo "[INFO] Files that would be formatted:"
 
-    for file_path in "${shell_files[@]}"; do
-      if ! "${SHELLFMT_BIN}" \
-        "${SHELLFMT_OPTIONS[@]}" \
-        -d \
-        "${file_path}" \
-        >/dev/null 2>&1; then
-
-        printf '  - %s\n' "${file_path}"
-      fi
-    done
+    while IFS= read -r file_path; do
+      [[ -n "${file_path}" ]] || continue
+      printf '  - %s\n' "${file_path}"
+    done <"${SHELLFMT_REPORT_PATH}"
 
     echo
     echo "[INFO] Formatting diff:"
     echo
 
-    cat "${SHELLFMT_REPORT_PATH}"
+    ## Generate an actual diff for the report.
+    for file_path in "${shell_files[@]}"; do
+      "${SHELLFMT_BIN}" \
+        "${SHELLFMT_OPTIONS[@]}" \
+        -d \
+        "${file_path}" \
+        >>"${SHELLFMT_REPORT_PATH}.tmp" 2>/dev/null || true
+    done
+
+    if [[ -f "${SHELLFMT_REPORT_PATH}.tmp" ]]; then
+      cat "${SHELLFMT_REPORT_PATH}.tmp"
+      mv "${SHELLFMT_REPORT_PATH}.tmp" "${SHELLFMT_REPORT_PATH}"
+    fi
 
     if [[ "${SHELLFMT_FAIL_ON_FINDINGS}" == "true" ]]; then
       exit 1
@@ -213,28 +219,31 @@ function main() {
     ;;
 
   write:0)
-    if [[ -s "${SHELLFMT_REPORT_PATH}" ]]; then
-      echo "[INFO] shellfmt will format listed files in the runner checkout."
+    echo "[INFO] shellfmt found no files requiring formatting."
+    ;;
 
-      set +e
+  write:1)
+    echo "[INFO] shellfmt found files requiring formatting."
 
-      "${SHELLFMT_BIN}" \
-        "${SHELLFMT_OPTIONS[@]}" \
-        -w \
-        "${shell_files[@]}"
+    local -a files_to_format=()
 
-      write_exit_code=$?
+    while IFS= read -r file_path; do
+      [[ -n "${file_path}" ]] || continue
+      files_to_format+=("${file_path}")
+    done <"${SHELLFMT_REPORT_PATH}"
 
-      set -e
-
-      if [[ "${write_exit_code}" -ne 0 ]]; then
-        fail "shellfmt could not write formatted files. Exit code: ${write_exit_code}."
-      fi
-
-      echo "[INFO] shellfmt formatted listed files in the runner checkout."
-    else
-      echo "[INFO] shellfmt found no files requiring formatting."
+    if [[ "${#files_to_format[@]}" -eq 0 ]]; then
+      fail "shellfmt returned exit code 1 but did not list any files."
     fi
+
+    echo "[INFO] Formatting ${#files_to_format[@]} files."
+
+    "${SHELLFMT_BIN}" \
+      "${SHELLFMT_OPTIONS[@]}" \
+      -w \
+      "${files_to_format[@]}"
+
+    echo "[INFO] shellfmt successfully formatted ${#files_to_format[@]} files."
     ;;
 
   *)
@@ -242,6 +251,7 @@ function main() {
     fail "shellfmt failed with exit code ${exit_code}."
     ;;
   esac
+
 }
 
 main "$@"
