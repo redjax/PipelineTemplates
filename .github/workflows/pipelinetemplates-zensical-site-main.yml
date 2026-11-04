@@ -7,7 +7,7 @@
 #                                                                              #
 # This site is intentionally unversioned. Every qualifying build produces a    #
 # short-SHA release tag, for example:                                          #
-#   pipelinetemplates-docs-a1b2c3d                                             #
+#   docs-a1b2c3d                                                               #
 #                                                                              #
 # The generated artifact is published to both gh-pages and GitHub Pages.       #
 ################################################################################
@@ -132,8 +132,8 @@ jobs:
       artifact-retention-days: 7
       artifact-if-no-files-found: "error"
 
-      ## Standard/non-versioned tags and releases use pipelinetemplates-docs-<short-sha>
-      release-prefix: "pipelinetemplates-docs"
+      ## Standard/non-versioned tags and releases use docs-<short-sha>
+      release-prefix: "docs"
 
       ## Default to publishing the same generated artifact to both targets.
       publish-targets: >-
