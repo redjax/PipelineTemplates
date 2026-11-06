@@ -30,7 +30,7 @@ on:
         required: false
         type: string
         # renovate: datasource=pypi depName=uv versioning=pep440
-        default: "0.13.6"
+        default: "0.13.7"
 
       working-directory:
         description: "Repository-relative directory from which Zensical runs."
@@ -229,7 +229,7 @@ on:
         required: false
         type: string
         # renovate: datasource=npm depName=wrangler versioning=npm
-        default: "4.156.0"
+        default: "4.156.2"
 
       branch-name:
         description: "Target branch used when branch publishing is selected."
