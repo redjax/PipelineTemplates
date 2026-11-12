@@ -115,7 +115,7 @@ jobs:
       contents: read
       packages: write
 
-    uses: redjax/pipelinetemplates/.github/workflows/docker-build.yml@main
+    uses: redjax/pipelinetemplates/.github/workflows/docker-build.yml@09e221bba621952a99201050ab426db922e0d134 # main
     with:
       context: ${{ inputs.context }}
       dockerfile: ${{ inputs.dockerfile }}

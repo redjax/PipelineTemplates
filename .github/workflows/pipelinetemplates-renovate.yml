@@ -55,7 +55,7 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'renovate/') &&
         github.event.pull_request.merged == true
       )
-    uses: redjax/pipelinetemplates/.github/workflows/renovate.yml@main
+    uses: redjax/pipelinetemplates/.github/workflows/renovate.yml@09e221bba621952a99201050ab426db922e0d134 # main
     with:
       mode: ${{ github.event_name == 'schedule' && 'run' || inputs.mode || 'lookup' }}
       log-level: ${{ inputs.log-level || 'info' }}
