@@ -16,7 +16,7 @@ on:
         required: false
         type: string
         # renovate: datasource=pypi depName=uv versioning=pep440
-        default: "0.13.8"
+        default: "0.13.9"
 
       working-directory:
         description: "Repository-relative directory in which Zensical runs."
@@ -186,7 +186,7 @@ jobs:
 
       - name: Build Zensical site
         id: zensical
-        uses: redjax/pipelinetemplates/.github/actions/zensical-build@09e221bba621952a99201050ab426db922e0d134 # main
+        uses: redjax/pipelinetemplates/.github/actions/zensical-build@abb38b43aa0e4e4ee8ea9e878050ddfc6ac4ab44 # main
         with:
           python-version: ${{ inputs.python-version }}
           uv-version: ${{ inputs.uv-version }}
