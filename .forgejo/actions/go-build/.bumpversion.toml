@@ -5,11 +5,11 @@ tag = false
 
 
 [[tool.bumpversion.files]]
-filename = ".forgejo/actions/go-build/VERSION"
+filename = "VERSION"
 search = "{current_version}"
 replace = "{new_version}"
 
 [[tool.bumpversion.files]]
-filename = ".forgejo/actions/go-build/.bumpversion.toml"
+filename = ".bumpversion.toml"
 search = 'current_version = "{current_version}"'
 replace = 'current_version = "{new_version}"'

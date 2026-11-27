@@ -4,4 +4,4 @@ commit = false
 tag = false
 
 [[tool.bumpversion.files]]
-filename = ".github/actions/docker-build-publish/VERSION"
+filename = "VERSION"
