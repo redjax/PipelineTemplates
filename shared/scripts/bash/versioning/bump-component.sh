@@ -19,6 +19,7 @@ COMPONENT_PATH=""
 BUMPVERSION_FILE=".bumpversion.toml"
 BUMP_TYPE="patch"
 DRY_RUN="false"
+FIRST_RELEASE_VERSION="0.0.1"
 CWD=$(pwd)
 
 function cleanup() {
@@ -36,7 +37,7 @@ Description:
   Updates the VERSION file for a given component using bump-my-version. Reads from the
   component's .bumpversion.toml to determine versioning logic.
 
-  Automatically bumps any 0.0.0 versions.
+  Components at 0.0.0 are bumped straight to ${FIRST_RELEASE_VERSION}, regardless of bump type.
 
 Options:
   -h, --help             Show this help message
@@ -54,51 +55,52 @@ Examples:
 EOF
 }
 
-## Ensure minimum released version is 0.0.1
-function normalize_release_version() {
-  local version="$1"
-
-  if [[ "$version" == "0.0.0" ]]; then
-    echo "0.0.1"
-  else
-    echo "$version"
-  fi
-}
-
 ## Function to run bump-my-version
+#
+#  bump-my-version resolves filenames in the config relative to the config
+#  file's directory, so the config must use bare names (VERSION, .bumpversion.toml).
+#  It updates VERSION and current_version together, so nothing else writes VERSION.
 function bump_version() {
   local bump_type="${1:-patch}"
   local bumpversion_file="${2:-}"
+  local component_dir
   local version_file
-  local component_name
   local current_version
   local new_version
+  local msg
 
-  version_file="$(dirname "$bumpversion_file")/VERSION"
-  component_name="$(dirname "$bumpversion_file")"
+  component_dir="$(dirname "$bumpversion_file")"
+  version_file="${component_dir}/VERSION"
 
-  current_version="$(cat "$version_file")"
+  current_version="$(tr -d '[:space:]' <"$version_file")"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
+  if [[ "$current_version" == "0.0.0" ]]; then
+    ## First release: jump to 0.0.1 no matter the bump type
+    if [[ "$DRY_RUN" == "true" ]]; then
+      new_version="$FIRST_RELEASE_VERSION"
+    else
+      bump-my-version bump \
+        --new-version "$FIRST_RELEASE_VERSION" \
+        --config-file "$bumpversion_file" \
+        --allow-dirty \
+        >/dev/null
+      new_version="$(tr -d '[:space:]' <"$version_file")"
+    fi
+  elif [[ "$DRY_RUN" == "true" ]]; then
     new_version="$(
       bump-my-version show new_version \
         --increment "$bump_type" \
         --config-file "$bumpversion_file"
     )"
-    new_version="$(normalize_release_version "$new_version")"
   else
     bump-my-version bump "$bump_type" \
       --config-file "$bumpversion_file" \
+      --allow-dirty \
       >/dev/null
-
-    new_version="$(cat "$version_file")"
-    new_version="$(normalize_release_version "$new_version")"
-
-    ## Ensure VERSION file is at least 0.0.1 (auto-bump 0.0.0 versions)
-    printf '%s\n' "$new_version" >"$version_file"
+    new_version="$(tr -d '[:space:]' <"$version_file")"
   fi
 
-  msg="Bump ${component_name}: ${current_version} -> ${new_version}"
+  msg="Bump ${component_dir}: ${current_version} -> ${new_version}"
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY RUN] $msg"
   else
@@ -151,6 +153,11 @@ if [[ "$BUMP_TYPE" != "patch" ]] && [[ "$BUMP_TYPE" != "minor" ]] && [[ "$BUMP_T
 fi
 
 ## Compose file paths
-COMPONENT_BUMPVERSION_FILE="${COMPONENT_PATH}/${BUMPVERSION_FILE}"
+COMPONENT_BUMPVERSION_FILE="${COMPONENT_PATH%/}/${BUMPVERSION_FILE}"
+
+if [[ ! -f "${COMPONENT_BUMPVERSION_FILE}" ]] || [[ ! -f "${COMPONENT_PATH%/}/VERSION" ]]; then
+  echo "[ERROR] ${COMPONENT_PATH} must contain both ${BUMPVERSION_FILE} and VERSION." >&2
+  exit 1
+fi
 
 bump_version "${BUMP_TYPE}" "${COMPONENT_BUMPVERSION_FILE}"
