@@ -21,6 +21,9 @@ local.*
 [.]secret[s].*
 *.secret[s]
 
+## CI
+/pipelinetemplates/
+
 ## Misc
 .ansible/
 
