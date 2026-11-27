@@ -285,22 +285,50 @@ jobs:
           echo "[INFO] PR #${PR_NUMBER} mergeable=${mergeable}"
           echo "[INFO] PR #${PR_NUMBER} mergeStateStatus=${merge_state_status}"
 
+          merge_now() {
+            gh pr merge "${PR_NUMBER}" \
+              --merge \
+              --delete-branch
+          }
+
           case "${merge_state_status}" in
-            CLEAN)
+            CLEAN|HAS_HOOKS)
               echo "[INFO] PR is clean; merging immediately."
 
-              gh pr merge "${PR_NUMBER}" \
-                --merge \
-                --delete-branch
+              merge_now
               ;;
 
             BLOCKED|BEHIND|UNSTABLE|UNKNOWN)
               echo "[INFO] PR is awaiting merge requirements; enabling auto-merge."
 
-              gh pr merge "${PR_NUMBER}" \
+              if gh pr merge "${PR_NUMBER}" \
                 --merge \
                 --auto \
-                --delete-branch
+                --delete-branch; then
+                echo "[INFO] Auto-merge enabled for PR #${PR_NUMBER}."
+              else
+                # GitHub refuses to arm auto-merge on a PR that is already
+                # mergeable ("Pull request is in clean status"). The PR may
+                # have become mergeable since the state was read.
+                current_state="$(gh pr view "${PR_NUMBER}" \
+                  --json mergeStateStatus \
+                  --jq '.mergeStateStatus')"
+
+                echo "[INFO] Auto-merge could not be enabled; mergeStateStatus is now ${current_state}."
+
+                case "${current_state}" in
+                  CLEAN|HAS_HOOKS|UNSTABLE)
+                    echo "[INFO] PR is mergeable now; merging immediately."
+
+                    merge_now
+                    ;;
+
+                  *)
+                    echo "::error::Could not enable auto-merge for PR #${PR_NUMBER} (mergeStateStatus=${current_state})." >&2
+                    exit 1
+                    ;;
+                esac
+              fi
               ;;
 
             DIRTY)

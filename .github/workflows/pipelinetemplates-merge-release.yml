@@ -100,8 +100,14 @@ jobs:
         if: steps.cpr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.PAT_REPO_WRITE }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
         run: |
-          gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --auto --merge
+          set -Eeuo pipefail
+
+          if ! gh pr merge "${PR_NUMBER}" --auto --merge; then
+            echo "Auto-merge could not be armed (the PR is probably already mergeable); merging directly."
+            gh pr merge "${PR_NUMBER}" --merge
+          fi
 
       - name: Dry run summary
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true

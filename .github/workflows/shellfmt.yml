@@ -235,7 +235,10 @@ jobs:
           BRANCH="chore/format-shell-scripts"
 
           ## Merge immediately when GitHub reports the PR is clean.
-          #  Otherwise, enable auto-merge and let GitHub wait for requirements.
+          #  Otherwise, try to enable auto-merge. GitHub refuses to arm
+          #  auto-merge on a PR that is already mergeable ("clean status"),
+          #  and a freshly created PR often reports UNKNOWN before GitHub has
+          #  finished computing its state, so fall back to a direct merge.
           function merge_formatting_pr() {
             local pr="$1"
             local merge_state
@@ -248,22 +251,35 @@ jobs:
 
             echo "[INFO] Formatting PR merge state: ${merge_state}"
 
-            if [[ "${merge_state}" == "CLEAN" ]]; then
+            if [[ "${merge_state}" == "CLEAN" || "${merge_state}" == "HAS_HOOKS" ]]; then
               echo "[INFO] PR is clean. Merging immediately."
 
               gh pr merge \
                 "${pr}" \
                 --squash \
                 --delete-branch
-            else
-              echo "[INFO] PR has outstanding requirements. Enabling auto-merge."
 
-              gh pr merge \
-                "${pr}" \
-                --auto \
-                --squash \
-                --delete-branch
+              return 0
             fi
+
+            echo "[INFO] PR has outstanding requirements. Enabling auto-merge."
+
+            if gh pr merge \
+              "${pr}" \
+              --auto \
+              --squash \
+              --delete-branch; then
+              echo "[INFO] Auto-merge enabled."
+
+              return 0
+            fi
+
+            echo "[INFO] Auto-merge could not be enabled (the PR is probably already mergeable). Merging directly."
+
+            gh pr merge \
+              "${pr}" \
+              --squash \
+              --delete-branch
           }
 
           if git diff --quiet -- "${SCAN_PATH}"; then
