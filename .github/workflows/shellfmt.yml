@@ -63,6 +63,10 @@ on:
         required: false
         type: string
         default: "style(shell): format shell scripts with shellfmt"
+    secrets:
+      release-bot-pat:
+        description: "Optional PAT or GitHub App token. Use it so pull requests and pushes created by this workflow trigger other workflows."
+        required: false
 
 jobs:
   shellfmt:
@@ -76,6 +80,7 @@ jobs:
           fetch-depth: 0
           path: repository
           persist-credentials: true
+          token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Validate shellfmt write policy
         shell: bash
@@ -228,7 +233,7 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ inputs.commit-message }}
           SCAN_PATH: ${{ inputs.scan-path }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.release-bot-pat || github.token }}
         run: |
           set -euo pipefail
 

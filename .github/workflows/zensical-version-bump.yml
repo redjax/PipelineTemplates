@@ -222,6 +222,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Warn when no PAT is configured
+        if: ${{ steps.bump.outputs.bumped == 'true' && !inputs.dry-run }}
+        shell: bash
+        env:
+          HAS_PAT: ${{ secrets.release-bot-pat != '' }}
+        run: |
+          if [[ "${HAS_PAT}" != "true" ]]; then
+            echo "::warning title=No release-bot-pat::The bump PR will be created with github.token, so required PR checks will not start. Pass release-bot-pat from the caller."
+          fi
+
       - name: Create or update version-bump pull request
         id: create-pr
         if: ${{ steps.bump.outputs.bumped == 'true' && !inputs.dry-run }}
