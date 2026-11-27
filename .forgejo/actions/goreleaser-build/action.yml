@@ -86,6 +86,33 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: git fetch --force --tags
 
+    ## Fix dirty git state error
+    - name: Keep the PipelineTemplates checkout out of git status
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+
+        ## GoReleaser refuses to run when git reports untracked files, and this
+        #  action normally lives in a PipelineTemplates checkout inside the repo.
+        templates_root="${ACTION_PATH%/.forgejo/actions/goreleaser-build}"
+        repo_root="$(git rev-parse --show-toplevel)"
+
+        case "${templates_root}" in
+          "${repo_root}"/*)
+            relative="${templates_root#"${repo_root}"/}"
+            exclude="$(git rev-parse --git-path info/exclude)"
+            mkdir -p "$(dirname "${exclude}")"
+            echo "/${relative}/" >> "${exclude}"
+            echo "Excluded from git status: /${relative}/"
+            ;;
+        esac
+
+        echo "git status after exclusion (expected: empty):"
+        git status --short
+
     - name: Install GoReleaser
       shell: bash
       env:
