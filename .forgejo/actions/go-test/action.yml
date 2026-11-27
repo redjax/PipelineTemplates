@@ -1,0 +1,105 @@
+---
+name: Go Test
+description: >-
+  Run go test with an optional race detector and coverage, write a job
+  summary, and optionally upload the logs and coverage files.
+
+inputs:
+  module-dir:
+    description: "Path to the Go module root containing go.mod."
+    required: false
+    default: "."
+  packages:
+    description: "Space-separated package patterns, relative to module-dir."
+    required: false
+    default: "./..."
+  race:
+    description: "Enable the race detector (needs cgo and a C compiler)."
+    required: false
+    default: "false"
+  short:
+    description: "Pass -short."
+    required: false
+    default: "false"
+  verbose:
+    description: "Pass -v."
+    required: false
+    default: "false"
+  count:
+    description: "Value for -count. Use 1 to bypass the test cache."
+    required: false
+    default: "1"
+  shuffle:
+    description: "Pass -shuffle=on."
+    required: false
+    default: "false"
+  timeout:
+    description: "Value for -timeout."
+    required: false
+    default: "10m"
+  build-tags:
+    description: "Comma-separated build tags."
+    required: false
+    default: ""
+  coverage:
+    description: "Collect coverage and write a coverage report."
+    required: false
+    default: "false"
+  coverage-threshold:
+    description: "Minimum total coverage percent. Setting it enables coverage."
+    required: false
+    default: ""
+  extra-args:
+    description: "Extra space-separated arguments for go test."
+    required: false
+    default: ""
+  output-dir:
+    description: "Directory, relative to module-dir, for logs and coverage files."
+    required: false
+    default: "test-results"
+  upload-artifacts:
+    description: "Upload the output directory as an artifact."
+    required: false
+    default: "false"
+  artifact-name:
+    description: "Artifact name. Must be unique within a workflow run."
+    required: false
+    default: "go-test-results"
+
+outputs:
+  result:
+    description: "passed or failed."
+    value: ${{ steps.test.outputs.result }}
+  coverage:
+    description: "Total coverage such as 72.4%, empty when coverage is off."
+    value: ${{ steps.test.outputs.coverage }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run go test
+      id: test
+      shell: bash
+      env:
+        MODULE_DIR: ${{ inputs.module-dir }}
+        PACKAGES: ${{ inputs.packages }}
+        RACE: ${{ inputs.race }}
+        SHORT: ${{ inputs.short }}
+        VERBOSE: ${{ inputs.verbose }}
+        COUNT: ${{ inputs.count }}
+        SHUFFLE: ${{ inputs.shuffle }}
+        TIMEOUT: ${{ inputs.timeout }}
+        BUILD_TAGS: ${{ inputs.build-tags }}
+        COVERAGE: ${{ inputs.coverage }}
+        COVERAGE_THRESHOLD: ${{ inputs.coverage-threshold }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: ${{ github.action_path }}/scripts/go-test.sh
+
+    - name: Upload test results
+      if: ${{ always() && inputs.upload-artifacts == 'true' && steps.test.outputs.output-dir != '' }}
+      uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ steps.test.outputs.output-dir }}
+        if-no-files-found: ignore

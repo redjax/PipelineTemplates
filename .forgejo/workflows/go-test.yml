@@ -1,0 +1,172 @@
+---
+#####################################################
+# Call from a consuming repository to run  Go tests #
+#####################################################
+
+name: Go Test
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: "Path to Go module root containing go.mod."
+        required: false
+        type: string
+        default: "."
+      packages:
+        description: "Space-separated package patterns relative to module-dir."
+        required: false
+        type: string
+        default: "./..."
+      go-version:
+        description: "Go version."
+        required: false
+        type: string
+        # renovate: datasource=golang-version depName=golang/go versioning=semver
+        default: "1.27.4"
+      race:
+        description: "Enable the race detector (needs cgo and a C compiler)."
+        required: false
+        type: boolean
+        default: false
+      short:
+        description: "Pass -short."
+        required: false
+        type: boolean
+        default: false
+      verbose:
+        description: "Pass -v."
+        required: false
+        type: boolean
+        default: false
+      count:
+        description: "Value for -count. 1 bypasses the test cache."
+        required: false
+        type: string
+        default: "1"
+      shuffle:
+        description: "Pass -shuffle=on."
+        required: false
+        type: boolean
+        default: false
+      timeout:
+        description: "Value for -timeout."
+        required: false
+        type: string
+        default: "10m"
+      build-tags:
+        description: "Comma-separated build tags."
+        required: false
+        type: string
+        default: ""
+      coverage:
+        description: "Collect coverage."
+        required: false
+        type: boolean
+        default: false
+      coverage-threshold:
+        description: "Minimum total coverage percent. Setting it enables coverage."
+        required: false
+        type: string
+        default: ""
+      extra-args:
+        description: "Extra space-separated arguments for go test."
+        required: false
+        type: string
+        default: ""
+      upload-artifacts:
+        description: "Upload the test log and coverage files."
+        required: false
+        type: boolean
+        default: true
+      artifact-name:
+        description: "Artifact name."
+        required: false
+        type: string
+        default: "go-test-results"
+      enable-cache:
+        description: "Enable Go cache."
+        required: false
+        type: boolean
+        default: true
+      fetch-depth:
+        description: "Checkout depth for the application repository (0 = full history)."
+        required: false
+        type: number
+        default: 1
+      pipelinetemplates-ref:
+        description: "PipelineTemplates revision."
+        required: false
+        type: string
+        default: main
+    outputs:
+      result:
+        description: "passed or failed."
+        value: ${{ jobs.test.outputs.result }}
+      coverage:
+        description: "Total coverage, empty when coverage is off."
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    runs-on: forgejo-runner-base
+    outputs:
+      result: ${{ steps.test.outputs.result }}
+      coverage: ${{ steps.test.outputs.coverage }}
+
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: ${{ inputs.fetch-depth }}
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: ${{ inputs.enable-cache }}
+
+      - name: Verify Go installation
+        shell: bash
+        run: |
+          which go
+          go version
+          go env GOPATH GOMOD
+
+      - name: Run tests
+        id: test
+        uses: ./pipelinetemplates/.forgejo/actions/go-test
+        with:
+          module-dir: ${{ inputs.module-dir }}
+          packages: ${{ inputs.packages }}
+          race: ${{ inputs.race }}
+          short: ${{ inputs.short }}
+          verbose: ${{ inputs.verbose }}
+          count: ${{ inputs.count }}
+          shuffle: ${{ inputs.shuffle }}
+          timeout: ${{ inputs.timeout }}
+          build-tags: ${{ inputs.build-tags }}
+          coverage: ${{ inputs.coverage }}
+          coverage-threshold: ${{ inputs.coverage-threshold }}
+          extra-args: ${{ inputs.extra-args }}
+          upload-artifacts: ${{ inputs.upload-artifacts }}
+          artifact-name: ${{ inputs.artifact-name }}

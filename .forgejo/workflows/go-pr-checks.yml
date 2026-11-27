@@ -1,7 +1,7 @@
 ---
 ############################################
 # Call from a consuming repository to do a #
-# Go build validation.                     #
+# Go build validation and/or test run.     #
 ############################################
 
 name: Go PR Checks
@@ -9,6 +9,16 @@ name: Go PR Checks
 on:
   workflow_call:
     inputs:
+      run-build:
+        description: "Run the build preview."
+        required: false
+        type: boolean
+        default: true
+      run-tests:
+        description: "Run go test."
+        required: false
+        type: boolean
+        default: false
       module-dir:
         description: "Path to Go module root containing go.mod."
         required: false
@@ -20,9 +30,10 @@ on:
         type: string
         default: "."
       binary-name:
-        description: "Name for the built binary."
-        required: true
+        description: "Name for the built binary. Required when run-build is true."
+        required: false
         type: string
+        default: ""
       go-version:
         description: "Go version."
         required: false
@@ -55,7 +66,7 @@ on:
         type: string
         default: ""
       upload-artifacts:
-        description: "Upload artifacts."
+        description: "Upload build artifacts."
         required: false
         type: boolean
         default: true
@@ -73,7 +84,7 @@ on:
         required: true
         type: string
       change-paths:
-        description: "Paths triggering build."
+        description: "Paths triggering the build."
         required: false
         type: string
         default: |
@@ -85,6 +96,83 @@ on:
             "cmd/**",
             "internal/**"
           ]
+      test-change-paths:
+        description: "Paths triggering the tests."
+        required: false
+        type: string
+        default: |
+          [
+            "go.mod",
+            "go.sum",
+            "**/go.mod",
+            "**/go.sum",
+            "*.go"
+          ]
+      test-packages:
+        description: "Space-separated package patterns relative to module-dir."
+        required: false
+        type: string
+        default: "./..."
+      test-race:
+        description: "Enable the race detector (needs cgo and a C compiler)."
+        required: false
+        type: boolean
+        default: false
+      test-short:
+        description: "Pass -short."
+        required: false
+        type: boolean
+        default: false
+      test-verbose:
+        description: "Pass -v."
+        required: false
+        type: boolean
+        default: false
+      test-count:
+        description: "Value for -count. 1 bypasses the test cache."
+        required: false
+        type: string
+        default: "1"
+      test-shuffle:
+        description: "Pass -shuffle=on."
+        required: false
+        type: boolean
+        default: false
+      test-timeout:
+        description: "Value for -timeout."
+        required: false
+        type: string
+        default: "10m"
+      test-tags:
+        description: "Comma-separated build tags for tests."
+        required: false
+        type: string
+        default: ""
+      test-coverage:
+        description: "Collect coverage."
+        required: false
+        type: boolean
+        default: false
+      test-coverage-threshold:
+        description: "Minimum total coverage percent. Setting it enables coverage."
+        required: false
+        type: string
+        default: ""
+      test-extra-args:
+        description: "Extra space-separated arguments for go test."
+        required: false
+        type: string
+        default: ""
+      test-upload-results:
+        description: "Upload the test log and coverage files."
+        required: false
+        type: boolean
+        default: true
+      test-artifact-name:
+        description: "Test results artifact name."
+        required: false
+        type: string
+        default: "go-test-results"
       pipelinetemplates-ref:
         description: "PipelineTemplates revision."
         required: false
@@ -92,16 +180,42 @@ on:
         default: main
     outputs:
       changes_detected:
-        description: "Whether Go files changed."
+        description: "Whether files that trigger the build changed."
         value: ${{ jobs.detect.outputs.changes_detected }}
+      test_changes_detected:
+        description: "Whether files that trigger the tests changed."
+        value: ${{ jobs.detect.outputs.test_changes_detected }}
+      test_coverage:
+        description: "Total test coverage, empty when not collected."
+        value: ${{ jobs.test.outputs.coverage }}
 
 jobs:
   detect:
     runs-on: forgejo-runner-base
     outputs:
       changes_detected: ${{ steps.filter.outputs.changes_detected }}
+      test_changes_detected: ${{ steps.filter.outputs.test_changes_detected }}
 
     steps:
+      - name: Validate inputs
+        shell: bash
+        env:
+          RUN_BUILD: ${{ inputs.run-build }}
+          RUN_TESTS: ${{ inputs.run-tests }}
+          BINARY_NAME: ${{ inputs.binary-name }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "$RUN_BUILD" != "true" && "$RUN_TESTS" != "true" ]]; then
+            echo "[ERROR] Nothing to do: enable run-build, run-tests, or both." >&2
+            exit 1
+          fi
+
+          if [[ "$RUN_BUILD" == "true" && -z "$BINARY_NAME" ]]; then
+            echo "[ERROR] binary-name is required when run-build is true." >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -114,36 +228,60 @@ jobs:
           BASE_SHA: ${{ inputs.base-sha }}
           HEAD_SHA: ${{ inputs.head-sha }}
           CHANGE_PATHS: ${{ inputs.change-paths }}
+          TEST_CHANGE_PATHS: ${{ inputs.test-change-paths }}
         run: |
-          changed=false
+          set -Eeuo pipefail
 
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then
             BASE_SHA=$(git rev-list --max-parents=0 HEAD)
           fi
 
-          mapfile -t patterns < <(
-            echo "$CHANGE_PATHS" | jq -r '.[]'
-          )
-
-          while IFS= read -r file; do
-            for pattern in "${patterns[@]}"; do
-              if [[ "$file" == $pattern ]]; then
-                changed=true
-                break 2
-              fi
-            done
-          done < <(
+          mapfile -t changed_files < <(
             git diff --name-only "$BASE_SHA" "$HEAD_SHA"
           )
 
-          echo "Detected changes: $changed"
-          echo \
-            "changes_detected=$changed" \
-            >> "$GITHUB_OUTPUT"
+          any_match() {
+            local patterns_json="$1"
+            local -a patterns
+            local file pattern
+
+            mapfile -t patterns < <(jq -r '.[]' <<< "$patterns_json")
+
+            for file in "${changed_files[@]}"; do
+              for pattern in "${patterns[@]}"; do
+                # shellcheck disable=SC2053
+                if [[ "$file" == $pattern ]]; then
+                  return 0
+                fi
+              done
+            done
+
+            return 1
+          }
+
+          build_changed=false
+          if any_match "$CHANGE_PATHS"; then
+            build_changed=true
+          fi
+
+          test_changed=false
+          if any_match "$TEST_CHANGE_PATHS"; then
+            test_changed=true
+          fi
+
+          echo "Detected build changes: $build_changed"
+          echo "Detected test changes: $test_changed"
+
+          {
+            echo "changes_detected=$build_changed"
+            echo "test_changes_detected=$test_changed"
+          } >> "$GITHUB_OUTPUT"
 
   build-preview:
     needs: detect
-    if: needs.detect.outputs.changes_detected == 'true'
+    if: >-
+      inputs.run-build == true &&
+      needs.detect.outputs.changes_detected == 'true'
     runs-on: forgejo-runner-base
     steps:
       - name: Checkout
@@ -193,3 +331,66 @@ jobs:
           output-dir: ${{ inputs.output-dir }}
           artifact-name: ${{ inputs.artifact-name }}
           upload-artifacts: ${{ inputs.upload-artifacts }}
+
+  test:
+    needs: detect
+    if: >-
+      inputs.run-tests == true &&
+      needs.detect.outputs.test_changes_detected == 'true'
+    runs-on: forgejo-runner-base
+    outputs:
+      coverage: ${{ steps.test.outputs.coverage }}
+    steps:
+      - name: Checkout
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout PipelineTemplates
+        uses: https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: redjax/PipelineTemplates
+          ref: ${{ inputs.pipelinetemplates-ref }}
+          path: pipelinetemplates
+          fetch-depth: 0
+
+      - name: Verify PipelineTemplates revision
+        shell: bash
+        run: |
+          cd pipelinetemplates
+
+          git remote -v
+          git rev-parse HEAD
+          git log -1 --decorate --oneline
+
+      - name: Setup Go
+        uses: ./pipelinetemplates/.forgejo/actions/setup-go
+        with:
+          version: ${{ inputs.go-version }}
+          enable-cache: ${{ inputs.enable-cache }}
+
+      - name: Verify Go installation
+        shell: bash
+        run: |
+          which go
+          go version
+          go env GOPATH GOMOD
+
+      - name: Run tests
+        id: test
+        uses: ./pipelinetemplates/.forgejo/actions/go-test
+        with:
+          module-dir: ${{ inputs.module-dir }}
+          packages: ${{ inputs.test-packages }}
+          race: ${{ inputs.test-race }}
+          short: ${{ inputs.test-short }}
+          verbose: ${{ inputs.test-verbose }}
+          count: ${{ inputs.test-count }}
+          shuffle: ${{ inputs.test-shuffle }}
+          timeout: ${{ inputs.test-timeout }}
+          build-tags: ${{ inputs.test-tags }}
+          coverage: ${{ inputs.test-coverage }}
+          coverage-threshold: ${{ inputs.test-coverage-threshold }}
+          extra-args: ${{ inputs.test-extra-args }}
+          upload-artifacts: ${{ inputs.test-upload-results }}
+          artifact-name: ${{ inputs.test-artifact-name }}
