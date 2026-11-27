@@ -196,7 +196,9 @@ jobs:
             ${{ steps.paths.outputs.bump-config }}
           labels: ${{ inputs.pr-labels }}
 
-      ## Automatically merge the PR once any pipelinechecks or other conditions are met.
+      ## Automatically merge the PR once any pipeline checks or other conditions are met.
+      #  GitHub refuses to enable auto-merge on a PR that is already mergeable
+      #  ("Pull request is in clean status"), so fall back to a direct merge.
       - name: Enable auto-merge
         if: ${{ !inputs.dry-run && steps.cpr.outputs.pull-request-number != '' }}
         shell: bash
@@ -206,4 +208,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh pr merge "${PR_NUMBER}" --merge --auto --delete-branch
+          if gh pr merge "${PR_NUMBER}" --merge --auto --delete-branch; then
+            echo "[INFO] Auto-merge enabled for PR #${PR_NUMBER}."
+          else
+            echo "[INFO] Auto-merge could not be enabled (the PR is probably already mergeable); merging directly."
+            gh pr merge "${PR_NUMBER}" --merge --delete-branch
+          fi

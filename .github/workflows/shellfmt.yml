@@ -63,6 +63,10 @@ on:
         required: false
         type: string
         default: "style(shell): format shell scripts with shellfmt"
+    secrets:
+      release-bot-pat:
+        description: "Optional PAT or GitHub App token. Use it so pull requests and pushes created by this workflow trigger other workflows."
+        required: false
 
 jobs:
   shellfmt:
@@ -76,6 +80,7 @@ jobs:
           fetch-depth: 0
           path: repository
           persist-credentials: true
+          token: ${{ secrets.release-bot-pat || github.token }}
 
       - name: Validate shellfmt write policy
         shell: bash
@@ -228,14 +233,17 @@ jobs:
         env:
           COMMIT_MESSAGE: ${{ inputs.commit-message }}
           SCAN_PATH: ${{ inputs.scan-path }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.release-bot-pat || github.token }}
         run: |
           set -euo pipefail
 
           BRANCH="chore/format-shell-scripts"
 
           ## Merge immediately when GitHub reports the PR is clean.
-          #  Otherwise, enable auto-merge and let GitHub wait for requirements.
+          #  Otherwise, try to enable auto-merge. GitHub refuses to arm
+          #  auto-merge on a PR that is already mergeable ("clean status"),
+          #  and a freshly created PR often reports UNKNOWN before GitHub has
+          #  finished computing its state, so fall back to a direct merge.
           function merge_formatting_pr() {
             local pr="$1"
             local merge_state
@@ -248,22 +256,35 @@ jobs:
 
             echo "[INFO] Formatting PR merge state: ${merge_state}"
 
-            if [[ "${merge_state}" == "CLEAN" ]]; then
+            if [[ "${merge_state}" == "CLEAN" || "${merge_state}" == "HAS_HOOKS" ]]; then
               echo "[INFO] PR is clean. Merging immediately."
 
               gh pr merge \
                 "${pr}" \
                 --squash \
                 --delete-branch
-            else
-              echo "[INFO] PR has outstanding requirements. Enabling auto-merge."
 
-              gh pr merge \
-                "${pr}" \
-                --auto \
-                --squash \
-                --delete-branch
+              return 0
             fi
+
+            echo "[INFO] PR has outstanding requirements. Enabling auto-merge."
+
+            if gh pr merge \
+              "${pr}" \
+              --auto \
+              --squash \
+              --delete-branch; then
+              echo "[INFO] Auto-merge enabled."
+
+              return 0
+            fi
+
+            echo "[INFO] Auto-merge could not be enabled (the PR is probably already mergeable). Merging directly."
+
+            gh pr merge \
+              "${pr}" \
+              --squash \
+              --delete-branch
           }
 
           if git diff --quiet -- "${SCAN_PATH}"; then
