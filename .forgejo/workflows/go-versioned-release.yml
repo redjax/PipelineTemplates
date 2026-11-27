@@ -604,6 +604,20 @@ jobs:
           create-release: "false"
           target-commitish: ${{ github.sha }}
 
+      ## Fix dirty git state error in consuming pipelines
+      - name: Keep the PipelineTemplates checkout out of git status
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          # GoReleaser refuses to run when git reports untracked files.
+          exclude="$(git rev-parse --git-path info/exclude)"
+          mkdir -p "$(dirname "${exclude}")"
+          echo "/pipelinetemplates/" >> "${exclude}"
+
+          echo "[INFO] git status after exclusion (expected: empty):"
+          git status --short
+
       - name: Build with GoReleaser
         uses: ./pipelinetemplates/.forgejo/actions/goreleaser-build
         with:
