@@ -18,10 +18,27 @@ inputs:
     required: false
     default: "true"
 
+  cache-dependency-path:
+    description: Glob of files whose contents key the Go caches.
+    required: false
+    default: "**/go.sum"
+
 runs:
   using: composite
 
   steps:
+    - name: Restore Go build and module caches
+      if: ${{ inputs.enable-cache == 'true' }}
+      uses: https://data.forgejo.org/actions/cache@v5
+      with:
+        path: |
+          ~/.cache/go/build
+          ~/.cache/go/pkg/mod
+        key: go-${{ runner.os }}-${{ inputs.version }}-${{ hashFiles(inputs.cache-dependency-path) }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ inputs.version }}-
+          go-${{ runner.os }}-
+
     - name: Ensure setup script is executable
       shell: bash
       run: chmod +x "${{ github.action_path }}/scripts/setup-go.sh"
